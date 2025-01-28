@@ -1,3 +1,4 @@
+// src/components/BlackHole/shaders/diskShader.ts
 import * as THREE from 'three';
 import { ShaderParameters } from '../types';
 
@@ -11,14 +12,18 @@ export const createDiskShader = (
     innerRadius: { value: innerRadius },
     outerRadius: { value: outerRadius },
     temperature: { value: 1.0 },
+    diskColor: { value: new THREE.Color(0xff7700) },
+    glowIntensity: { value: 1.5 },
   },
   vertexShader: `
     varying vec2 vUv;
     varying vec3 vPosition;
+    varying vec3 vNormal;
 
     void main() {
       vUv = uv;
       vPosition = position;
+      vNormal = normal;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
@@ -27,45 +32,60 @@ export const createDiskShader = (
     uniform float innerRadius;
     uniform float outerRadius;
     uniform float temperature;
+    uniform vec3 diskColor;
+    uniform float glowIntensity;
     
     varying vec2 vUv;
     varying vec3 vPosition;
+    varying vec3 vNormal;
     
     vec3 blackbodyRadiation(float temp) {
-      // Approximation of blackbody radiation color
       vec3 color = vec3(0.0);
       temp = clamp(temp, 0.0, 1.0);
       
-      // Blue to white hot color gradient
-      if (temp < 0.4) {
-        color = vec3(0.0, 0.0, temp * 2.5);
-      } else if (temp < 0.7) {
-        float t = (temp - 0.4) * 3.33;
-        color = vec3(t, t, 1.0);
+      // Temperature-based color gradient
+      if (temp < 0.33) {
+        color = mix(vec3(0.1, 0.0, 0.0), vec3(1.0, 0.0, 0.0), temp * 3.0);
+      } else if (temp < 0.66) {
+        color = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 0.0), (temp - 0.33) * 3.0);
       } else {
-        color = vec3(1.0);
+        color = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), (temp - 0.66) * 3.0);
       }
       
       return color;
     }
     
+    float getDiskIntensity(float radius) {
+      float normalizedRadius = (radius - innerRadius) / (outerRadius - innerRadius);
+      return pow(1.0 - normalizedRadius, 2.0);
+    }
+    
     void main() {
-      float dist = length(vPosition.xy);
-      float normalizedDist = (dist - innerRadius) / (outerRadius - innerRadius);
-      float temp = (1.0 - normalizedDist) * temperature;
+      float radius = length(vPosition.xy);
+      float normalizedRadius = (radius - innerRadius) / (outerRadius - innerRadius);
+      
+      // Temperature distribution
+      float temp = temperature * (1.0 - normalizedRadius);
+      vec3 bbColor = blackbodyRadiation(temp);
       
       // Rotational effect
       float angle = atan(vPosition.y, vPosition.x);
-      float rotationSpeed = 1.0 - dist / outerRadius;
-      float brightness = 0.5 + 0.5 * sin(angle + time * rotationSpeed * 2.0);
+      float rotationSpeed = 2.0 - normalizedRadius;
+      float swirl = sin(angle + time * rotationSpeed);
       
-      vec3 color = blackbodyRadiation(temp) * brightness;
+      // Intensity and glow
+      float intensity = getDiskIntensity(radius);
+      float glow = exp(-normalizedRadius * 2.0) * glowIntensity;
       
-      // Add emission glow
-      float glow = exp(-normalizedDist * 2.0);
-      color += vec3(1.0, 0.6, 0.3) * glow * 0.5;
+      // Combine effects
+      vec3 finalColor = mix(diskColor, bbColor, 0.5) * (intensity + glow);
+      finalColor += diskColor * swirl * 0.2;
       
-      gl_FragColor = vec4(color, 1.0);
+      // Add time-based fluctuations
+      float flicker = 1.0 + 0.1 * sin(time * 10.0 + radius);
+      finalColor *= flicker;
+      
+      gl_FragColor = vec4(finalColor, intensity);
     }
   `,
 });

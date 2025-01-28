@@ -1,4 +1,3 @@
-// src/types/shader.ts
 import * as THREE from 'three';
 
 export interface BaseUniforms {
@@ -10,12 +9,15 @@ export interface DiskUniforms extends BaseUniforms {
   innerRadius: { value: number };
   outerRadius: { value: number };
   temperature: { value: number };
+  diskColor: { value: THREE.Color };
+  glowIntensity: { value: number };
 }
 
 export interface LensingUniforms extends BaseUniforms {
   blackHolePosition: { value: THREE.Vector3 };
   schwarzschildRadius: { value: number };
   distortionStrength: { value: number };
+  curvatureIntensity: { value: number };
 }
 
 export type ShaderParameters = {
