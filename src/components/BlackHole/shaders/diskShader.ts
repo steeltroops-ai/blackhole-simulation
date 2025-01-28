@@ -1,5 +1,6 @@
+// src/shaders/diskShader.ts
 import * as THREE from 'three';
-import { ShaderParameters, DiskUniforms } from '../types';
+import { ShaderParameters } from '../../types/shader';
 
 export const createDiskShader = (
   innerRadius: number,
@@ -15,10 +16,12 @@ export const createDiskShader = (
   vertexShader: `
     varying vec2 vUv;
     varying vec3 vPosition;
+    varying vec3 vNormal;
 
     void main() {
       vUv = uv;
       vPosition = position;
+      vNormal = normal;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
@@ -30,20 +33,22 @@ export const createDiskShader = (
     
     varying vec2 vUv;
     varying vec3 vPosition;
+    varying vec3 vNormal;
     
+    // Improved blackbody radiation calculation
     vec3 blackbodyRadiation(float temp) {
-      // Approximation of blackbody radiation color
       vec3 color = vec3(0.0);
       temp = clamp(temp, 0.0, 1.0);
       
-      // Blue to white hot color gradient
-      if (temp < 0.4) {
-        color = vec3(0.0, 0.0, temp * 2.5);
-      } else if (temp < 0.7) {
-        float t = (temp - 0.4) * 3.33;
-        color = vec3(t, t, 1.0);
+      // Enhanced color gradient for more realistic appearance
+      if (temp < 0.33) {
+        color = vec3(temp * 3.0, 0.0, 0.0); // Deep red to bright red
+      } else if (temp < 0.66) {
+        float t = (temp - 0.33) * 3.0;
+        color = vec3(1.0, t, t * 0.5); // Red to yellow-white
       } else {
-        color = vec3(1.0);
+        float t = (temp - 0.66) * 3.0;
+        color = vec3(1.0, 1.0, t); // Yellow-white to blue-white
       }
       
       return color;
@@ -54,18 +59,24 @@ export const createDiskShader = (
       float normalizedDist = (dist - innerRadius) / (outerRadius - innerRadius);
       float temp = (1.0 - normalizedDist) * temperature;
       
-      // Rotational effect
+      // Enhanced rotational effect with varying speed
       float angle = atan(vPosition.y, vPosition.x);
-      float rotationSpeed = 1.0 - dist / outerRadius;
-      float brightness = 0.5 + 0.5 * sin(angle + time * rotationSpeed * 2.0);
+      float rotationSpeed = 2.0 - pow(dist / outerRadius, 0.5);
+      float brightness = 0.6 + 0.4 * sin(angle + time * rotationSpeed);
       
+      // Calculate disk color with improved radiation model
       vec3 color = blackbodyRadiation(temp) * brightness;
       
-      // Add emission glow
-      float glow = exp(-normalizedDist * 2.0);
-      color += vec3(1.0, 0.6, 0.3) * glow * 0.5;
+      // Add atmospheric glow effect
+      float glow = exp(-normalizedDist * 3.0);
+      vec3 glowColor = vec3(1.0, 0.7, 0.3);
+      color += glowColor * glow * 0.6;
       
-      gl_FragColor = vec4(color, 1.0);
+      // Add edge highlighting
+      float edge = smoothstep(0.8, 1.0, normalizedDist);
+      color += glowColor * edge * 0.3;
+      
+      gl_FragColor = vec4(color, 1.0 - normalizedDist * 0.3);
     }
   `
 });
