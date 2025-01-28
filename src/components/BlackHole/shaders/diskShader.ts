@@ -1,91 +1,50 @@
-// src/components/BlackHole/shaders/diskShader.ts
 import * as THREE from 'three';
-import { ShaderParameters } from '../types';
 
-export const createDiskShader = (
-  innerRadius: number,
-  outerRadius: number
-): ShaderParameters => ({
+const vertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const fragmentShader = `
+  uniform float time;
+  uniform float mass;
+  uniform float spin;
+  varying vec2 vUv;
+
+  float rand(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+  }
+
+  void main() {
+    vec2 center = vec2(0.5, 0.5);
+    float radius = distance(vUv, center);
+    float angle = atan(vUv.y - center.y, vUv.x - center.x) + time * 0.1;
+    float noise = rand(vUv + vec2(time * 0.01));
+
+    // Simulate Doppler shift and temperature gradient
+    float dopplerFactor = 1.0 - (spin * 0.5 * sin(angle));
+    float temperature = 1.0 - radius; // hotter closer to center
+    temperature *= dopplerFactor; // simulate Doppler effect
+
+    // Map temperature to color
+    vec3 color = mix(vec3(1.0, 0.5, 0.0), vec3(0.2, 0.2, 1.0), temperature);
+    color = mix(color, vec3(1.0), pow(noise, 4.0)); // Add some noise for realism
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const diskShader = {
   uniforms: {
-    time: { value: 0 },
-    resolution: { value: new THREE.Vector2() },
-    innerRadius: { value: innerRadius },
-    outerRadius: { value: outerRadius },
-    temperature: { value: 1.0 },
-    diskColor: { value: new THREE.Color(0xff7700) },
-    glowIntensity: { value: 1.5 },
+    time: { value: 0.0 },
+    mass: { value: 5.0 },
+    spin: { value: 0.5 },
   },
-  vertexShader: `
-    varying vec2 vUv;
-    varying vec3 vPosition;
-    varying vec3 vNormal;
+  vertexShader,
+  fragmentShader
+};
 
-    void main() {
-      vUv = uv;
-      vPosition = position;
-      vNormal = normal;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform float time;
-    uniform float innerRadius;
-    uniform float outerRadius;
-    uniform float temperature;
-    uniform vec3 diskColor;
-    uniform float glowIntensity;
-    
-    varying vec2 vUv;
-    varying vec3 vPosition;
-    varying vec3 vNormal;
-    
-    vec3 blackbodyRadiation(float temp) {
-      vec3 color = vec3(0.0);
-      temp = clamp(temp, 0.0, 1.0);
-      
-      // Temperature-based color gradient
-      if (temp < 0.33) {
-        color = mix(vec3(0.1, 0.0, 0.0), vec3(1.0, 0.0, 0.0), temp * 3.0);
-      } else if (temp < 0.66) {
-        color = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 0.0), (temp - 0.33) * 3.0);
-      } else {
-        color = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), (temp - 0.66) * 3.0);
-      }
-      
-      return color;
-    }
-    
-    float getDiskIntensity(float radius) {
-      float normalizedRadius = (radius - innerRadius) / (outerRadius - innerRadius);
-      return pow(1.0 - normalizedRadius, 2.0);
-    }
-    
-    void main() {
-      float radius = length(vPosition.xy);
-      float normalizedRadius = (radius - innerRadius) / (outerRadius - innerRadius);
-      
-      // Temperature distribution
-      float temp = temperature * (1.0 - normalizedRadius);
-      vec3 bbColor = blackbodyRadiation(temp);
-      
-      // Rotational effect
-      float angle = atan(vPosition.y, vPosition.x);
-      float rotationSpeed = 2.0 - normalizedRadius;
-      float swirl = sin(angle + time * rotationSpeed);
-      
-      // Intensity and glow
-      float intensity = getDiskIntensity(radius);
-      float glow = exp(-normalizedRadius * 2.0) * glowIntensity;
-      
-      // Combine effects
-      vec3 finalColor = mix(diskColor, bbColor, 0.5) * (intensity + glow);
-      finalColor += diskColor * swirl * 0.2;
-      
-      // Add time-based fluctuations
-      float flicker = 1.0 + 0.1 * sin(time * 10.0 + radius);
-      finalColor *= flicker;
-      
-      gl_FragColor = vec4(finalColor, intensity);
-    }
-  `,
-});
+export default diskShader;
