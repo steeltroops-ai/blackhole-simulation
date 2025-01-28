@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { createDiskShader } from './shaders/diskShader';
 import { createLensingShader } from './shaders/lensingShader';
 import { createShaderMaterial, updateAspectRatio } from '../../utils/three';
-import type { ShaderParameters } from './types';
 
 interface BlackHoleSimulationProps {
   width?: number;
@@ -22,65 +21,99 @@ export const BlackHoleSimulation: React.FC<BlackHoleSimulationProps> = ({
   useEffect(() => {
     if (!mountRef.current) return;
 
-    // Scene setup
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    mountRef.current.appendChild(renderer.domElement);
+    // Wrap the effect code in a try-catch block
+    try {
+      // Scene setup
+      console.log('Initializing scene...');
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        width / height,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      mountRef.current.appendChild(renderer.domElement);
 
-    // Black hole parameters
-    const diskInnerRadius = 3.0 * schwarzschildRadius;
-    const diskOuterRadius = 20.0 * schwarzschildRadius;
+      // Black hole parameters
+      console.log('Setting up black hole parameters...');
+      const diskInnerRadius = 3.0 * schwarzschildRadius;
+      const diskOuterRadius = 20.0 * schwarzschildRadius;
 
-    // Create materials using shader factories
-    const diskShader = createDiskShader(diskInnerRadius, diskOuterRadius);
-    const lensingShader = createLensingShader(schwarzschildRadius);
+      // Create materials using shader factories
+      console.log('Creating shaders...');
+      const diskShader = createDiskShader(diskInnerRadius, diskOuterRadius);
+      const lensingShader = createLensingShader(schwarzschildRadius);
 
-    // Create accretion disk with proper shader material
-    const diskGeometry = new THREE.RingGeometry(diskInnerRadius, diskOuterRadius, 64);
-    const diskMaterial = createShaderMaterial(diskShader);
-    const accretionDisk = new THREE.Mesh(diskGeometry, diskMaterial);
-    accretionDisk.rotation.x = Math.PI / 4;
-    scene.add(accretionDisk);
+      // Create accretion disk with shader material
+      console.log('Creating accretion disk...');
+      const diskGeometry = new THREE.RingGeometry(
+        diskInnerRadius,
+        diskOuterRadius,
+        64
+      );
+      const diskMaterial = createShaderMaterial(diskShader);
+      const accretionDisk = new THREE.Mesh(diskGeometry, diskMaterial);
+      accretionDisk.rotation.x = Math.PI / 2; // Face the camera
+      scene.add(accretionDisk);
 
-    // Create event horizon with lensing effect
-    const eventHorizon = new THREE.Mesh(
-      new THREE.SphereGeometry(schwarzschildRadius, 32, 32),
-      createShaderMaterial(lensingShader)
-    );
-    scene.add(eventHorizon);
+      // Create event horizon with lensing effect
+      console.log('Creating event horizon...');
+      const eventHorizon = new THREE.Mesh(
+        new THREE.SphereGeometry(schwarzschildRadius, 32, 32),
+        createShaderMaterial(lensingShader)
+      );
+      scene.add(eventHorizon);
 
-    // Animation loop
-    let time = 0;
-    const animate = () => {
-      requestAnimationFrame(animate);
-      time += 0.01;
-      
-      // Update uniforms
-      diskMaterial.uniforms.time.value = time;
-      
-      // Update camera position
-      camera.position.x = Math.sin(time * 0.1) * 40;
-      camera.position.z = Math.cos(time * 0.1) * 40;
-      camera.lookAt(0, 0, 0);
-      
+      // Lighting
+      console.log('Adding lighting...');
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+
+      // Animation loop
+      console.log('Starting animation loop...');
+      let time = 0;
+      const animate = () => {
+        time += 0.01;
+
+        // Update uniforms
+        diskMaterial.uniforms.time.value = time;
+
+        // Update camera position
+        camera.position.x = Math.sin(time * 0.1) * 40;
+        camera.position.z = Math.cos(time * 0.1) * 40;
+        camera.lookAt(0, 0, 0);
+
+        renderer.render(scene, camera);
+      };
+
+      // Start animation loop
+      const renderLoop = () => {
+        requestAnimationFrame(renderLoop);
+        animate();
+      };
+      renderLoop();
+
       // Handle window resizing
-      if (mountRef.current) {
-        updateAspectRatio(camera, renderer, mountRef.current);
-      }
-      
-      renderer.render(scene, camera);
-    };
+      const handleResize = () => {
+        if (mountRef.current) {
+          updateAspectRatio(camera, renderer, mountRef.current);
+        }
+      };
+      window.addEventListener('resize', handleResize);
 
-    setLoading(false);
-    animate();
+      setLoading(false);
 
-    // Cleanup
-    return () => {
-      mountRef.current?.removeChild(renderer.domElement);
-      renderer.dispose();
-    };
+      // Cleanup
+      return () => {
+        mountRef.current?.removeChild(renderer.domElement);
+        renderer.dispose();
+        window.removeEventListener('resize', handleResize);
+      };
+    } catch (error) {
+      console.error('An error occurred while initializing the simulation:', error);
+    }
   }, [width, height, schwarzschildRadius]);
 
   return (
