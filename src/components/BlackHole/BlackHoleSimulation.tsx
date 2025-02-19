@@ -44,6 +44,20 @@ const BlackHoleSimulation: React.FC<BlackHoleProps> = ({ mass, spin }) => {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
 
+    // Add Sky Background
+    const skyGeometry = new THREE.SphereGeometry(500, 60, 40);
+    const skyMaterial = new THREE.ShaderMaterial({
+      ...skyShader,
+      uniforms: {
+        time: { value: 0 },
+        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+      },
+      side: THREE.BackSide,
+      depthWrite: false
+    });
+    const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+    scene.add(sky);
+
     // Black Hole
     const schwarzschildRadius = 2 * mass;  // Proper scaling with mass
     const blackHoleGeometry = new THREE.SphereGeometry(schwarzschildRadius, 32, 32);
@@ -114,6 +128,7 @@ const BlackHoleSimulation: React.FC<BlackHoleProps> = ({ mass, spin }) => {
       // Update disk shader uniforms
       diskMaterialFront.uniforms.time.value += 0.01;
       diskMaterialBack.uniforms.time.value += 0.01;
+      skyMaterial.uniforms.time.value += 0.001; // Update sky animation
       
       controls.update();
       renderer.render(scene, camera);

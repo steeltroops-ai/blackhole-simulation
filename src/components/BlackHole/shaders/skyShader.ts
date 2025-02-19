@@ -1,3 +1,4 @@
+import { ShaderParameters } from '../types';
 import * as THREE from 'three';
 
 const vertexShader = `
@@ -13,8 +14,9 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
-uniform vec3 blackHolePosition;
 uniform vec2 resolution;
+uniform vec3 blackHolePosition;
+uniform sampler2D prevFrame;
 varying vec3 vWorldPosition;
 varying vec3 vPosition;
 
@@ -23,7 +25,7 @@ varying vec3 vPosition;
 #define STAR_LAYERS 8
 #define STAR_COUNT 1200.0
 
-// Enhanced color palette
+// Enhanced color palette for stars and nebulae
 const vec3[8] COLOR_PRESETS = vec3[](
     vec3(0.5, 0.7, 1.0),    // Blue
     vec3(1.0, 0.6, 0.8),    // Pink
@@ -35,8 +37,59 @@ const vec3[8] COLOR_PRESETS = vec3[](
     vec3(1.0, 0.3, 0.5)     // Hot Pink
 );
 
-// Enhanced noise functions [previous noise functions remain the same]
-[Previous noise functions here]
+// Improved noise functions
+vec3 hash33(vec3 p) {
+    p = fract(p * vec3(443.8975,397.2973, 491.1871));
+    p += dot(p.zxy, p.yxz+19.19);
+    return fract(vec3(p.x * p.y, p.z*p.x, p.y*p.z));
+}
+
+float snoise(vec2 v) {
+    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+             -0.577350269189626, 0.024390243902439);
+    vec2 i  = floor(v + dot(v, C.yy));
+    vec2 x0 = v -   i + dot(i, C.xx);
+    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = mod(i, 289.0);
+    vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0))
+    + i.x + vec3(0.0, i1.x, 1.0));
+    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
+      dot(x12.zw,x12.zw)), 0.0);
+    m = m*m;
+    m = m*m;
+    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+    vec3 h = abs(x) - 0.5;
+    vec3 ox = floor(x + 0.5);
+    vec3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+    vec3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+}
+
+vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+
+vec2 distort(vec2 pos, float strength) {
+    float dist = length(pos - blackHolePosition.xy);
+    float factor = 1.0 / (1.0 + exp((dist - 0.5) * 10.0));
+    vec2 dir = normalize(pos - blackHolePosition.xy);
+    return pos - dir * factor * strength;
+}
+
+vec3 accretionDisk(vec2 uv, float dist) {
+    float angle = atan(uv.y - blackHolePosition.y, uv.x - blackHolePosition.x);
+    float diskWidth = 0.1;
+    float diskRadius = 0.3;
+    float intensity = smoothstep(diskRadius - diskWidth, diskRadius, dist) *
+                     (1.0 - smoothstep(diskRadius, diskRadius + diskWidth, dist));
+    
+    vec3 diskColor = vec3(1.0, 0.6, 0.2);
+    float glow = pow(intensity, 2.0) * 2.0;
+    return diskColor * glow;
+}
 
 vec3 enhancedStarField(vec3 pos, float speed) {
     vec3 stars = vec3(0.0);
@@ -59,8 +112,8 @@ vec3 enhancedStarField(vec3 pos, float speed) {
         float giant = smoothstep(0.9992, 1.0, h.x) * 4.0;
         float cluster = smoothstep(0.99, 1.0, h.y) * 2.0;
         
-        color = mix(color, vec3(1.0, 0.8, 0.4), giant); // Brighter supernovas
-        color = mix(color, vec3(0.9, 0.9, 1.0), cluster); // Star clusters
+        color = mix(color, vec3(1.0, 0.8, 0.4), giant);
+        color = mix(color, vec3(0.9, 0.9, 1.0), cluster);
         
         star += giant + cluster;
         
