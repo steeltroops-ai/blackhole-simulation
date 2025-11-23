@@ -3,6 +3,11 @@
  */
 
 /**
+ * Quality level for rendering
+ */
+export type QualityLevel = 'low' | 'medium' | 'high';
+
+/**
  * Parameters controlling the black hole simulation
  */
 export interface SimulationParams {
@@ -26,6 +31,9 @@ export interface SimulationParams {
 
     /** Camera zoom distance in astronomical units */
     zoom: number;
+
+    /** Rendering quality level (optional, defaults to 'high') */
+    quality?: QualityLevel;
 }
 
 /**
@@ -37,4 +45,24 @@ export interface MouseState {
 
     /** Normalized y coordinate (0.0 to 1.0) */
     y: number;
+}
+
+/**
+ * Performance metrics for monitoring and adaptive quality
+ */
+export interface PerformanceMetrics {
+    /** Current frames per second */
+    fps: number;
+
+    /** Frame time in milliseconds */
+    frameTime: number;
+
+    /** Current quality level */
+    quality: QualityLevel;
+
+    /** Number of ray marching steps used */
+    rayStepsUsed: number;
+
+    /** Number of pixels rendered */
+    pixelsRendered: number;
 }

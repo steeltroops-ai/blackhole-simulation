@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { ChevronUp } from 'lucide-react';
 import { WebGLCanvas } from '@/components/canvas/WebGLCanvas';
 import { ControlPanel } from '@/components/ui/ControlPanel';
 import { Telemetry } from '@/components/ui/Telemetry';
 import { useCamera } from '@/hooks/useCamera';
-import type { SimulationParams } from '@/types/simulation';
+import type { SimulationParams, PerformanceMetrics } from '@/types/simulation';
 
 const App = () => {
   const [params, setParams] = useState<SimulationParams>({
@@ -17,13 +17,23 @@ const App = () => {
     lensing: 1.0,
     paused: false,
     zoom: 14.0,
+    quality: 'high', // Initialize with high quality
   });
 
   const [showUI, setShowUI] = useState(true);
-  const timeRef = useRef(0);
+  const [metrics, setMetrics] = useState<PerformanceMetrics | undefined>(undefined);
 
   // Use camera hook for camera state and handlers
-  const { mouse, handleMouseMove, handleWheel, handleTouchMove } = useCamera(params, setParams);
+  const {
+    mouse,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    handleWheel,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useCamera(params, setParams);
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans text-white">
@@ -31,9 +41,14 @@ const App = () => {
       <WebGLCanvas
         params={params}
         mouse={mouse}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMetricsUpdate={setMetrics}
       />
 
       {/* Overlay Effects */}
@@ -52,7 +67,7 @@ const App = () => {
         </div>
 
         {/* TELEMETRY & STATS */}
-        <Telemetry params={params} />
+        <Telemetry params={params} metrics={metrics} />
       </div>
 
       {/* BOTTOM CONTROLS DASHBOARD */}
@@ -76,7 +91,7 @@ const App = () => {
       )}
 
       {/* Tutorial Tip */}
-      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-[10px] tracking-[0.3em] pointer-events-none transition-opacity duration-1000 ${timeRef.current > 4 ? 'opacity-0' : 'opacity-100'}`}>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-[10px] tracking-[0.3em] pointer-events-none opacity-100 animate-fade-out">
         INTERACTIVE SYSTEM READY
       </div>
 

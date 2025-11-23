@@ -1,10 +1,14 @@
 /**
  * ControlPanel Component
  * Bottom control panel with parameter sliders and action buttons
+ * Enhanced with tooltips, bounds indication, smooth animations, and pause/resume
  */
 
+import { useState, useEffect } from 'react';
 import { Activity, Power, RefreshCcw, ChevronDown, Atom } from 'lucide-react';
 import { ControlSlider } from './ControlSlider';
+import { calculateEventHorizon, calculatePhotonSphere, calculateISCO } from '@/physics/kerr-metric';
+import { clampAndValidate } from '@/utils/validation';
 
 interface SimulationParams {
     mass: number;
@@ -23,10 +27,72 @@ interface ControlPanelProps {
     onToggleUI: (show: boolean) => void;
 }
 
+// Default parameter values
+const DEFAULT_PARAMS = {
+    mass: 1.2,
+    spin: 1.5,
+    diskDensity: 3.5,
+    diskTemp: 1.3,
+    lensing: 1.0,
+    paused: false,
+    zoom: 14.0
+};
+
 export const ControlPanel = ({ params, onParamsChange, showUI, onToggleUI }: ControlPanelProps) => {
+    const [isResetting, setIsResetting] = useState(false);
+    const [calculatedRadii, setCalculatedRadii] = useState({
+        eventHorizon: 0,
+        photonSphere: 0,
+        isco: 0
+    });
+
+    // Recalculate dependent radii when mass or spin changes
+    useEffect(() => {
+        // Normalize spin to [-1, 1] range for physics calculations
+        const normalizedSpin = Math.max(-1, Math.min(1, params.spin / 5.0));
+
+        const eventHorizon = calculateEventHorizon(params.mass, normalizedSpin);
+        const photonSphere = calculatePhotonSphere(params.mass, normalizedSpin);
+        const isco = calculateISCO(params.mass, normalizedSpin, true); // prograde orbit
+
+        setCalculatedRadii({
+            eventHorizon,
+            photonSphere,
+            isco
+        });
+    }, [params.mass, params.spin]);
+
+    // Handle reset with smooth animation
+    const handleReset = () => {
+        setIsResetting(true);
+        onParamsChange(DEFAULT_PARAMS);
+
+        // Reset animation state after transition
+        setTimeout(() => {
+            setIsResetting(false);
+        }, 500);
+    };
+
+    // Handle parameter changes with real-time updates (no lag)
+    // Requirement 8.3: Clamp all parameter inputs to valid ranges and validate numeric inputs
+    const handleParamChange = (newParams: SimulationParams) => {
+        // Validate and clamp all parameters to their valid ranges
+        const validatedParams: SimulationParams = {
+            mass: clampAndValidate(newParams.mass, 0.1, 3.0, DEFAULT_PARAMS.mass),
+            spin: clampAndValidate(newParams.spin, -5.0, 5.0, DEFAULT_PARAMS.spin),
+            diskDensity: clampAndValidate(newParams.diskDensity, 0.0, 5.0, DEFAULT_PARAMS.diskDensity),
+            diskTemp: clampAndValidate(newParams.diskTemp, 0.5, 3.0, DEFAULT_PARAMS.diskTemp),
+            lensing: clampAndValidate(newParams.lensing, 0.0, 3.0, DEFAULT_PARAMS.lensing),
+            zoom: clampAndValidate(newParams.zoom, 2.5, 50.0, DEFAULT_PARAMS.zoom),
+            paused: newParams.paused,
+        };
+
+        onParamsChange(validatedParams);
+    };
+
     return (
         <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 ease-out w-[95%] max-w-3xl ${showUI ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
-            <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl relative overflow-hidden">
+            <div className={`bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl relative overflow-hidden transition-all duration-500 ${isResetting ? 'scale-[0.98] opacity-80' : 'scale-100 opacity-100'}`}>
 
                 {/* Header & Minimize */}
                 <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
@@ -37,56 +103,113 @@ export const ControlPanel = ({ params, onParamsChange, showUI, onToggleUI }: Con
                     <button
                         onClick={() => onToggleUI(false)}
                         className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                        aria-label="Minimize control panel"
                     >
                         <ChevronDown className="w-3 h-3 text-white/60" />
                     </button>
                 </div>
 
+                {/* Calculated Radii Display */}
+                <div className="mb-3 p-2 bg-white/5 rounded border border-white/5">
+                    <div className="text-[8px] uppercase tracking-widest text-gray-400 mb-1">Calculated Radii</div>
+                    <div className="grid grid-cols-3 gap-2 text-[9px]">
+                        <div>
+                            <span className="text-gray-400">Event Horizon:</span>
+                            <span className="ml-1 text-cyan-400 font-mono">{calculatedRadii.eventHorizon.toFixed(2)}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400">Photon Sphere:</span>
+                            <span className="ml-1 text-blue-400 font-mono">{calculatedRadii.photonSphere.toFixed(2)}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400">ISCO:</span>
+                            <span className="ml-1 text-purple-400 font-mono">{calculatedRadii.isco.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Parameters Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
                     <ControlSlider
-                        label="Camera Zoom" value={params.zoom} min={2.5} max={50.0} step={0.1}
-                        onChange={(v) => onParamsChange({ ...params, zoom: v })} unit=" AU"
+                        label="Camera Zoom"
+                        value={params.zoom}
+                        min={2.5}
+                        max={50.0}
+                        step={0.1}
+                        onChange={(v) => handleParamChange({ ...params, zoom: v })}
+                        unit=" AU"
+                        tooltip="Distance from the black hole. Closer values show more detail, farther values show the full system."
                     />
                     <ControlSlider
-                        label="Mass (M☉)" value={params.mass} min={0.1} max={3.0} step={0.1}
-                        onChange={(v) => onParamsChange({ ...params, mass: v })}
+                        label="Mass (M☉)"
+                        value={params.mass}
+                        min={0.1}
+                        max={3.0}
+                        step={0.1}
+                        onChange={(v) => handleParamChange({ ...params, mass: v })}
+                        tooltip="Black hole mass in solar masses. Higher mass increases the event horizon, photon sphere, and ISCO radii."
                     />
                     <ControlSlider
-                        label="Lensing" value={params.lensing} min={0.0} max={3.0} step={0.1}
-                        onChange={(v) => onParamsChange({ ...params, lensing: v })} unit="x"
+                        label="Lensing"
+                        value={params.lensing}
+                        min={0.0}
+                        max={3.0}
+                        step={0.1}
+                        onChange={(v) => handleParamChange({ ...params, lensing: v })}
+                        unit="x"
+                        tooltip="Gravitational lensing strength multiplier. Higher values create stronger light bending and more dramatic Einstein rings."
                     />
                     <ControlSlider
-                        label="Accretion Spin" value={params.spin} min={-5.0} max={5.0} step={0.1}
-                        onChange={(v) => onParamsChange({ ...params, spin: v })} unit=" c"
+                        label="Accretion Spin"
+                        value={params.spin}
+                        min={-5.0}
+                        max={5.0}
+                        step={0.1}
+                        onChange={(v) => handleParamChange({ ...params, spin: v })}
+                        unit=" c"
+                        tooltip="Rotation speed of the accretion disk. Positive values spin clockwise, negative counter-clockwise. Affects Doppler beaming."
                     />
                     <ControlSlider
-                        label="Density" value={params.diskDensity} min={0.0} max={5.0} step={0.1}
-                        onChange={(v) => onParamsChange({ ...params, diskDensity: v })} unit=" g"
+                        label="Density"
+                        value={params.diskDensity}
+                        min={0.0}
+                        max={5.0}
+                        step={0.1}
+                        onChange={(v) => handleParamChange({ ...params, diskDensity: v })}
+                        unit=" g"
+                        tooltip="Accretion disk density. Higher values make the disk more opaque and brighter."
                     />
                     <ControlSlider
-                        label="Temp (K)" value={params.diskTemp} min={0.5} max={3.0} step={0.1}
-                        onChange={(v) => onParamsChange({ ...params, diskTemp: v })}
+                        label="Temp (K)"
+                        value={params.diskTemp}
+                        min={0.5}
+                        max={3.0}
+                        step={0.1}
+                        onChange={(v) => handleParamChange({ ...params, diskTemp: v })}
+                        tooltip="Temperature profile multiplier. Higher values shift disk colors toward blue (hotter), lower toward red (cooler)."
                     />
                 </div>
 
                 {/* Actions Footer */}
                 <div className="mt-3 flex justify-center gap-3 border-t border-white/5 pt-3">
                     <button
-                        onClick={() => onParamsChange({ ...params, paused: !params.paused })}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded text-[10px] font-medium tracking-wide transition-all ${params.paused ? 'bg-white text-black' : 'bg-white/5 hover:bg-white/10 border border-white/10'}`}
+                        onClick={() => handleParamChange({ ...params, paused: !params.paused })}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded text-[10px] font-medium tracking-wide transition-all ${params.paused
+                            ? 'bg-white text-black hover:bg-gray-200'
+                            : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                            }`}
+                        aria-label={params.paused ? 'Resume simulation' : 'Pause simulation'}
                     >
                         {params.paused ? <Activity className="w-3 h-3" /> : <Power className="w-3 h-3" />}
-                        {params.paused ? 'RESUME' : 'FREEZE'}
+                        {params.paused ? 'RESUME' : 'PAUSE'}
                     </button>
 
                     <button
-                        onClick={() => onParamsChange({
-                            mass: 1.2, spin: 1.5, diskDensity: 3.5, diskTemp: 1.3, lensing: 1.0, paused: false, zoom: 14.0
-                        })}
-                        className="flex items-center gap-2 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-medium tracking-wide transition-colors"
+                        onClick={handleReset}
+                        className="flex items-center gap-2 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-medium tracking-wide transition-all hover:scale-105 active:scale-95"
+                        aria-label="Reset to default parameters"
                     >
-                        <RefreshCcw className="w-3 h-3" />
+                        <RefreshCcw className={`w-3 h-3 ${isResetting ? 'animate-spin' : ''}`} />
                         RESET
                     </button>
                 </div>

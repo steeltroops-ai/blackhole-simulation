@@ -27,3 +27,15 @@ export const SOLAR_MASS = 1.98847e30;
  * @constant
  */
 export const SCHWARZSCHILD_RADIUS_SOLAR = 2953;
+
+/**
+ * Planck constant (J·Hz⁻¹)
+ * @constant
+ */
+export const PLANCK_CONSTANT = 6.62607015e-34;
+
+/**
+ * Boltzmann constant (J/K)
+ * @constant
+ */
+export const BOLTZMANN_CONSTANT = 1.380649e-23;
