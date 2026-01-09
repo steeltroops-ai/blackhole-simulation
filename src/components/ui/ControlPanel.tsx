@@ -5,10 +5,15 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Activity, Power, RefreshCcw, ChevronDown, Atom } from 'lucide-react';
+import { Activity, Power, RefreshCcw, ChevronDown, Atom, Settings, Zap } from 'lucide-react';
 import { ControlSlider } from './ControlSlider';
+import { PresetSelector } from './PresetSelector';
+import { FeatureTogglePanel } from './FeatureTogglePanel';
 import { calculateEventHorizon, calculatePhotonSphere, calculateISCO } from '@/physics/kerr-metric';
 import { clampAndValidate } from '@/utils/validation';
+import { usePresets } from '@/hooks/usePresets';
+import type { PresetName, FeatureToggles } from '@/types/features';
+import { matchesPreset } from '@/types/features';
 
 interface SimulationParams {
     mass: number;
@@ -18,6 +23,10 @@ interface SimulationParams {
     lensing: number;
     paused: boolean;
     zoom: number;
+    features?: FeatureToggles;
+    performancePreset?: string;
+    adaptiveResolution?: boolean;
+    renderScale?: number;
 }
 
 interface ControlPanelProps {
@@ -25,6 +34,9 @@ interface ControlPanelProps {
     onParamsChange: (params: SimulationParams) => void;
     showUI: boolean;
     onToggleUI: (show: boolean) => void;
+    onStartBenchmark?: () => void;
+    onCancelBenchmark?: () => void;
+    isBenchmarkRunning?: boolean;
 }
 
 // Default parameter values
@@ -38,13 +50,24 @@ const DEFAULT_PARAMS = {
     zoom: 14.0
 };
 
-export const ControlPanel = ({ params, onParamsChange, showUI, onToggleUI }: ControlPanelProps) => {
+export const ControlPanel = ({
+    params,
+    onParamsChange,
+    showUI,
+    onToggleUI,
+    onStartBenchmark,
+    onCancelBenchmark,
+    isBenchmarkRunning = false
+}: ControlPanelProps) => {
     const [isResetting, setIsResetting] = useState(false);
+    const [showFeatureToggles, setShowFeatureToggles] = useState(false);
     const [calculatedRadii, setCalculatedRadii] = useState({
         eventHorizon: 0,
         photonSphere: 0,
         isco: 0
     });
+
+    const { applyPreset } = usePresets();
 
     // Recalculate dependent radii when mass or spin changes
     useEffect(() => {
@@ -90,6 +113,24 @@ export const ControlPanel = ({ params, onParamsChange, showUI, onToggleUI }: Con
         onParamsChange(validatedParams);
     };
 
+    // Handle preset change
+    const handlePresetChange = (preset: PresetName) => {
+        const updatedParams = applyPreset(preset, params);
+        onParamsChange(updatedParams);
+    };
+
+    // Handle feature toggles change
+    const handleFeaturesChange = (features: FeatureToggles) => {
+        // Detect if features match a preset
+        const detectedPreset = matchesPreset(features);
+
+        onParamsChange({
+            ...params,
+            features,
+            performancePreset: detectedPreset,
+        });
+    };
+
     return (
         <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 ease-out w-[95%] max-w-3xl ${showUI ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
             <div className={`bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl relative overflow-hidden transition-all duration-500 ${isResetting ? 'scale-[0.98] opacity-80' : 'scale-100 opacity-100'}`}>
@@ -126,6 +167,38 @@ export const ControlPanel = ({ params, onParamsChange, showUI, onToggleUI }: Con
                             <span className="ml-1 text-purple-400 font-mono">{calculatedRadii.isco.toFixed(2)}</span>
                         </div>
                     </div>
+                </div>
+
+                {/* Performance Preset Selector */}
+                <div className="mb-3">
+                    <PresetSelector
+                        currentPreset={params.performancePreset as PresetName}
+                        onPresetChange={handlePresetChange}
+                    />
+                </div>
+
+                {/* Feature Toggles Section */}
+                <div className="mb-3">
+                    <button
+                        onClick={() => setShowFeatureToggles(!showFeatureToggles)}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-medium tracking-wide transition-all"
+                        aria-label="Toggle feature settings"
+                    >
+                        <div className="flex items-center gap-2">
+                            <Settings className="w-3 h-3 text-purple-400" />
+                            <span className="text-[9px] uppercase tracking-widest text-gray-400">Advanced Features</span>
+                        </div>
+                        <ChevronDown className={`w-3 h-3 text-white/60 transition-transform ${showFeatureToggles ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showFeatureToggles && params.features && (
+                        <div className="mt-2 p-3 bg-black/40 rounded border border-white/5">
+                            <FeatureTogglePanel
+                                features={params.features}
+                                onFeaturesChange={handleFeaturesChange}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Parameters Grid */}
@@ -199,6 +272,7 @@ export const ControlPanel = ({ params, onParamsChange, showUI, onToggleUI }: Con
                             : 'bg-white/5 hover:bg-white/10 border border-white/10'
                             }`}
                         aria-label={params.paused ? 'Resume simulation' : 'Pause simulation'}
+                        disabled={isBenchmarkRunning}
                     >
                         {params.paused ? <Activity className="w-3 h-3" /> : <Power className="w-3 h-3" />}
                         {params.paused ? 'RESUME' : 'PAUSE'}
@@ -208,10 +282,26 @@ export const ControlPanel = ({ params, onParamsChange, showUI, onToggleUI }: Con
                         onClick={handleReset}
                         className="flex items-center gap-2 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-medium tracking-wide transition-all hover:scale-105 active:scale-95"
                         aria-label="Reset to default parameters"
+                        disabled={isBenchmarkRunning}
                     >
                         <RefreshCcw className={`w-3 h-3 ${isResetting ? 'animate-spin' : ''}`} />
                         RESET
                     </button>
+
+                    {/* Benchmark Button */}
+                    {onStartBenchmark && onCancelBenchmark && (
+                        <button
+                            onClick={isBenchmarkRunning ? onCancelBenchmark : onStartBenchmark}
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded text-[10px] font-medium tracking-wide transition-all ${isBenchmarkRunning
+                                    ? 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300'
+                                    : 'bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-300'
+                                }`}
+                            aria-label={isBenchmarkRunning ? 'Cancel benchmark' : 'Start benchmark'}
+                        >
+                            <Zap className="w-3 h-3" />
+                            {isBenchmarkRunning ? 'CANCEL' : 'BENCHMARK'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

@@ -2,6 +2,8 @@
  * Simulation type definitions for the black hole visualization
  */
 
+import type { FeatureToggles } from './features';
+
 /**
  * Quality level for rendering
  */
@@ -34,6 +36,18 @@ export interface SimulationParams {
 
     /** Rendering quality level (optional, defaults to 'high') */
     quality?: QualityLevel;
+
+    /** Feature toggles for performance optimization */
+    features?: FeatureToggles;
+
+    /** Performance preset name */
+    performancePreset?: string;
+
+    /** Adaptive resolution enabled */
+    adaptiveResolution?: boolean;
+
+    /** Render scale (0.5 to 1.0) */
+    renderScale?: number;
 }
 
 /**

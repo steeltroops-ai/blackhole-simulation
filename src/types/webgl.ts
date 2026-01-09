@@ -32,6 +32,9 @@ export interface UniformLocations {
 
     /** Camera zoom distance */
     zoom: WebGLUniformLocation | null;
+
+    /** Maximum ray marching steps (for ray tracing quality) */
+    maxRaySteps: WebGLUniformLocation | null;
 }
 
 /**

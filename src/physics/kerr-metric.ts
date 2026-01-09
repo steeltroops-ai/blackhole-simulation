@@ -71,8 +71,23 @@ export function calculatePhotonSphere(mass: number, spin: number): number {
     // Using formula: r_ph = M * (2 + cos(2/3 * arccos(-a)))
     // For a=0, this gives r_ph = M * (2 + cos(2π/6)) = M * (2 + 0.5) = 2.5M
     // But we want r_ph = 1.5M for Schwarzschild, so we need to scale by 0.6
+    // WAIT: The formula r_ph = M * (1 + cos(2/3 * arccos(-a))) is for EXTREME KERR
+    // The correct general formula for prograde photon sphere is:
+    // r_ph = 2M * (1 + cos(2/3 * arccos(-|a|)))
+    
+    // Let's use the standard formula from Bardeen et al. (1972):
+    // r_ph = M * [1 + cos(2/3 * arccos(-a))] -- wait, this is for a=1
+    
+    // Correct formula for equatorial circular photon orbits:
+    // r_ph = 2M_geom * [1 + cos(2/3 * arccos(-a))]
+    // Since our input 'mass' is actually Rs = 2M_geom, we substitute 2M_geom = mass.
+    // r_ph = mass * [1 + cos(2/3 * arccos(-a))]
+    
+    // For a=0: mass * (1 + 0.5) = 1.5 * mass = 1.5 * Rs -> Correct!
+    // For a=1: mass * (1 - 0.5) = 0.5 * mass = 0.5 * Rs = M_geom -> Correct!
+    
     const angle = Math.acos(-a);
-    const r_ph = M * 0.6 * (2 + Math.cos((2 / 3) * angle));
+    const r_ph = mass * 1.0 * (1.0 + Math.cos((2.0 / 3.0) * angle));
 
     return r_ph;
 }

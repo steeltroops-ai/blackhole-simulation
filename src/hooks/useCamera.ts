@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { clampAndValidate, isValidNumber } from '@/utils/validation';
 import type { MouseState, SimulationParams } from '@/types/simulation';
+import { SCHWARZSCHILD_RADIUS_SOLAR } from '@/physics/constants';
 
 /**
  * Camera state with spherical coordinates and velocity for momentum
@@ -18,6 +19,111 @@ export interface CameraState {
     zoomVelocity: number;
     /** Damping factor for momentum decay */
     damping: number;
+}
+
+/**
+ * Viewport dimensions for camera calculations
+ */
+export interface ViewportDimensions {
+    width: number;
+    height: number;
+    aspectRatio: number;
+}
+
+// Constants for camera positioning
+const DEFAULT_ZOOM = 14.0;
+const MIN_ZOOM = 2.5;
+const MAX_ZOOM = 50.0;
+const FOV_DEGREES = 45;
+const TARGET_VIEWPORT_COVERAGE = 0.7; // 70% of viewport (60-80% range)
+const ACCRETION_DISK_OUTER_RADIUS_MULTIPLIER = 12.0; // Outer disk is ~12x event horizon
+
+/**
+ * Calculate optimal initial zoom distance based on black hole mass and viewport dimensions
+ * 
+ * Ensures the entire black hole system (event horizon + accretion disk) is visible
+ * and occupies approximately 60-80% of the viewport.
+ * 
+ * Requirements: 1.1, 1.2, 1.3, 1.4
+ * 
+ * @param mass - Black hole mass in solar masses
+ * @param viewportWidth - Viewport width in pixels
+ * @param viewportHeight - Viewport height in pixels
+ * @returns Optimal zoom distance, or DEFAULT_ZOOM if calculation fails
+ */
+export function calculateInitialZoom(
+    mass: number,
+    viewportWidth: number,
+    viewportHeight: number
+): number {
+    // Validate inputs
+    if (!isValidNumber(mass) || mass <= 0) {
+        console.warn('Invalid mass for calculateInitialZoom, using default zoom');
+        return DEFAULT_ZOOM;
+    }
+
+    if (!isValidNumber(viewportWidth) || !isValidNumber(viewportHeight) ||
+        viewportWidth <= 0 || viewportHeight <= 0) {
+        console.warn('Invalid viewport dimensions for calculateInitialZoom, using default zoom');
+        return DEFAULT_ZOOM;
+    }
+
+    try {
+        // Calculate aspect ratio
+        const aspectRatio = viewportWidth / viewportHeight;
+
+        // Calculate event horizon radius (Schwarzschild radius)
+        // r_s = 2GM/c² = mass * SCHWARZSCHILD_RADIUS_SOLAR
+        const eventHorizonRadius = mass * SCHWARZSCHILD_RADIUS_SOLAR;
+
+        // Calculate accretion disk outer radius (typically 10-15x event horizon)
+        const diskOuterRadius = eventHorizonRadius * ACCRETION_DISK_OUTER_RADIUS_MULTIPLIER;
+
+        // Use the smaller viewport dimension to ensure full visibility
+        const smallerDimension = Math.min(viewportWidth, viewportHeight);
+
+        // Convert FOV to radians
+        const fovRadians = (FOV_DEGREES * Math.PI) / 180;
+
+        // Calculate required distance using trigonometry
+        // We want the disk to occupy TARGET_VIEWPORT_COVERAGE of the viewport
+        // tan(fov/2) = (diskRadius / distance)
+        // distance = diskRadius / tan(fov/2)
+        const halfFov = fovRadians / 2;
+        const tanHalfFov = Math.tan(halfFov);
+
+        if (tanHalfFov <= 0) {
+            console.warn('Invalid FOV calculation, using default zoom');
+            return DEFAULT_ZOOM;
+        }
+
+        // Calculate base distance for full visibility
+        const baseDistance = diskOuterRadius / tanHalfFov;
+
+        // Adjust for target coverage (we want it to occupy 60-80% of viewport, not 100%)
+        const adjustedDistance = baseDistance / TARGET_VIEWPORT_COVERAGE;
+
+        // Account for aspect ratio - portrait viewports need more distance
+        let aspectRatioAdjustment = 1.0;
+        if (aspectRatio < 1.0) {
+            // Portrait mode: increase distance proportionally
+            aspectRatioAdjustment = 1.0 / aspectRatio;
+        }
+
+        const finalDistance = adjustedDistance * aspectRatioAdjustment;
+
+        // Normalize to zoom units (the simulation uses arbitrary zoom units)
+        // We'll scale based on the default zoom and mass
+        const normalizedZoom = (finalDistance / diskOuterRadius) * (mass * 3.5);
+
+        // Validate and clamp result
+        const clampedZoom = clampAndValidate(normalizedZoom, MIN_ZOOM, MAX_ZOOM, DEFAULT_ZOOM);
+
+        return clampedZoom;
+    } catch (error) {
+        console.warn('Error calculating initial zoom:', error);
+        return DEFAULT_ZOOM;
+    }
 }
 
 /**
@@ -77,10 +183,6 @@ export function useCamera(
         initialAngle: 0,
         initialCenter: { x: 0, y: 0 },
     });
-
-    // Zoom bounds
-    const MIN_ZOOM = 2.5;
-    const MAX_ZOOM = 50.0;
 
     // Apply momentum and damping on each frame
     useEffect(() => {

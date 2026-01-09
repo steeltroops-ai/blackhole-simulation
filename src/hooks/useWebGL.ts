@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { vertexShaderSource } from '@/shaders/blackhole/vertex.glsl';
 import { fragmentShaderSource } from '@/shaders/blackhole/fragment.glsl';
 import type { WebGLProgramInfo } from '@/types/webgl';
+import { BloomManager } from '@/rendering/bloom';
 
 /**
  * WebGL error information
@@ -30,6 +31,7 @@ export interface WebGLError {
 export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const glRef = useRef<WebGLRenderingContext | null>(null);
     const programRef = useRef<WebGLProgram | null>(null);
+    const bloomManagerRef = useRef<BloomManager | null>(null);
     const [error, setError] = useState<WebGLError | null>(null);
     const [resolutionScale, setResolutionScale] = useState(1.0);
 
@@ -210,6 +212,17 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
             // Clear any error state on success
             setError(null);
+
+            // Initialize bloom manager
+            // Requirements: 8.1, 8.2, 8.3, 8.4
+            const bloomManager = new BloomManager(gl);
+            const bloomInitialized = bloomManager.initialize(canvas.width, canvas.height);
+
+            if (bloomInitialized) {
+                bloomManagerRef.current = bloomManager;
+            } else {
+                console.warn('Failed to initialize bloom post-processing');
+            }
         } catch (e) {
             // Requirement 12.3: Reduce resolution and retry on GPU memory error
             const errorMsg = 'GPU memory error detected';
@@ -246,8 +259,11 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
             if (gl && program) {
                 gl.deleteProgram(program);
             }
+            if (bloomManagerRef.current) {
+                bloomManagerRef.current.cleanup();
+            }
         };
     }, [canvasRef, resolutionScale]);
 
-    return { glRef, programRef, error, resolutionScale };
+    return { glRef, programRef, bloomManagerRef, error, resolutionScale };
 }

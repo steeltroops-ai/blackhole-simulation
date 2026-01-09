@@ -9,6 +9,7 @@ import { useWebGL } from '@/hooks/useWebGL';
 import { useAnimation } from '@/hooks/useAnimation';
 import { AlertCircle } from 'lucide-react';
 import type { SimulationParams, MouseState } from '@/types/simulation';
+import type { PerformanceMetrics } from '@/performance/monitor';
 
 interface WebGLCanvasProps {
     params: SimulationParams;
@@ -20,7 +21,7 @@ interface WebGLCanvasProps {
     onTouchStart: (e: React.TouchEvent) => void;
     onTouchMove: (e: React.TouchEvent) => void;
     onTouchEnd: (e: React.TouchEvent) => void;
-    onMetricsUpdate?: (metrics: import('@/types/simulation').PerformanceMetrics) => void;
+    onMetricsUpdate?: (metrics: PerformanceMetrics) => void;
 }
 
 export const WebGLCanvas = ({
@@ -39,10 +40,10 @@ export const WebGLCanvas = ({
 
     // Initialize WebGL context and program with error handling
     // Requirements: 12.1, 12.2, 12.3
-    const { glRef, programRef, error, resolutionScale } = useWebGL(canvasRef);
+    const { glRef, programRef, bloomManagerRef, error, resolutionScale } = useWebGL(canvasRef);
 
     // Start animation loop with performance monitoring
-    const { metrics } = useAnimation(glRef, programRef, params, mouse);
+    const { metrics } = useAnimation(glRef, programRef, bloomManagerRef, params, mouse);
 
     // Pass metrics to parent component
     useEffect(() => {

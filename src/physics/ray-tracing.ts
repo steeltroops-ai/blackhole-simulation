@@ -108,13 +108,34 @@ export function rayMarchStep(
     // Gravitational force direction (toward center)
     const forceDir: [number, number, number] = [-px / dist, -py / dist, -pz / dist];
 
-    // Force magnitude: F = (mass * lensingStrength) / dist^2
-    const forceMagnitude = (mass * 0.9 * lensingStrength) / (dist * dist);
+    // === IMPROVED GEODESIC APPROXIMATION ===
+    // Matches the shader implementation
+    
+    // Angular momentum L = r x v
+    // Cross product:
+    // Lx = py*vz - pz*vy
+    // Ly = pz*vx - px*vz
+    // Lz = px*vy - py*vx
+    const Lx = py * vz - pz * vy;
+    const Ly = pz * vx - px * vz;
+    const Lz = px * vy - py * vx;
+    const L2 = Lx * Lx + Ly * Ly + Lz * Lz;
+    
+    const r2 = dist * dist;
+    
+    // Newtonian term: M/r^2
+    const term1 = mass / r2;
+    
+    // GR correction term: 3M*L^2/r^4
+    const termGR = 3.0 * mass * L2 / (r2 * r2);
+    
+    // Total radial acceleration
+    const accel = (term1 + termGR) * lensingStrength;
 
     // Apply force to velocity
-    const newVx = vx + forceDir[0] * forceMagnitude * dt;
-    const newVy = vy + forceDir[1] * forceMagnitude * dt;
-    const newVz = vz + forceDir[2] * forceMagnitude * dt;
+    const newVx = vx + forceDir[0] * accel * dt;
+    const newVy = vy + forceDir[1] * accel * dt;
+    const newVz = vz + forceDir[2] * accel * dt;
 
     // Normalize velocity to respect causality
     const newVelocity = normalizeVelocity([newVx, newVy, newVz]);

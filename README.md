@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Black Hole Simulation
+> A real-time, interactive WebGL simulation of a Schwarzschild/Kerr black hole with an accretion disk.
+
+![Black Hole Simulation](public/preview.png)
+
+## Overview
+This project simulates the visual appearance of a black hole using **General Relativistic Ray Marching**. It runs entirely in the browser using WebGL, calculating light paths through curved spacetime in real-time.
+
+### Key Features
+- **Physically Accurate Ray Tracing**: Solves the geodesic equations (using a pseudo-potential approximation) to simulate gravitational lensing.
+- **Kerr Metric Support**: Simulates rotating black holes (Kerr black holes) with frame dragging effects.
+- **Volumetric Accretion Disk**: Renders a turbulent, hot gas disk with relativistic Doppler beaming (blue-shifting/red-shifting).
+- **Performance Optimized**: Uses adaptive step sizing and optimized noise algorithms to run smoothly on consumer hardware.
+- **Bloom Post-Processing**: High-quality bloom effect for the photon sphere and accretion disk glow.
+
+## Physics Model
+The simulation uses a custom GLSL fragment shader to trace rays from the camera into the scene. 
+- **Gravity**: Modeled using an effective potential $V_{eff} = -\frac{M}{r} + \frac{L^2}{2r^2} - \frac{ML^2}{r^3}$ which captures the key features of the Schwarzschild metric (precession, ISCO, photon sphere) without the full computational cost of Christoffel symbols.
+- **Accretion Disk**: Modeled as a volumetric density field with Fractal Brownian Motion (FBM) for turbulence.
+- **Doppler Beaming**: Light intensity is modulated by the relativistic Doppler factor $\delta = \frac{1}{\gamma(1-\beta\cos\theta)}$, causing the "approaching" side of the disk to appear brighter and bluer.
+
+## Controls
+- **Left Click + Drag**: Rotate camera
+- **Scroll**: Zoom in/out
+- **Control Panel**:
+  - **Mass**: Adjust the mass of the black hole
+  - **Spin**: Change the rotation speed (angular momentum)
+  - **Disk Density/Temp**: Control the accretion disk appearance
+  - **Lensing**: Toggle/Adjust gravitational lensing strength
+
+## Technical Details
+- **Stack**: Next.js, React, WebGL (GLSL ES 1.00)
+- **Performance**: 
+  - Adaptive ray marching steps based on distance to photon sphere.
+  - Reduced noise octaves for real-time volumetric rendering.
+  - Optimized bloom pass (no pipeline stalls).
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+# Install dependencies
+npm install
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
