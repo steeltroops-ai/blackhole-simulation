@@ -1,352 +1,117 @@
 /**
- * Ray tracing utilities for black hole simulation
- * These functions provide testable implementations of ray tracing logic
- * that mirrors the shader implementation.
+ * Core ray tracing engine for black hole simulation.
+ * Optimized for performance and readability.
  */
 
-import { calculatePhotonSphere } from './kerr-metric';
+import { calculatePhotonSphere } from "./kerr-metric";
 
 /**
- * Calculate adaptive step size based on distance from photon sphere
- * Smaller steps near the photon sphere for accuracy
- * Larger steps far away for performance
- * 
- * Requirements: 7.4
- * 
- * @param dist - Current distance from black hole center
- * @param photonSphere - Photon sphere radius
- * @param minStepSize - Minimum step size (default: 0.01)
- * @param maxStepSize - Maximum step size (default: 0.5)
- * @returns Adaptive step size
+ * Adaptive step size based on geodesic curvature.
  */
 export function getAdaptiveStepSize(
-    dist: number,
-    photonSphere: number,
-    minStepSize: number = 0.01,
-    maxStepSize: number = 0.5
+  dist: number,
+  photonSphere: number,
+  minStep: number = 0.01,
+  maxStep: number = 0.5,
 ): number {
-    // Distance from photon sphere
-    const distFromPhotonSphere = Math.abs(dist - photonSphere);
-
-    // Near photon sphere: use smaller steps for precision
-    // Far from photon sphere: use larger steps for performance
-    // Use smoothstep for smooth interpolation
-    const t = Math.min(1, distFromPhotonSphere / (photonSphere * 0.5));
-    const smoothT = t * t * (3 - 2 * t); // smoothstep function
-
-    const stepSize = minStepSize + (maxStepSize - minStepSize) * smoothT;
-
-    return stepSize;
+  const d = Math.abs(dist - photonSphere);
+  const t = Math.min(1.0, d / (photonSphere * 0.5));
+  const smooth = t * t * (3.0 - 2.0 * t);
+  return minStep + (maxStep - minStep) * smooth;
 }
 
 /**
- * Check if a ray velocity is within causality bounds (not faster than light)
- * In simulation units where c=1, velocity magnitude should not exceed 1
- * 
- * Requirements: 2.1
- * 
- * @param velocity - Ray velocity vector [x, y, z]
- * @returns True if velocity respects causality (|v| <= c)
+ * Verifies if the ray velocity respects the light-cone constraint.
  */
-export function checkCausality(velocity: [number, number, number]): boolean {
-    const [vx, vy, vz] = velocity;
-    const speedSquared = vx * vx + vy * vy + vz * vz;
-
-    // In simulation units, speed of light c = 1
-    // Allow small tolerance for numerical precision
-    return speedSquared <= 1.0 + 1e-6;
+export function checkCausality(v: [number, number, number]): boolean {
+  return v[0] * v[0] + v[1] * v[1] + v[2] * v[2] <= 1.000001;
 }
 
 /**
- * Normalize a velocity vector to ensure it doesn't exceed speed of light
- * This is what happens in the shader after applying gravitational force
- * 
- * @param velocity - Velocity vector [x, y, z]
- * @returns Normalized velocity vector
+ * Normalizes velocity to unit-c speed.
  */
-export function normalizeVelocity(velocity: [number, number, number]): [number, number, number] {
-    const [vx, vy, vz] = velocity;
-    const magnitude = Math.sqrt(vx * vx + vy * vy + vz * vz);
-
-    // Handle zero or near-zero vectors
-    if (magnitude < 1e-10) {
-        return [0, 0, 0];
-    }
-
-    // Normalize to unit length (speed of light in simulation units)
-    return [vx / magnitude, vy / magnitude, vz / magnitude];
+export function normalizeVelocity(
+  v: [number, number, number],
+): [number, number, number] {
+  const m = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+  if (m < 1e-10) return [0, 0, 0];
+  return [v[0] / m, v[1] / m, v[2] / m];
 }
 
 /**
- * Simulate one step of ray marching with gravitational lensing
- * Returns the new position and velocity after applying gravitational force
- * 
- * @param position - Current ray position [x, y, z]
- * @param velocity - Current ray velocity [x, y, z]
- * @param mass - Black hole mass
- * @param lensingStrength - Lensing strength multiplier
- * @param dt - Time step
- * @returns New position and velocity
+ * Single-step geodesic integrator using a pseudo-potential approximation.
  */
 export function rayMarchStep(
-    position: [number, number, number],
-    velocity: [number, number, number],
-    mass: number,
-    lensingStrength: number,
-    dt: number
+  pos: [number, number, number],
+  vel: [number, number, number],
+  mass: number,
+  lensing: number,
+  dt: number,
 ): { position: [number, number, number]; velocity: [number, number, number] } {
-    const [px, py, pz] = position;
-    const [vx, vy, vz] = velocity;
+  const [px, py, pz] = pos;
+  const [vx, vy, vz] = vel;
+  const r2 = px * px + py * py + pz * pz;
+  const r = Math.sqrt(r2);
 
-    // Calculate distance from black hole center
-    const dist = Math.sqrt(px * px + py * py + pz * pz);
+  if (r < 1e-5) return { position: pos, velocity: vel };
 
-    if (dist === 0) {
-        return { position, velocity };
-    }
+  // Cross product for angular momentum L = r x v
+  const Lx = py * vz - pz * vy;
+  const Ly = pz * vx - px * vz;
+  const Lz = px * vy - py * vx;
+  const L2 = Lx * Lx + Ly * Ly + Lz * Lz;
 
-    // Gravitational force direction (toward center)
-    const forceDir: [number, number, number] = [-px / dist, -py / dist, -pz / dist];
+  // Effective acceleration: Newtonian + Schwarzschild correction
+  const accel = (mass / r2 + (3.0 * mass * L2) / (r2 * r2)) * lensing;
 
-    // === IMPROVED GEODESIC APPROXIMATION ===
-    // Matches the shader implementation
-    
-    // Angular momentum L = r x v
-    // Cross product:
-    // Lx = py*vz - pz*vy
-    // Ly = pz*vx - px*vz
-    // Lz = px*vy - py*vx
-    const Lx = py * vz - pz * vy;
-    const Ly = pz * vx - px * vz;
-    const Lz = px * vy - py * vx;
-    const L2 = Lx * Lx + Ly * Ly + Lz * Lz;
-    
-    const r2 = dist * dist;
-    
-    // Newtonian term: M/r^2
-    const term1 = mass / r2;
-    
-    // GR correction term: 3M*L^2/r^4
-    const termGR = 3.0 * mass * L2 / (r2 * r2);
-    
-    // Total radial acceleration
-    const accel = (term1 + termGR) * lensingStrength;
+  const nvx = vx - (px / r) * accel * dt;
+  const nvy = vy - (py / r) * accel * dt;
+  const nvz = vz - (pz / r) * accel * dt;
 
-    // Apply force to velocity
-    const newVx = vx + forceDir[0] * accel * dt;
-    const newVy = vy + forceDir[1] * accel * dt;
-    const newVz = vz + forceDir[2] * accel * dt;
+  const nv = normalizeVelocity([nvx, nvy, nvz]);
 
-    // Normalize velocity to respect causality
-    const newVelocity = normalizeVelocity([newVx, newVy, newVz]);
-
-    // Update position
-    const newPosition: [number, number, number] = [
-        px + newVelocity[0] * dt,
-        py + newVelocity[1] * dt,
-        pz + newVelocity[2] * dt,
-    ];
-
-    return { position: newPosition, velocity: newVelocity };
+  return {
+    position: [px + nv[0] * dt, py + nv[1] * dt, pz + nv[2] * dt],
+    velocity: nv,
+  };
 }
 
 /**
- * Check if ray tracing should terminate
- * Returns true if ray has crossed event horizon, exceeded max distance, or reached max steps
- * 
- * Requirements: 2.5
- * 
- * @param position - Current ray position [x, y, z]
- * @param eventHorizon - Event horizon radius
- * @param maxDistance - Maximum ray tracing distance
- * @param currentStep - Current step number
- * @param maxSteps - Maximum number of steps
- * @returns True if ray tracing should terminate
+ * Bounds checking for ray termination.
  */
 export function shouldTerminateRay(
-    position: [number, number, number],
-    eventHorizon: number,
-    maxDistance: number,
-    currentStep: number,
-    maxSteps: number
+  pos: [number, number, number],
+  horizon: number,
+  maxDist: number,
+  step: number,
+  maxSteps: number,
 ): boolean {
-    const [px, py, pz] = position;
-    const dist = Math.sqrt(px * px + py * py + pz * pz);
-
-    // Terminate if crossed event horizon
-    if (dist < eventHorizon) {
-        return true;
-    }
-
-    // Terminate if exceeded max distance
-    if (dist > maxDistance) {
-        return true;
-    }
-
-    // Terminate if reached max steps
-    if (currentStep >= maxSteps) {
-        return true;
-    }
-
-    return false;
+  const d2 = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2];
+  return d2 < horizon * horizon || d2 > maxDist * maxDist || step >= maxSteps;
 }
 
 /**
- * Clamp RGB color components to valid range [0, 1]
- * 
- * @param color - RGB color [r, g, b]
- * @returns Clamped color
- */
-export function clampColor(color: [number, number, number]): [number, number, number] {
-    return [
-        Math.max(0, Math.min(1, color[0])),
-        Math.max(0, Math.min(1, color[1])),
-        Math.max(0, Math.min(1, color[2])),
-    ];
-}
-
-/**
- * Check if a ray is near the photon sphere
- * 
- * Requirements: 10.2
- * 
- * @param position - Current ray position [x, y, z]
- * @param photonSphere - Photon sphere radius
- * @param threshold - Distance threshold to consider "near" (default: 0.1 * photonSphere)
- * @returns True if ray is near photon sphere
- */
-export function isNearPhotonSphere(
-    position: [number, number, number],
-    photonSphere: number,
-    threshold?: number
-): boolean {
-    const [px, py, pz] = position;
-    const dist = Math.sqrt(px * px + py * py + pz * pz);
-    const thresholdDist = threshold ?? photonSphere * 0.1;
-
-    return Math.abs(dist - photonSphere) < thresholdDist;
-}
-
-/**
- * Check if ray should continue tracing near photon sphere
- * Ray should continue until it escapes or crosses event horizon
- * 
- * Requirements: 10.2
- * 
- * @param position - Current ray position [x, y, z]
- * @param photonSphere - Photon sphere radius
- * @param eventHorizon - Event horizon radius
- * @param maxDistance - Maximum ray tracing distance
- * @returns True if ray should continue tracing
- */
-export function shouldContinueNearPhotonSphere(
-    position: [number, number, number],
-    photonSphere: number,
-    eventHorizon: number,
-    maxDistance: number
-): boolean {
-    const [px, py, pz] = position;
-    const dist = Math.sqrt(px * px + py * py + pz * pz);
-
-    // Continue if near photon sphere and not crossed horizon or max distance
-    if (isNearPhotonSphere(position, photonSphere)) {
-        return dist >= eventHorizon && dist <= maxDistance;
-    }
-
-    return true; // Not near photon sphere, normal continuation rules apply
-}
-
-/**
- * Verify color accumulation is bounded
- * All RGB components should remain in [0, 1] range
- * 
- * Requirements: 10.3
- * 
- * @param color - RGB color [r, g, b]
- * @returns True if all components are in valid range
- */
-export function verifyColorBounds(color: [number, number, number]): boolean {
-    const [r, g, b] = color;
-    return r >= 0 && r <= 1 && g >= 0 && g <= 1 && b >= 0 && b <= 1;
-}
-
-/**
- * Accumulate color with overflow prevention
- * Clamps result to valid range [0, 1]
- * 
- * Requirements: 10.3
- * 
- * @param currentColor - Current accumulated color [r, g, b]
- * @param newColor - New color to add [r, g, b]
- * @param opacity - Opacity of new color [0, 1]
- * @returns Accumulated color with overflow prevention
+ * Color accumulation with safety clamping.
  */
 export function accumulateColorSafe(
-    currentColor: [number, number, number],
-    newColor: [number, number, number],
-    opacity: number
+  curr: [number, number, number],
+  next: [number, number, number],
+  alpha: number,
 ): [number, number, number] {
-    const [cr, cg, cb] = currentColor;
-    const [nr, ng, nb] = newColor;
-
-    // Alpha blending
-    const r = nr * opacity + cr * (1 - opacity);
-    const g = ng * opacity + cg * (1 - opacity);
-    const b = nb * opacity + cb * (1 - opacity);
-
-    // Clamp to prevent overflow
-    return [
-        Math.max(0, Math.min(1, r)),
-        Math.max(0, Math.min(1, g)),
-        Math.max(0, Math.min(1, b)),
-    ];
+  return [
+    Math.max(0, Math.min(1, next[0] * alpha + curr[0] * (1 - alpha))),
+    Math.max(0, Math.min(1, next[1] * alpha + curr[1] * (1 - alpha))),
+    Math.max(0, Math.min(1, next[2] * alpha + curr[2] * (1 - alpha))),
+  ];
 }
 
-/**
- * Get starfield color for a ray direction
- * This is a simplified version for testing
- * 
- * Requirements: 10.4
- * 
- * @param direction - Ray direction [x, y, z]
- * @returns Starfield color [r, g, b]
- */
-export function getStarfieldColor(direction: [number, number, number]): [number, number, number] {
-    // Simplified starfield - just return a dim color
-    // In the actual shader, this would be more complex
-    return [0.01, 0.01, 0.01];
-}
-
-/**
- * Determine final color based on ray termination condition
- * 
- * Requirements: 10.4, 10.5
- * 
- * @param position - Final ray position [x, y, z]
- * @param direction - Ray direction [x, y, z]
- * @param eventHorizon - Event horizon radius
- * @param maxDistance - Maximum ray tracing distance
- * @returns Final color [r, g, b]
- */
 export function getFinalColor(
-    position: [number, number, number],
-    direction: [number, number, number],
-    eventHorizon: number,
-    maxDistance: number
+  pos: [number, number, number],
+  dir: [number, number, number],
+  horizon: number,
+  maxDist: number,
 ): [number, number, number] {
-    const [px, py, pz] = position;
-    const dist = Math.sqrt(px * px + py * py + pz * pz);
-
-    // Requirement 10.5: Return black when crossing event horizon
-    if (dist <= eventHorizon) {
-        return [0, 0, 0];
-    }
-
-    // Requirement 10.4: Return starfield color at maximum distance
-    if (dist >= maxDistance) {
-        return getStarfieldColor(direction);
-    }
-
-    // Default: return starfield
-    return getStarfieldColor(direction);
+  const d2 = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2];
+  if (d2 <= horizon * horizon) return [0, 0, 0];
+  return [0.01, 0.01, 0.01]; // Background
 }
