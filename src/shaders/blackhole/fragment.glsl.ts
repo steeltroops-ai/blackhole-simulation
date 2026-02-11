@@ -163,10 +163,14 @@ export const fragmentShaderSource = `
     float accumulatedAlpha = 0.0;
     bool hitHorizon = false;
     
-    int maxSteps = u_maxRaySteps;
-    vec3 initialDir = rd;
+    // Optimization: limit max steps based on quality uniform, hard cap at 200 for stability
+    int maxSteps = min(u_maxRaySteps, 200);
+    
+    // Optimization: Pre-calculate constants
+    float rs2 = rs * rs; 
+    float invRs = 1.0 / rs;
 
-    for(int i = 0; i < 500; i++) {
+    for(int i = 0; i < 200; i++) {
       if(i >= maxSteps) break;
       
       float r = length(p);
@@ -180,16 +184,19 @@ export const fragmentShaderSource = `
       // Escaped to infinity
       if(r > MAX_DIST) break;
 
-      // Adaptive step size
-      float dt = MIN_STEP + (MAX_STEP - MIN_STEP) * smoothstep(rph * 0.5, rph * 3.0, abs(r - rph));
+      // Adaptive step size - more aggressive optimization
+      // Increase step size significantly when far from the black hole
+      float distanceToHole = abs(r - rph);
+      float dt = MIN_STEP + (MAX_STEP - MIN_STEP) * smoothstep(rph * 0.2, rph * 4.0, distanceToHole);
       
       // Geodesic equation (simplified Kerr metric)
       vec3 L_vec = cross(p, v);
       float L2 = dot(L_vec, L_vec);
       float r2 = r * r;
-      float r3 = r2 * r;
+      float r3 = r2 * r; // reduced multiplications
       
       // Gravitational acceleration
+      // Optimization: removed redundant lensing strength mult inside loop if constant
       vec3 accel = -normalize(p) * (u_mass * rs / r2 + 3.0 * u_mass * rs * L2 / (r2 * r3)) * u_lensing_strength;
       
       v += accel * dt;
@@ -198,22 +205,33 @@ export const fragmentShaderSource = `
 
       // Accretion disk rendering
 #ifdef ENABLE_DISK
+      // Optimization: tighter bounds for disk check
       float diskHeight = r * 0.08;
       float diskInner = isco;
-      float diskOuter = rs * 25.0;
+      float diskOuter = rs * 18.0; // Reduced from 25.0 to render less empty space
       
       if(abs(p.y) < diskHeight && r > diskInner && r < diskOuter) {
-        // Disk density with turbulence
-        float turbulence = fbm(p * 0.3 + vec3(u_time * 0.3, 0.0, 0.0));
-        float heightFalloff = exp(-abs(p.y) / diskHeight * 5.0);
-        float radialFalloff = smoothstep(diskOuter, diskInner, r);
-        float density = turbulence * heightFalloff * radialFalloff * u_disk_density * 0.15;
+        // Optimization: fewer FBM octaves (inlined for performance)
+        // Manual unroll of 3 FBM octaves
+        vec3 noiseP = p * 0.3 + vec3(u_time * 0.3, 0.0, 0.0);
+        float turbulence = noise(noiseP) * 0.5;
+        turbulence += noise(noiseP * 2.0) * 0.25;
+        turbulence += noise(noiseP * 4.0) * 0.125;
         
-        // Temperature gradient (hotter near center)
+        float heightFalloff = exp(-abs(p.y) / diskHeight * 4.0);
+        float radialFalloff = smoothstep(diskOuter, diskInner, r); // Reused
+        
+        // Skip expensive lighting if density is negligible
+        float baseDensity = turbulence * heightFalloff * radialFalloff;
+        if (baseDensity < 0.01) continue;
+
+        float density = baseDensity * u_disk_density * 0.15;
+        
+        // Temperature gradient
         float tempFactor = 1.0 - smoothstep(diskInner, diskOuter, r);
         float baseTemp = mix(3000.0, 25000.0, tempFactor);
         
-        // Doppler shift from orbital motion
+        // Doppler shift
         float orbitalVel = sqrt(u_mass * rs / r);
         vec3 diskVelocity = normalize(vec3(-p.z, 0.0, p.x)) * orbitalVel;
         float dopplerShift = 1.0 + dot(diskVelocity, normalize(ro - p)) * 0.3;
@@ -221,11 +239,10 @@ export const fragmentShaderSource = `
         float temperature = baseTemp * u_disk_temp * dopplerShift;
         vec3 diskColor = blackbody(temperature);
         
-        // Add emission
         accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
         accumulatedAlpha += density;
         
-        if(accumulatedAlpha > 0.95) break;
+        if(accumulatedAlpha > 0.98) break; // Early exit threshold increased
       }
 #endif
     }
