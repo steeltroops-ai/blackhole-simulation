@@ -164,7 +164,7 @@ export const fragmentShaderSource = `
     bool hitHorizon = false;
     
     // Optimization: limit max steps based on quality uniform, hard cap at 200 for stability
-    int maxSteps = min(u_maxRaySteps, 200);
+    int maxSteps = int(min(float(u_maxRaySteps), 200.0));
     
     // Optimization: Pre-calculate constants
     float rs2 = rs * rs; 
