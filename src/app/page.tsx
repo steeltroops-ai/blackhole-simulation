@@ -6,7 +6,6 @@ import { WebGLCanvas } from "@/components/canvas/WebGLCanvas";
 import { ControlPanel } from "@/components/ui/ControlPanel";
 import { Telemetry } from "@/components/ui/Telemetry";
 import { DebugOverlay } from "@/components/ui/DebugOverlay";
-import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { useCamera } from "@/hooks/useCamera";
 import { useAdaptiveResolution } from "@/hooks/useAdaptiveResolution";
 import { useMobileOptimization } from "@/hooks/useMobileOptimization";
@@ -46,6 +45,7 @@ const App = () => {
       lensing: 1.0,
       paused: false,
       zoom: 50.0,
+      autoSpin: 0.005,
       quality: initialFeatures.rayTracingQuality,
       features: initialFeatures,
       performancePreset: initialPreset,
@@ -89,7 +89,10 @@ const App = () => {
     if (params.features) {
       settingsStorage.saveFeatures(params.features);
     }
-    settingsStorage.savePreset(params.performancePreset);
+    settingsStorage.savePreset(
+      (params.performancePreset ??
+        "ultra-quality") as import("@/types/features").PresetName,
+    );
   }, [params.features, params.performancePreset]);
 
   useEffect(() => {
@@ -216,10 +219,18 @@ const App = () => {
 
       {benchmarkController.current.isRunning() && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
-          <LoadingIndicator
-            message={`Testing ${benchmarkController.current.getCurrentPreset() || "preset"}...`}
-            progress={benchmarkController.current.getCurrentProgress()}
-          />
+          <div className="bg-black/90 border border-white/20 rounded-lg p-6 text-white min-w-[250px] text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-3"></div>
+            <p className="text-sm font-medium">{`Testing ${benchmarkController.current.getCurrentPreset() || "preset"}...`}</p>
+            <div className="w-full bg-gray-700 rounded-full h-1.5 mt-3">
+              <div
+                className="bg-white h-1.5 rounded-full transition-all duration-300"
+                style={{
+                  width: `${benchmarkController.current.getCurrentProgress() * 100}%`,
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
 

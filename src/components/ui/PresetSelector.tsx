@@ -62,34 +62,40 @@ export const PresetSelector = ({
       {/* Dropdown Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-medium tracking-wide transition-all"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.04] rounded-xl transition-all duration-300 group"
         aria-label="Select performance preset"
       >
-        <div className="flex items-center gap-2">
-          <Zap className="w-3 h-3 text-cyan-400" />
-          <span className="text-[9px] uppercase tracking-widest text-gray-400">
-            Preset:
+        <div className="flex items-center gap-2.5">
+          <div className="p-1 rounded-md bg-cyan-500/10 border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-colors">
+            <Zap className="w-3 h-3 text-cyan-300" />
+          </div>
+          <span className="text-[10px] uppercase tracking-wider text-white/50 font-medium group-hover:text-white/80 transition-colors">
+            Performance Profile
           </span>
-          <span className="text-white">
-            {currentInfo.icon} {currentInfo.label}
+          <div className="h-4 w-px bg-white/10 mx-1" />
+          <span className="text-[10px] font-medium text-white/90 tracking-wide flex items-center gap-1.5">
+            {/* Using a cleaner dot indicator instead of emoji for selected state */}
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${currentPreset === "custom" ? "bg-amber-400" : "bg-green-400"} shadow-[0_0_8px_currentColor]`}
+            />
+            {currentInfo.label}
           </span>
         </div>
         <ChevronDown
-          className={`w-3 h-3 text-white/60 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`w-3.5 h-3.5 text-white/30 transition-transform duration-500 ${isOpen ? "rotate-180 text-white/60" : ""}`}
         />
       </button>
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <>
-          {/* Backdrop */}
+        <div className="absolute bottom-full left-0 w-full mb-2 z-50">
+          {/* Click outside handler overlay is handled by parent or specific hook in prod, but keeping simple here */}
           <div
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
 
-          {/* Menu */}
-          <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-black/95 backdrop-blur-xl border border-white/20 rounded-lg shadow-2xl overflow-hidden">
+          <div className="relative z-50 bg-[#0a0a0a]/90 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden p-1.5 animate-in slide-in-from-bottom-2 duration-200">
             {(Object.keys(PRESET_INFO) as PresetName[])
               .filter((preset) => preset !== "custom")
               .map((preset) => {
@@ -100,31 +106,44 @@ export const PresetSelector = ({
                   <button
                     key={preset}
                     onClick={() => handlePresetSelect(preset)}
-                    className={`w-full px-3 py-2 text-left transition-colors ${
+                    className={`w-full px-3 py-2.5 text-left transition-all duration-200 rounded-xl mb-1 last:mb-0 group ${
                       isSelected
-                        ? "bg-cyan-500/20 border-l-2 border-cyan-400"
-                        : "hover:bg-white/10 border-l-2 border-transparent"
+                        ? "bg-white/[0.08] border border-white/[0.05]"
+                        : "hover:bg-white/[0.04] border border-transparent"
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm">{info.icon}</span>
-                      <span className="text-[10px] font-medium text-white">
-                        {info.label}
-                      </span>
-                      {isSelected && (
-                        <span className="ml-auto text-[8px] text-cyan-400">
-                          ✓ ACTIVE
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`p-1.5 rounded-lg ${isSelected ? "bg-cyan-500/20 text-cyan-300" : "bg-white/5 text-white/40 group-hover:text-white/70"}`}
+                      >
+                        {/* We can maps string icons to Lucide icons later, for now simulate with text or just use the emoji subtly */}
+                        <span className="text-sm leading-none grayscale-[0.5] group-hover:grayscale-0 transition-all">
+                          {info.icon}
                         </span>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <span
+                          className={`text-[10px] font-semibold tracking-wide ${isSelected ? "text-white" : "text-white/70 group-hover:text-white"}`}
+                        >
+                          {info.label}
+                        </span>
+                        <span className="text-[9px] text-white/30 group-hover:text-white/50">
+                          {info.description}
+                        </span>
+                      </div>
+
+                      {isSelected && (
+                        <div className="ml-auto">
+                          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
+                        </div>
                       )}
                     </div>
-                    <p className="text-[8px] text-gray-400 leading-tight">
-                      {info.description}
-                    </p>
                   </button>
                 );
               })}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

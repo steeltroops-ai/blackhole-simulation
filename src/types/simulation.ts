@@ -14,6 +14,7 @@ export interface SimulationParams {
   lensing: number;
   paused: boolean;
   zoom: number;
+  autoSpin: number;
   quality?: QualityLevel;
   features?: FeatureToggles;
   performancePreset?: string;
