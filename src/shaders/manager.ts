@@ -30,7 +30,12 @@ export class ShaderManager {
       doppler: features.dopplerBeaming,
       stars: features.backgroundStars,
       photon: features.photonSphereGlow,
+      bloom: features.bloom,
     });
+  }
+
+  getCacheSize(): number {
+    return this.variantCache.size;
   }
 
   getCachedVariant(features: FeatureToggles): ShaderVariant | null {
@@ -41,11 +46,23 @@ export class ShaderManager {
   generateShaderSource(baseSource: string, features: FeatureToggles): string {
     const defines: string[] = [];
 
-    if (features.gravitationalLensing) defines.push("#define ENABLE_LENSING");
-    if (features.accretionDisk) defines.push("#define ENABLE_DISK");
-    if (features.dopplerBeaming) defines.push("#define ENABLE_DOPPLER");
-    if (features.backgroundStars) defines.push("#define ENABLE_STARS");
-    if (features.photonSphereGlow) defines.push("#define ENABLE_PHOTON_GLOW");
+    if (features.gravitationalLensing) defines.push("#define ENABLE_LENSING 1");
+    else defines.push("#define ENABLE_LENSING 0");
+
+    if (features.accretionDisk) defines.push("#define ENABLE_DISK 1");
+    else defines.push("#define ENABLE_DISK 0");
+
+    if (features.dopplerBeaming) defines.push("#define ENABLE_DOPPLER 1");
+    else defines.push("#define ENABLE_DOPPLER 0");
+
+    if (features.backgroundStars) defines.push("#define ENABLE_STARS 1");
+    else defines.push("#define ENABLE_STARS 0");
+
+    if (features.photonSphereGlow) defines.push("#define ENABLE_PHOTON_GLOW 1");
+    else defines.push("#define ENABLE_PHOTON_GLOW 0");
+
+    if (features.bloom) defines.push("#define ENABLE_BLOOM 1");
+    else defines.push("#define ENABLE_BLOOM 0");
 
     // Quality LODs
     defines.push(

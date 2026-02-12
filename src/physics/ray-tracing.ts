@@ -105,6 +105,52 @@ export function accumulateColorSafe(
   ];
 }
 
+export function clampColor(
+  c: [number, number, number],
+): [number, number, number] {
+  return [
+    Math.max(0, Math.min(1, c[0])),
+    Math.max(0, Math.min(1, c[1])),
+    Math.max(0, Math.min(1, c[2])),
+  ];
+}
+
+export function verifyColorBounds(c: [number, number, number]): boolean {
+  return (
+    c[0] >= 0 && c[0] <= 1 && c[1] >= 0 && c[1] <= 1 && c[2] >= 0 && c[2] <= 1
+  );
+}
+
+export function isNearPhotonSphere(
+  pos: [number, number, number],
+  photonSphere: number,
+  epsilon: number = 0.1,
+): boolean {
+  const r = Math.sqrt(pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2]);
+  return Math.abs(r - photonSphere) < epsilon;
+}
+
+export function shouldContinueNearPhotonSphere(
+  pos: [number, number, number],
+  photonSphere: number,
+  horizon: number,
+  maxDist: number,
+): boolean {
+  const r2 = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2];
+  return r2 >= horizon * horizon && r2 <= maxDist * maxDist;
+}
+
+export function getStarfieldColor(
+  dir: [number, number, number],
+): [number, number, number] {
+  const [dx, dy, dz] = dir;
+  const hash =
+    Math.sin(dx * 12.9898 + dy * 78.233 + dz * 45.123) * 43758.5453123;
+  const brightness = hash - Math.floor(hash);
+  if (brightness > 0.99) return [1, 1, 1];
+  return [0, 0, 0];
+}
+
 export function getFinalColor(
   pos: [number, number, number],
   dir: [number, number, number],
@@ -113,5 +159,5 @@ export function getFinalColor(
 ): [number, number, number] {
   const d2 = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2];
   if (d2 <= horizon * horizon) return [0, 0, 0];
-  return [0.01, 0.01, 0.01]; // Background
+  return getStarfieldColor(dir);
 }

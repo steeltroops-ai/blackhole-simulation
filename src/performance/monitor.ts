@@ -15,6 +15,12 @@ export interface DebugMetrics extends PerformanceMetrics {
   idleTimeMs?: number;
 }
 
+export interface PerformanceWarning {
+  severity: "info" | "warning" | "critical";
+  message: string;
+  suggestions: string[];
+}
+
 export class PerformanceMonitor {
   private frameTimes: number[] = [];
   private readonly WINDOW = 60;
@@ -52,6 +58,59 @@ export class PerformanceMonitor {
       ...metrics,
       totalFrameTimeMs: metrics.frameTimeMs,
     };
+  }
+
+  getFrameTimeBudgetUsage(): number {
+    const avgTime =
+      this.frameTimes.reduce((a, b) => a + b, 0) /
+      (this.frameTimes.length || 1);
+    const targetTime = 1000 / 60; // 60 FPS target
+    return (avgTime / targetTime) * 100;
+  }
+
+  getWarnings(): PerformanceWarning[] {
+    const metrics = this.updateMetrics(0);
+    const budgetUsage = this.getFrameTimeBudgetUsage();
+    const warnings: PerformanceWarning[] = [];
+
+    if (metrics.rollingAverageFPS < 30) {
+      warnings.push({
+        severity: "critical",
+        message: "Critical performance issue detected",
+        suggestions: ["Disable Gravitational Lensing", "Set Quality to Low"],
+      });
+    } else if (metrics.rollingAverageFPS < 60) {
+      warnings.push({
+        severity: "warning",
+        message: "Performance warning: FPS below 60",
+        suggestions: ["Reduce Ray Tracing Quality", "Disable Bloom"],
+      });
+    }
+
+    if (budgetUsage > 100) {
+      warnings.push({
+        severity: "info",
+        message: "Frame time budget exceeded (>13.3ms)",
+        suggestions: ["Enable Adaptive Resolution"],
+      });
+    }
+
+    return warnings;
+  }
+
+  shouldReduceQuality(): boolean {
+    return this.updateMetrics(0).rollingAverageFPS < 60;
+  }
+
+  shouldIncreaseQuality(): boolean {
+    const metrics = this.updateMetrics(0);
+    const budgetUsage = this.getFrameTimeBudgetUsage();
+    // Increase only if FPS is high AND we have budget headroom (< 80% usage)
+    return metrics.rollingAverageFPS > 75 && budgetUsage < 80;
+  }
+
+  reset(): void {
+    this.frameTimes = [];
   }
 
   recordCPUTime(t: number) {}

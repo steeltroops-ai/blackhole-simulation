@@ -27,6 +27,7 @@ import {
   Monitor,
   SlidersHorizontal,
 } from "lucide-react";
+import type { SimulationParams } from "@/types/simulation";
 import {
   calculateEventHorizon,
   calculatePhotonSphere,
@@ -40,21 +41,6 @@ import type {
   RayTracingQuality,
 } from "@/types/features";
 
-interface SimulationParams {
-  mass: number;
-  spin: number;
-  diskDensity: number;
-  diskTemp: number;
-  lensing: number;
-  paused: boolean;
-  zoom: number;
-  autoSpin: number;
-  features?: FeatureToggles;
-  performancePreset?: string;
-  adaptiveResolution?: boolean;
-  renderScale?: number;
-}
-
 interface ControlPanelProps {
   params: SimulationParams;
   onParamsChange: (params: SimulationParams) => void;
@@ -66,13 +52,13 @@ interface ControlPanelProps {
 }
 
 const DEFAULT_PARAMS: SimulationParams = {
-  mass: 1.2,
-  spin: 1.5,
+  mass: 0.5,
+  spin: 0.8,
   diskDensity: 3.5,
   diskTemp: 1.3,
   lensing: 1.0,
   paused: false,
-  zoom: 14.0,
+  zoom: 50.0,
   autoSpin: 0.005,
   renderScale: 1.0,
 };
@@ -99,9 +85,11 @@ export const ControlPanel = ({
 }: ControlPanelProps) => {
   const [isCompact, setIsCompact] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  
+
   // 3-Panel State: Variables (Scrollable), Modules (Toggles), System (Performance)
-  const [activeTab, setActiveTab] = useState<"variables" | "modules" | "system">("variables");
+  const [activeTab, setActiveTab] = useState<
+    "variables" | "modules" | "system"
+  >("variables");
 
   const [calculatedRadii, setCalculatedRadii] = useState({
     eventHorizon: 0,
@@ -131,11 +119,31 @@ export const ControlPanel = ({
       ...newParams,
       mass: clampAndValidate(newParams.mass, 0.1, 3.0, DEFAULT_PARAMS.mass),
       spin: clampAndValidate(newParams.spin, -5.0, 5.0, DEFAULT_PARAMS.spin),
-      diskDensity: clampAndValidate(newParams.diskDensity, 0.0, 5.0, DEFAULT_PARAMS.diskDensity),
-      diskTemp: clampAndValidate(newParams.diskTemp, 0.5, 3.0, DEFAULT_PARAMS.diskTemp),
-      lensing: clampAndValidate(newParams.lensing, 0.0, 3.0, DEFAULT_PARAMS.lensing),
+      diskDensity: clampAndValidate(
+        newParams.diskDensity,
+        0.0,
+        5.0,
+        DEFAULT_PARAMS.diskDensity,
+      ),
+      diskTemp: clampAndValidate(
+        newParams.diskTemp,
+        0.5,
+        3.0,
+        DEFAULT_PARAMS.diskTemp,
+      ),
+      lensing: clampAndValidate(
+        newParams.lensing,
+        0.0,
+        3.0,
+        DEFAULT_PARAMS.lensing,
+      ),
       zoom: clampAndValidate(newParams.zoom, 2.5, 50.0, DEFAULT_PARAMS.zoom),
-      autoSpin: clampAndValidate(newParams.autoSpin ?? 0.005, -0.05, 0.05, DEFAULT_PARAMS.autoSpin),
+      autoSpin: clampAndValidate(
+        newParams.autoSpin ?? 0.005,
+        -0.05,
+        0.05,
+        DEFAULT_PARAMS.autoSpin,
+      ),
       paused: newParams.paused,
     };
     onParamsChange(validatedParams);
@@ -363,7 +371,6 @@ export const ControlPanel = ({
 
               {/* CONTENT LAYER */}
               <div className="relative z-40 p-5 flex flex-col xl:flex-row items-stretch gap-5 h-full min-h-[210px]">
-                
                 {/* ============================================= */}
                 {/* SECTION A: IDENTITY & TELEMETRY               */}
                 {/* ============================================= */}
@@ -378,10 +385,10 @@ export const ControlPanel = ({
                         Horizon<span className="text-cyan-400">-V</span>
                       </h2>
                       <div className="flex items-center gap-2">
-                         <div className="w-1 h-1 rounded-full bg-green-500/80 animate-pulse" />
-                         <p className="text-white/30 text-[7px] font-mono tracking-[0.2em] font-bold">
-                           SYSTEM ACTIVE
-                         </p>
+                        <div className="w-1 h-1 rounded-full bg-green-500/80 animate-pulse" />
+                        <p className="text-white/30 text-[7px] font-mono tracking-[0.2em] font-bold">
+                          SYSTEM ACTIVE
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -439,17 +446,87 @@ export const ControlPanel = ({
                       {activeTab === "variables" && (
                         <>
                           <div className="flex flex-col">
-                            <SectionHeader icon={Atom} label="Physics Variables" />
-                            {renderSlider("Black Hole Mass", params.mass, 0.1, 3.0, 0.1, (v) => handleParamChange({ ...params, mass: v }), "M\u2609")}
-                            {renderSlider("Kerr Spin", params.spin, -5.0, 5.0, 0.1, (v) => handleParamChange({ ...params, spin: v }), "a*")}
-                            {renderSlider("Auto Rotation", params.autoSpin, -0.05, 0.05, 0.001, (v) => handleParamChange({ ...params, autoSpin: v }), "rad/s", 3)}
-                            {renderSlider("Matter Density", params.diskDensity, 0.0, 5.0, 0.1, (v) => handleParamChange({ ...params, diskDensity: v }), "g/cm\u00b3")}
+                            <SectionHeader
+                              icon={Atom}
+                              label="Physics Variables"
+                            />
+                            {renderSlider(
+                              "Black Hole Mass",
+                              params.mass,
+                              0.1,
+                              3.0,
+                              0.1,
+                              (v) => handleParamChange({ ...params, mass: v }),
+                              "M\u2609",
+                            )}
+                            {renderSlider(
+                              "Kerr Spin",
+                              params.spin,
+                              -5.0,
+                              5.0,
+                              0.1,
+                              (v) => handleParamChange({ ...params, spin: v }),
+                              "a*",
+                            )}
+                            {renderSlider(
+                              "Auto Rotation",
+                              params.autoSpin,
+                              -0.05,
+                              0.05,
+                              0.001,
+                              (v) =>
+                                handleParamChange({ ...params, autoSpin: v }),
+                              "rad/s",
+                              3,
+                            )}
+                            {renderSlider(
+                              "Matter Density",
+                              params.diskDensity,
+                              0.0,
+                              5.0,
+                              0.1,
+                              (v) =>
+                                handleParamChange({
+                                  ...params,
+                                  diskDensity: v,
+                                }),
+                              "g/cm\u00b3",
+                            )}
                           </div>
                           <div className="flex flex-col">
-                            <SectionHeader icon={Eye} label="Optical Variables" />
-                            {renderSlider("Plasma Temp", params.diskTemp, 0.5, 3.0, 0.1, (v) => handleParamChange({ ...params, diskTemp: v }), "KeV")}
-                            {renderSlider("Lensing Strength", params.lensing, 0.0, 3.0, 0.1, (v) => handleParamChange({ ...params, lensing: v }), "\u03bb")}
-                            {renderSlider("Orbit Distance", params.zoom, 2.5, 50.0, 0.5, (v) => handleParamChange({ ...params, zoom: v }), "AU")}
+                            <SectionHeader
+                              icon={Eye}
+                              label="Optical Variables"
+                            />
+                            {renderSlider(
+                              "Plasma Temp",
+                              params.diskTemp,
+                              0.5,
+                              3.0,
+                              0.1,
+                              (v) =>
+                                handleParamChange({ ...params, diskTemp: v }),
+                              "KeV",
+                            )}
+                            {renderSlider(
+                              "Lensing Strength",
+                              params.lensing,
+                              0.0,
+                              3.0,
+                              0.1,
+                              (v) =>
+                                handleParamChange({ ...params, lensing: v }),
+                              "\u03bb",
+                            )}
+                            {renderSlider(
+                              "Orbit Distance",
+                              params.zoom,
+                              2.5,
+                              50.0,
+                              0.5,
+                              (v) => handleParamChange({ ...params, zoom: v }),
+                              "AU",
+                            )}
                           </div>
                         </>
                       )}
@@ -462,17 +539,50 @@ export const ControlPanel = ({
                           <div className="flex flex-col">
                             <SectionHeader icon={Cpu} label="Core Modules" />
                             <div className="flex flex-col gap-2">
-                              {renderToggle("Gravitational Lensing", params.features?.gravitationalLensing ?? false, () => toggleFeature("gravitationalLensing"), Star)}
-                              {renderToggle("Accretion Disk", params.features?.accretionDisk ?? false, () => toggleFeature("accretionDisk"), Disc)}
-                              {renderToggle("Doppler Beaming", params.features?.dopplerBeaming ?? false, () => toggleFeature("dopplerBeaming"), Zap)}
+                              {renderToggle(
+                                "Gravitational Lensing",
+                                params.features?.gravitationalLensing ?? false,
+                                () => toggleFeature("gravitationalLensing"),
+                                Star,
+                              )}
+                              {renderToggle(
+                                "Accretion Disk",
+                                params.features?.accretionDisk ?? false,
+                                () => toggleFeature("accretionDisk"),
+                                Disc,
+                              )}
+                              {renderToggle(
+                                "Doppler Beaming",
+                                params.features?.dopplerBeaming ?? false,
+                                () => toggleFeature("dopplerBeaming"),
+                                Zap,
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-col">
-                            <SectionHeader icon={Sparkles} label="Post-Processing" />
+                            <SectionHeader
+                              icon={Sparkles}
+                              label="Post-Processing"
+                            />
                             <div className="flex flex-col gap-2">
-                              {renderToggle("Photon Ring", params.features?.photonSphereGlow ?? false, () => toggleFeature("photonSphereGlow"), Sun)}
-                              {renderToggle("Background Stars", params.features?.backgroundStars ?? false, () => toggleFeature("backgroundStars"), Star)}
-                              {renderToggle("Bloom / Post FX", params.features?.bloom ?? false, () => toggleFeature("bloom"), Sparkles)}
+                              {renderToggle(
+                                "Photon Ring",
+                                params.features?.photonSphereGlow ?? false,
+                                () => toggleFeature("photonSphereGlow"),
+                                Sun,
+                              )}
+                              {renderToggle(
+                                "Background Stars",
+                                params.features?.backgroundStars ?? false,
+                                () => toggleFeature("backgroundStars"),
+                                Star,
+                              )}
+                              {renderToggle(
+                                "Bloom / Post FX",
+                                params.features?.bloom ?? false,
+                                () => toggleFeature("bloom"),
+                                Sparkles,
+                              )}
                             </div>
                           </div>
                         </>
@@ -484,24 +594,67 @@ export const ControlPanel = ({
                       {activeTab === "system" && (
                         <>
                           <div className="flex flex-col">
-                            <SectionHeader icon={Activity} label="Global Presets" />
+                            <SectionHeader
+                              icon={Activity}
+                              label="Global Presets"
+                            />
                             <div className="grid grid-cols-2 gap-1.5 mb-4">
-                              {PRESETS.map((p) => renderPresetButton(p.label, params.performancePreset === p.id, () => onParamsChange(applyPreset(p.id, params))))}
+                              {PRESETS.map((p) =>
+                                renderPresetButton(
+                                  p.label,
+                                  params.performancePreset === p.id,
+                                  () =>
+                                    onParamsChange(applyPreset(p.id, params)),
+                                ),
+                              )}
                             </div>
                             <SectionHeader icon={Monitor} label="Viewport" />
                             <div className="flex flex-col gap-2">
-                               {renderSlider("Render Scale", params.renderScale ?? 1.0, 0.25, 2.0, 0.25, (v) => onParamsChange({ ...params, renderScale: v }), "x", 2)}
-                               {renderToggle("Adaptive Resolution", params.adaptiveResolution ?? false, () => onParamsChange({ ...params, adaptiveResolution: !params.adaptiveResolution }), Monitor)}
+                              {renderSlider(
+                                "Render Scale",
+                                params.renderScale ?? 1.0,
+                                0.25,
+                                2.0,
+                                0.25,
+                                (v) =>
+                                  onParamsChange({ ...params, renderScale: v }),
+                                "x",
+                                2,
+                              )}
+                              {renderToggle(
+                                "Adaptive Resolution",
+                                params.adaptiveResolution ?? false,
+                                () =>
+                                  onParamsChange({
+                                    ...params,
+                                    adaptiveResolution:
+                                      !params.adaptiveResolution,
+                                  }),
+                                Monitor,
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-col col-span-1">
-                             <SectionHeader icon={Layers} label="Ray Tracing Quality" />
-                             <div className="flex flex-col gap-1.5 h-full"> 
-                                <div className="grid grid-cols-2 gap-1.5">
-                                   {QUALITY_LEVELS.slice(0, 4).map((q) => renderPresetButton(q.label, params.features?.rayTracingQuality === q.id, () => setQuality(q.id)))}
-                                </div>
-                                {renderPresetButton("Ultra Quality", params.features?.rayTracingQuality === "ultra", () => setQuality("ultra"))}
-                             </div>
+                            <SectionHeader
+                              icon={Layers}
+                              label="Ray Tracing Quality"
+                            />
+                            <div className="flex flex-col gap-1.5 h-full">
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {QUALITY_LEVELS.slice(0, 4).map((q) =>
+                                  renderPresetButton(
+                                    q.label,
+                                    params.features?.rayTracingQuality === q.id,
+                                    () => setQuality(q.id),
+                                  ),
+                                )}
+                              </div>
+                              {renderPresetButton(
+                                "Ultra Quality",
+                                params.features?.rayTracingQuality === "ultra",
+                                () => setQuality("ultra"),
+                              )}
+                            </div>
                           </div>
                         </>
                       )}
@@ -585,7 +738,11 @@ export const ControlPanel = ({
                 {/* ============================================= */}
                 <div className="flex flex-col gap-3 p-1.5 bg-white/[0.02] border border-white/5 rounded-2xl h-full shrink-0 justify-center">
                   {[
-                    { id: "variables", icon: SlidersHorizontal, label: "Variables" },
+                    {
+                      id: "variables",
+                      icon: SlidersHorizontal,
+                      label: "Variables",
+                    },
                     { id: "modules", icon: Cpu, label: "Modules" },
                     { id: "system", icon: Activity, label: "System" },
                   ].map((tab) => (
