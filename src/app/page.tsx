@@ -1,19 +1,21 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronUp, Bug } from "lucide-react";
+import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronUp } from "lucide-react";
 import { WebGLCanvas } from "@/components/canvas/WebGLCanvas";
+import { ErrorBoundary } from "@/components/debug/ErrorBoundary";
 import { ControlPanel } from "@/components/ui/ControlPanel";
-import { UserProfile } from "@/components/ui/UserProfile";
 import { Telemetry } from "@/components/ui/Telemetry";
-import { DebugOverlay } from "@/components/ui/DebugOverlay";
+import { SimulationInfo } from "@/components/ui/SimulationInfo";
 import { useCamera } from "@/hooks/useCamera";
+
 import { useAdaptiveResolution } from "@/hooks/useAdaptiveResolution";
 import { useMobileOptimization } from "@/hooks/useMobileOptimization";
 import { usePresets } from "@/hooks/usePresets";
 import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
-import type { PerformanceMetrics, DebugMetrics } from "@/performance/monitor";
-import { PerformanceMonitor } from "@/performance/monitor";
+import type { PerformanceMetrics } from "@/performance/monitor";
 import { DEFAULT_FEATURES } from "@/types/features";
 import { settingsStorage } from "@/storage/settings";
 import { BenchmarkController } from "@/performance/benchmark";
@@ -21,13 +23,10 @@ import type { BenchmarkReport } from "@/performance/benchmark";
 
 const App = () => {
   const { isMobile, getMobileFeatures } = useMobileOptimization();
-  const { applyPreset, detectPreset } = usePresets();
+  const { applyPreset } = usePresets();
 
   const [params, setParams] = useState<SimulationParams>(() => {
     // Forced Config Authority: Ignore local storage to respect simulation.config.ts defaults
-    // const savedFeatures = settingsStorage.loadFeatures();
-    // const savedPreset = settingsStorage.loadPreset();
-
     let initialFeatures = DEFAULT_FEATURES;
     let initialPreset = "ultra-quality";
 
@@ -35,10 +34,6 @@ const App = () => {
       initialFeatures = getMobileFeatures();
       initialPreset = "balanced";
     }
-    // else if (savedFeatures) {
-    //   initialFeatures = savedFeatures;
-    //   initialPreset = savedPreset || detectPreset(savedFeatures);
-    // }
 
     return {
       ...DEFAULT_PARAMS,
@@ -53,32 +48,25 @@ const App = () => {
   const [metrics, setMetrics] = useState<PerformanceMetrics | undefined>(
     undefined,
   );
-  const [debugEnabled, setDebugEnabled] = useState(false);
-  const [debugMetrics, setDebugMetrics] = useState<DebugMetrics | null>(null);
   const [benchmarkReport, setBenchmarkReport] =
     useState<BenchmarkReport | null>(null);
   const [showBenchmarkResults, setShowBenchmarkResults] = useState(false);
+  const [isCompact, setIsCompact] = useState(true);
+  const [isInfoExpanded, setIsInfoExpanded] = useState(false);
 
-  const performanceMonitor = useRef(new PerformanceMonitor());
+  // Sync benchmark state with React for rendering
+  const [isBenchmarkRunning, setIsBenchmarkRunning] = useState(false);
+  const [benchmarkPreset, setBenchmarkPreset] = useState<string | null>(null);
+  const [benchmarkProgress, setBenchmarkProgress] = useState(0);
+
   const benchmarkController = useRef(new BenchmarkController());
 
-  const { resolutionScale } = useAdaptiveResolution(metrics?.currentFPS || 60, {
+  useAdaptiveResolution(metrics?.currentFPS || 60, {
     enabled: params.adaptiveResolution,
     onResolutionChange: (scale) => {
       setParams((prev) => ({ ...prev, renderScale: scale }));
     },
   });
-
-  useEffect(() => {
-    if (debugEnabled) {
-      const interval = setInterval(() => {
-        setDebugMetrics(performanceMonitor.current.getDebugMetrics());
-      }, 500);
-      return () => clearInterval(interval);
-    } else {
-      setDebugMetrics(null);
-    }
-  }, [debugEnabled]);
 
   useEffect(() => {
     if (params.features) {
@@ -112,12 +100,18 @@ const App = () => {
   } = useCamera(params, setParams);
 
   const startBenchmark = () => {
+    setIsBenchmarkRunning(true);
+    setBenchmarkProgress(0);
     benchmarkController.current.start(
       params.features || DEFAULT_FEATURES,
-      () => {},
+      (preset, progress) => {
+        setBenchmarkPreset(preset);
+        setBenchmarkProgress(progress);
+      },
       (report) => {
         setBenchmarkReport(report);
         setShowBenchmarkResults(true);
+        setIsBenchmarkRunning(false);
       },
     );
   };
@@ -125,6 +119,7 @@ const App = () => {
   const cancelBenchmark = () => {
     const restored = benchmarkController.current.cancel();
     if (restored) setParams((prev) => ({ ...prev, features: restored }));
+    setIsBenchmarkRunning(false);
   };
 
   const applyRecommendedPreset = () => {
@@ -136,46 +131,75 @@ const App = () => {
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans text-white">
-      <WebGLCanvas
-        params={params}
-        mouse={mouse}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMetricsUpdate={setMetrics}
-      />
+      <ErrorBoundary>
+        <WebGLCanvas
+          params={params}
+          mouse={mouse}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMetricsUpdate={setMetrics}
+        />
+      </ErrorBoundary>
 
       <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
 
-      <div className="absolute top-0 left-0 w-full p-4 md:p-8 flex justify-between items-start z-30 pointer-events-none">
-        {/* SLEEK IDENTITY HUD */}
-        <div className="flex flex-col">
-          <h1 className="text-lg md:text-xl font-extralight tracking-[0.4em] text-white uppercase leading-none">
-            Black Hole
-          </h1>
-          <div className="flex items-center gap-2.5 mt-2">
-            <span className="text-[8px] md:text-[10px] font-mono text-white/70 tracking-[0.2em] uppercase">
-              Event Horizon v5.1
-            </span>
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
-          </div>
-        </div>
+      <AnimatePresence>
+        {showUI && !isInfoExpanded && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-0 left-0 w-full p-4 md:p-8 flex justify-between items-start z-30 pointer-events-none"
+          >
+            {/* SLEEK IDENTITY HUD */}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-4">
+                <Image
+                  src="/icon.png"
+                  alt="Logo"
+                  width={40}
+                  height={40}
+                  className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]"
+                  priority
+                />
+                <h1 className="text-lg md:text-xl font-extralight tracking-[0.4em] text-white uppercase leading-none">
+                  Blackhole Simulation
+                </h1>
+              </div>
+              <div className="flex items-center gap-2.5 mt-2">
+                <span className="text-[8px] md:text-[10px] font-mono text-white/70 tracking-[0.2em] uppercase">
+                  Event Horizon v5.1
+                </span>
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
+              </div>
+            </div>
 
-        <Telemetry params={params} metrics={metrics} />
-      </div>
+            <Telemetry params={params} metrics={metrics} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ControlPanel
         params={params}
         onParamsChange={setParams}
-        showUI={showUI}
+        showUI={showUI && !isInfoExpanded}
         onToggleUI={setShowUI}
+        isCompact={isCompact}
+        onCompactChange={setIsCompact}
         onStartBenchmark={startBenchmark}
         onCancelBenchmark={cancelBenchmark}
-        isBenchmarkRunning={benchmarkController.current.isRunning()}
+        isBenchmarkRunning={isBenchmarkRunning}
+      />
+
+      <SimulationInfo
+        isVisible={showUI && isCompact}
+        isExpanded={isInfoExpanded}
+        onToggleExpanded={setIsInfoExpanded}
       />
 
       {!showUI && (
@@ -189,16 +213,16 @@ const App = () => {
         </div>
       )}
 
-      {benchmarkController.current.isRunning() && (
+      {isBenchmarkRunning && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
           <div className="bg-black/90 border border-white/20 rounded-lg p-6 text-white min-w-[250px] text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-3"></div>
-            <p className="text-sm font-medium">{`Testing ${benchmarkController.current.getCurrentPreset() || "preset"}...`}</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-3" />
+            <p className="text-sm font-medium">{`Testing ${benchmarkPreset || "preset"}...`}</p>
             <div className="w-full bg-gray-700 rounded-full h-1.5 mt-3">
               <div
                 className="bg-white h-1.5 rounded-full transition-all duration-300"
                 style={{
-                  width: `${benchmarkController.current.getCurrentProgress() * 100}%`,
+                  width: `${benchmarkProgress * 100}%`,
                 }}
               />
             </div>

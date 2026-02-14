@@ -8,6 +8,7 @@ import {
   getPreset,
   matchesPreset,
   PERFORMANCE_PRESETS,
+  type PresetName,
 } from "@/types/features";
 import type { SimulationParams } from "@/types/simulation";
 
@@ -22,6 +23,7 @@ describe("Preset Application Logic", () => {
     paused: false,
     zoom: 14.0,
     autoSpin: 0.005,
+    diskSize: 4.5,
     quality: "high",
     features: PERFORMANCE_PRESETS["ultra-quality"],
     performancePreset: "ultra-quality",
@@ -34,7 +36,7 @@ describe("Preset Application Logic", () => {
     preset: string,
     params: SimulationParams,
   ): SimulationParams => {
-    const features = getPreset(preset as any);
+    const features = getPreset(preset as PresetName);
     return {
       ...params,
       features,

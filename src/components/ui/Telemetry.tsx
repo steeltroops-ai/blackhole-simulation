@@ -5,7 +5,6 @@
  * Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 12.4, 12.5
  */
 
-import { useState } from "react";
 import type { SimulationParams } from "@/types/simulation";
 import type { PerformanceMetrics } from "@/performance/monitor";
 import {
@@ -24,8 +23,6 @@ export const Telemetry = ({
   metrics,
   budgetUsage = 0,
 }: TelemetryProps) => {
-  const [showDetailedBreakdown, setShowDetailedBreakdown] = useState(false);
-
   // Calculate accurate physics values
   const normalizedSpin = Math.max(-1, Math.min(1, params.spin / 5.0));
   const eventHorizonRadius = calculateEventHorizon(params.mass, normalizedSpin);
@@ -35,18 +32,11 @@ export const Telemetry = ({
   const timeDilation = calculateTimeDilation(params.zoom, params.mass);
   const redshift = 1 / Math.max(0.001, timeDilation) - 1;
 
-  // Determine FPS color based on thresholds (Requirements 10.4, 10.5)
-  const getFPSColor = (fps: number): string => {
-    if (fps >= 60) return "text-green-400";
-    if (fps >= 30) return "text-yellow-400";
-    return "text-red-400";
-  };
-
-  // Determine budget bar color
-  const getBudgetColor = (usage: number): string => {
-    if (usage < 80) return "bg-green-500";
-    if (usage < 100) return "bg-yellow-500";
-    return "bg-red-500";
+  // Determine FPS opacity based on thresholds
+  const getFPSOpacity = (fps: number): string => {
+    if (fps >= 60) return "text-white/95";
+    if (fps >= 30) return "text-white/60";
+    return "text-white/30";
   };
 
   return (
@@ -57,7 +47,7 @@ export const Telemetry = ({
             label: "FPS",
             value: metrics?.currentFPS,
             unit: "hz",
-            color: getFPSColor(metrics?.currentFPS || 0),
+            opacity: getFPSOpacity(metrics?.currentFPS || 0),
           },
           {
             label: "Quality",
@@ -81,7 +71,7 @@ export const Telemetry = ({
             </span>
             <div className="flex items-baseline gap-0.5">
               <span
-                className={`font-mono text-[11px] md:text-base font-black tabular-nums transition-colors duration-500 ${item.color || "text-white/95"}`}
+                className={`font-mono text-[11px] md:text-base font-black tabular-nums transition-colors duration-500 ${item.opacity || "text-white/95"}`}
               >
                 {item.value || "---"}
               </span>
@@ -107,7 +97,7 @@ export const Telemetry = ({
           </div>
           <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-300 ${getBudgetColor(budgetUsage)}`}
+              className="h-full bg-white/40 transition-all duration-300"
               style={{ width: `${Math.min(100, budgetUsage)}%` }}
             />
           </div>

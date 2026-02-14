@@ -46,23 +46,16 @@ export class ShaderManager {
   generateShaderSource(baseSource: string, features: FeatureToggles): string {
     const defines: string[] = [];
 
+    // IMPORTANT: Only emit #define when feature is ENABLED.
+    // Do NOT emit "#define FEATURE 0" for disabled features, because
+    // GLSL #ifdef checks if the symbol is DEFINED (any value), not if it is truthy.
+    // Omitting the define entirely makes #ifdef correctly evaluate to false.
     if (features.gravitationalLensing) defines.push("#define ENABLE_LENSING 1");
-    else defines.push("#define ENABLE_LENSING 0");
-
     if (features.accretionDisk) defines.push("#define ENABLE_DISK 1");
-    else defines.push("#define ENABLE_DISK 0");
-
     if (features.dopplerBeaming) defines.push("#define ENABLE_DOPPLER 1");
-    else defines.push("#define ENABLE_DOPPLER 0");
-
     if (features.backgroundStars) defines.push("#define ENABLE_STARS 1");
-    else defines.push("#define ENABLE_STARS 0");
-
     if (features.photonSphereGlow) defines.push("#define ENABLE_PHOTON_GLOW 1");
-    else defines.push("#define ENABLE_PHOTON_GLOW 0");
-
     if (features.bloom) defines.push("#define ENABLE_BLOOM 1");
-    else defines.push("#define ENABLE_BLOOM 0");
 
     // Quality LODs
     defines.push(

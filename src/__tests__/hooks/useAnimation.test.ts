@@ -124,17 +124,6 @@ describe("Property 22: Resolution capping", () => {
  */
 describe("Property 24: Quality auto-adjustment", () => {
   /**
-   * Determines if quality should be reduced based on FPS
-   */
-  function shouldReduceQuality(
-    fps: number,
-    consecutiveFrames: number,
-  ): boolean {
-    // Reduce quality if FPS < 25 for 75+ consecutive frames (3 seconds)
-    return fps < 25 && consecutiveFrames > 75;
-  }
-
-  /**
    * Adjusts quality level based on current FPS
    */
   function adjustQuality(

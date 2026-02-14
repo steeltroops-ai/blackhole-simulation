@@ -9,13 +9,9 @@
  * Requirements: 16.1, 16.3, 16.4
  */
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { isMobileDevice, getMobileRayStepCap } from "@/utils/device-detection";
-import {
-  getPreset,
-  type FeatureToggles,
-  DEFAULT_FEATURES,
-} from "@/types/features";
+import { type FeatureToggles, DEFAULT_FEATURES } from "@/types/features";
 
 interface MobileOptimizationConfig {
   isMobile: boolean;
@@ -75,11 +71,11 @@ export const useMobileOptimization = (): MobileOptimizationConfig => {
   };
 
   // Log mobile detection on mount (for debugging)
-  useEffect(() => {
-    if (isMobile) {
-      console.log("Mobile device detected - applying mobile optimizations");
-    }
-  }, [isMobile]);
+  // useEffect(() => {
+  //   if (isMobile) {
+  //     console.log("Mobile device detected - applying mobile optimizations");
+  //   }
+  // }, [isMobile]);
 
   return {
     isMobile,

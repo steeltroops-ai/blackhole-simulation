@@ -55,11 +55,13 @@ export function getMaxRaySteps(
 }
 
 export function validateFeatureToggles(
-  features: any,
+  features: unknown,
 ): features is FeatureToggles {
   if (!features || typeof features !== "object") {
     return false;
   }
+
+  const f = features as Record<string, unknown>;
 
   const requiredBooleans: (keyof FeatureToggles)[] = [
     "gravitationalLensing",
@@ -71,7 +73,7 @@ export function validateFeatureToggles(
   ];
 
   for (const key of requiredBooleans) {
-    if (typeof features[key] !== "boolean") {
+    if (typeof f[key] !== "boolean") {
       return false;
     }
   }
@@ -83,7 +85,7 @@ export function validateFeatureToggles(
     "high",
     "ultra",
   ];
-  if (!validQualities.includes(features.rayTracingQuality)) {
+  if (!validQualities.includes(f.rayTracingQuality as RayTracingQuality)) {
     return false;
   }
 
@@ -123,11 +125,9 @@ export function matchesPreset(features: FeatureToggles): PresetName {
 }
 
 export function getMobilePreset(): FeatureToggles {
-  const base = { ...DEFAULT_FEATURES }; // Respect global default target
+  const base = getPreset("balanced");
   return {
     ...base,
     bloom: false, // Force disable post-processing on mobile
-    rayTracingQuality:
-      base.rayTracingQuality === "ultra" ? "high" : base.rayTracingQuality, // Cap ultra to high for mobile
   };
 }

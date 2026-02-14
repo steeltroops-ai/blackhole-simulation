@@ -15,7 +15,8 @@ import {
   brightPassShader,
   blurShader,
   combineShader,
-} from "@/shaders/postprocess/bloom.glsl";
+} from "../shaders/postprocess/bloom.glsl";
+import { createQuadBuffer, setupPositionAttribute } from "../utils/webgl-utils";
 
 /**
  * Bloom configuration
@@ -92,17 +93,10 @@ export class BloomManager {
 
     try {
       // Create full-screen quad buffer
-      this.quadBuffer = this.gl.createBuffer();
+      this.quadBuffer = createQuadBuffer(this.gl);
       if (!this.quadBuffer) {
         throw new Error("Failed to create quad buffer");
       }
-
-      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadBuffer);
-      this.gl.bufferData(
-        this.gl.ARRAY_BUFFER,
-        new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
-        this.gl.STATIC_DRAW,
-      );
 
       // Compile shader programs
       this.brightPassProgram = this.createProgram(
@@ -138,16 +132,14 @@ export class BloomManager {
    * Create framebuffers and textures for bloom passes
    */
   private createFramebuffers(): void {
-    const gl = this.gl;
-
     // Scene framebuffer (full resolution)
     this.sceneTexture = this.createTexture(this.width, this.height);
     if (!this.sceneTexture) throw new Error("Failed to create scene texture");
     this.sceneFramebuffer = this.createFramebuffer(this.sceneTexture);
 
     // Bright pass framebuffer (half resolution for performance)
-    const halfWidth = Math.floor(this.width / 2);
-    const halfHeight = Math.floor(this.height / 2);
+    const halfWidth = Math.max(1, Math.floor(this.width / 2));
+    const halfHeight = Math.max(1, Math.floor(this.height / 2));
 
     this.brightTexture = this.createTexture(halfWidth, halfHeight);
     if (!this.brightTexture) throw new Error("Failed to create bright texture");
@@ -281,14 +273,23 @@ export class BloomManager {
    *
    * @returns Framebuffer to render to (null for direct rendering when bloom disabled)
    */
-  beginScene(): WebGLFramebuffer | null {
-    // Requirement 8.1: Skip bloom render pass when disabled
-    // Requirement 8.2: Output fragment colors directly without post-processing
-    if (!this.config.enabled) {
-      return null; // Render directly to screen
+  beginScene(forceOffscreen = false): WebGLFramebuffer | null {
+    // Requirements: 8.1, 8.2
+    // If bloom is globally disabled, render directly to screen (unless forced offscreen by TAA)
+    if (!this.config.enabled && !forceOffscreen) {
+      return null;
     }
 
-    // Render to scene framebuffer for post-processing
+    // Safety: If Framebuffer failed to initialize, fallback to screen to prevent black void
+    if (!this.sceneFramebuffer) {
+      console.warn("Bloom FBO missing, falling back to direct screen render");
+      return null;
+    }
+
+    // Safety: Unbind potential feedback textures
+    this.gl.activeTexture(this.gl.TEXTURE0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.sceneFramebuffer);
     return this.sceneFramebuffer;
   }
@@ -297,9 +298,37 @@ export class BloomManager {
    * Apply bloom post-processing
    * Requirements: 8.3
    */
+  /**
+   * Get the scene texture (raw render result)
+   */
+  getSceneTexture(): WebGLTexture | null {
+    return this.sceneTexture;
+  }
+
+  /**
+   * Apply bloom post-processing to the internally rendered scene
+   * Requirements: 8.3
+   */
   applyBloom(): void {
+    if (!this.config.enabled || !this.sceneTexture) {
+      return;
+    }
+    this.applyBloomToTexture(this.sceneTexture);
+  }
+
+  /**
+   * Apply bloom post-processing to a specific input texture
+   * and render the result to the screen.
+   *
+   * This is used when the input comes from an external source (like Reprojection TAA)
+   * rather than the internal sceneFramebuffer.
+   */
+  applyBloomToTexture(inputTexture: WebGLTexture): void {
     // Requirement 8.1: Skip bloom when disabled
     if (!this.config.enabled) {
+      // If bloom is disabled, we still need to draw the input texture to screen
+      // because the input might be an offscreen TAA buffer.
+      this.drawTextureToScreen(inputTexture);
       return;
     }
 
@@ -314,50 +343,49 @@ export class BloomManager {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
 
     // === PASS 1: Extract bright pixels ===
+    if (!this.brightPassProgram || !this.blurProgram || !this.combineProgram) {
+      return;
+    }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.brightFramebuffer);
-    gl.viewport(0, 0, Math.floor(this.width / 2), Math.floor(this.height / 2));
+    const halfWidth = Math.max(1, Math.floor(this.width / 2));
+    const halfHeight = Math.max(1, Math.floor(this.height / 2));
+    gl.viewport(0, 0, halfWidth, halfHeight);
 
     gl.useProgram(this.brightPassProgram);
 
-    const brightPosLoc = gl.getAttribLocation(
-      this.brightPassProgram!,
+    setupPositionAttribute(
+      gl,
+      this.brightPassProgram,
       "position",
+      this.quadBuffer,
     );
-    gl.enableVertexAttribArray(brightPosLoc);
-    gl.vertexAttribPointer(brightPosLoc, 2, gl.FLOAT, false, 0, 0);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
-    gl.uniform1i(
-      gl.getUniformLocation(this.brightPassProgram!, "u_texture"),
-      0,
-    );
+    gl.bindTexture(gl.TEXTURE_2D, inputTexture); // USE INPUT TEXTURE
+    gl.uniform1i(gl.getUniformLocation(this.brightPassProgram, "u_texture"), 0);
     gl.uniform1f(
-      gl.getUniformLocation(this.brightPassProgram!, "u_threshold"),
+      gl.getUniformLocation(this.brightPassProgram, "u_threshold"),
       this.config.threshold,
     );
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    // === PASS 2: Blur passes ===
-    const halfWidth = Math.floor(this.width / 2);
-    const halfHeight = Math.floor(this.height / 2);
+    // Unbind to prevent feedback
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+    // === PASS 2: Blur passes ===
     gl.useProgram(this.blurProgram);
 
-    const blurPosLoc = gl.getAttribLocation(this.blurProgram!, "position");
-    gl.enableVertexAttribArray(blurPosLoc);
-    gl.vertexAttribPointer(blurPosLoc, 2, gl.FLOAT, false, 0, 0);
+    setupPositionAttribute(gl, this.blurProgram, "position", this.quadBuffer);
 
     const resolutionLoc = gl.getUniformLocation(
-      this.blurProgram!,
+      this.blurProgram,
       "u_resolution",
     );
-    const directionLoc = gl.getUniformLocation(
-      this.blurProgram!,
-      "u_direction",
-    );
-    const textureLoc = gl.getUniformLocation(this.blurProgram!, "u_texture");
+    const directionLoc = gl.getUniformLocation(this.blurProgram, "u_direction");
+    const textureLoc = gl.getUniformLocation(this.blurProgram, "u_texture");
 
     gl.uniform2f(resolutionLoc, halfWidth, halfHeight);
 
@@ -372,9 +400,10 @@ export class BloomManager {
       gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
       gl.uniform1i(textureLoc, 0);
       gl.uniform2f(directionLoc, 1.0, 0.0);
+      gl.clear(gl.COLOR_BUFFER_BIT); // Clear buffer before drawing
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-      // Unbind texture before switching to prevent feedback loop
+      // Unbind texture immediately to prevent feedback
       gl.bindTexture(gl.TEXTURE_2D, null);
 
       // Vertical blur
@@ -388,12 +417,16 @@ export class BloomManager {
       gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
       gl.uniform1i(textureLoc, 0);
       gl.uniform2f(directionLoc, 0.0, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT); // Clear buffer
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-      // Unbind texture before switching
+      // Unbind texture immediately
       gl.bindTexture(gl.TEXTURE_2D, null);
 
       sourceTexture = targetTexture;
+      targetFramebuffer =
+        i % 2 === 0 ? this.blurFramebuffer1 : this.blurFramebuffer2;
+      targetTexture = i % 2 === 0 ? this.blurTexture1 : this.blurTexture2;
     }
 
     // === PASS 3: Combine with original scene ===
@@ -401,37 +434,93 @@ export class BloomManager {
     gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
     gl.useProgram(this.combineProgram);
-
-    const combinePosLoc = gl.getAttribLocation(
-      this.combineProgram!,
+    setupPositionAttribute(
+      gl,
+      this.combineProgram,
       "position",
+      this.quadBuffer,
     );
-    gl.enableVertexAttribArray(combinePosLoc);
-    gl.vertexAttribPointer(combinePosLoc, 2, gl.FLOAT, false, 0, 0);
 
-    // Bind scene texture
+    // Bind scene texture (Original Input)
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
+    gl.bindTexture(gl.TEXTURE_2D, inputTexture); // USE INPUT TEXTURE
     gl.uniform1i(
-      gl.getUniformLocation(this.combineProgram!, "u_sceneTexture"),
+      gl.getUniformLocation(this.combineProgram, "u_sceneTexture"),
       0,
     );
 
-    // Bind bloom texture
+    // Bind bloom texture (Blurred Result)
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
     gl.uniform1i(
-      gl.getUniformLocation(this.combineProgram!, "u_bloomTexture"),
+      gl.getUniformLocation(this.combineProgram, "u_bloomTexture"),
       1,
     );
 
     // Set bloom intensity
     gl.uniform1f(
-      gl.getUniformLocation(this.combineProgram!, "u_bloomIntensity"),
+      gl.getUniformLocation(this.combineProgram, "u_bloomIntensity"),
       this.config.intensity,
     );
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    // Unbind all units used in combine
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /**
+   * Helper to simple draw a texture to screen (no bloom)
+   */
+  private drawTextureToScreen(texture: WebGLTexture): void {
+    // Re-use combine shader with 0 intensity? Or a simple passthrough?
+    // Combine shader is simplest reuse
+    // Combine shader is simplest reuse
+    const gl = this.gl;
+    if (!this.combineProgram) return;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.useProgram(this.combineProgram);
+
+    setupPositionAttribute(
+      gl,
+      this.combineProgram,
+      "position",
+      this.quadBuffer,
+    );
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.uniform1i(
+      gl.getUniformLocation(this.combineProgram, "u_sceneTexture"),
+      0,
+    );
+
+    gl.activeTexture(gl.TEXTURE1); // Bind something to avoid warning, though unused
+    gl.bindTexture(gl.TEXTURE_2D, this.brightTexture); // safe dummy
+    gl.uniform1i(
+      gl.getUniformLocation(this.combineProgram, "u_bloomTexture"),
+      1,
+    );
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.combineProgram, "u_bloomIntensity"),
+      0.0,
+    );
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    // Cleanup
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
   /**
@@ -495,7 +584,7 @@ export class BloomManager {
     if (this.brightPassProgram) gl.deleteProgram(this.brightPassProgram);
     if (this.blurProgram) gl.deleteProgram(this.blurProgram);
     if (this.combineProgram) gl.deleteProgram(this.combineProgram);
-    if (this.quadBuffer) gl.deleteBuffer(this.quadBuffer);
+    // Do not delete quadBuffer as it is shared
 
     this.brightPassProgram = null;
     this.blurProgram = null;

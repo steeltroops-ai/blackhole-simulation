@@ -35,14 +35,22 @@ export const WebGLCanvas = ({
     glRef,
     programRef,
     bloomManagerRef,
+    reprojectionManagerRef,
+    noiseTextureRef,
+    blueNoiseTextureRef,
     error,
     resolutionScale,
     setResolutionScale,
   } = useWebGL(canvasRef);
   const { metrics } = useAnimation(
-    glRef,
-    programRef,
-    bloomManagerRef,
+    {
+      glRef,
+      programRef,
+      bloomManagerRef,
+      reprojectionManagerRef,
+      noiseTextureRef,
+      blueNoiseTextureRef,
+    },
     params,
     mouse,
     setResolutionScale,
@@ -60,15 +68,31 @@ export const WebGLCanvas = ({
       if (canvas) {
         const dpr =
           Math.min(window.devicePixelRatio || 1, 2.0) * resolutionScale;
-        canvas.width = window.innerWidth * dpr;
-        canvas.height = window.innerHeight * dpr;
+        const newWidth = window.innerWidth * dpr;
+        const newHeight = window.innerHeight * dpr;
+
+        // Only resize if dimensions actually changed to prevent flicker
+        if (canvas.width !== newWidth || canvas.height !== newHeight) {
+          canvas.width = newWidth;
+          canvas.height = newHeight;
+
+          // Resize managers to match new canvas resolution
+          if (bloomManagerRef.current) {
+            bloomManagerRef.current.resize(newWidth, newHeight);
+          }
+          if (reprojectionManagerRef.current) {
+            reprojectionManagerRef.current.resize(newWidth, newHeight);
+          }
+        }
       }
     };
 
     window.addEventListener("resize", handleResize);
+    // Initial resize to set correct size on mount
     handleResize();
+
     return () => window.removeEventListener("resize", handleResize);
-  }, [resolutionScale]);
+  }, [resolutionScale, bloomManagerRef, reprojectionManagerRef]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -77,10 +101,14 @@ export const WebGLCanvas = ({
     // Attach listeners with passive: false to allow preventDefault()
     const options: AddEventListenerOptions = { passive: false };
 
-    const wheelHandler = (e: WheelEvent) => onWheel(e as any);
-    const touchStartHandler = (e: TouchEvent) => onTouchStart(e as any);
-    const touchMoveHandler = (e: TouchEvent) => onTouchMove(e as any);
-    const touchEndHandler = (e: TouchEvent) => onTouchEnd(e as any);
+    const wheelHandler = (e: WheelEvent) =>
+      onWheel(e as unknown as React.WheelEvent<HTMLCanvasElement>);
+    const touchStartHandler = (e: TouchEvent) =>
+      onTouchStart(e as unknown as React.TouchEvent<HTMLCanvasElement>);
+    const touchMoveHandler = (e: TouchEvent) =>
+      onTouchMove(e as unknown as React.TouchEvent<HTMLCanvasElement>);
+    const touchEndHandler = (e: TouchEvent) =>
+      onTouchEnd(e as unknown as React.TouchEvent<HTMLCanvasElement>);
 
     canvas.addEventListener("wheel", wheelHandler, options);
     canvas.addEventListener("touchstart", touchStartHandler, options);

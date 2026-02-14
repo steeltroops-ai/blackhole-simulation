@@ -1,0 +1,21 @@
+# Lefthook configuration for Black Hole Simulation
+# Pre-push and Pre-commit quality gates
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: lint
+      glob: "*.{js,ts,jsx,tsx}"
+      run: bun run lint {staged_files}
+
+pre-push:
+  parallel: false
+  jobs:
+    - name: type-check
+      run: bun x tsc --noEmit
+
+    - name: unit-tests
+      run: bun run test
+
+    - name: production-build
+      run: bun run build

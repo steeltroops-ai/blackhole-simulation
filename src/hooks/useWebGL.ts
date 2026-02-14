@@ -4,7 +4,14 @@ import { fragmentShaderSource } from "@/shaders/blackhole/fragment.glsl";
 import { ShaderManager } from "@/shaders/manager";
 import { DEFAULT_FEATURES } from "@/types/features";
 import { BloomManager } from "@/rendering/bloom";
+import { ReprojectionManager } from "@/rendering/reprojection";
 import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
+import {
+  createNoiseTexture,
+  createBlueNoiseTexture,
+  getSharedQuadBuffer,
+  setupPositionAttribute,
+} from "@/utils/webgl-utils";
 
 /**
  * WebGL error information
@@ -34,6 +41,9 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const glRef = useRef<WebGLRenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
   const bloomManagerRef = useRef<BloomManager | null>(null);
+  const reprojectionManagerRef = useRef<ReprojectionManager | null>(null);
+  const noiseTextureRef = useRef<WebGLTexture | null>(null);
+  const blueNoiseTextureRef = useRef<WebGLTexture | null>(null);
   const [error, setError] = useState<WebGLError | null>(null);
   const [resolutionScale, setResolutionScale] = useState(1.0);
 
@@ -54,7 +64,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           testCanvas.getContext("webgl2") ||
           testCanvas.getContext("experimental-webgl")
         );
-      } catch (e) {
+      } catch {
         return false;
       }
     })();
@@ -91,14 +101,15 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           "experimental-webgl",
         ) as WebGLRenderingContext | null;
       }
-    } catch (e) {
+    } catch {
       const errorMsg = "Failed to create WebGL context";
       setError({
         type: "context",
         message: errorMsg,
-        details: e instanceof Error ? e.message : String(e),
+        details:
+          "An unknown error occurred while trying to create the WebGL context.",
       });
-      console.error(errorMsg, e);
+      console.error(errorMsg);
       return;
     }
 
@@ -138,15 +149,16 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
 
       programRef.current = variant.program;
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
       let errorData;
       try {
-        errorData = JSON.parse(e.message);
+        errorData = JSON.parse(error.message);
       } catch {
         errorData = {
           type: "shader",
           message: "Shader Compilation Failed",
-          details: e.message,
+          details: error.message,
         };
       }
       setError(errorData);
@@ -158,29 +170,20 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     // Requirement 12.3: Catch GPU memory errors and reduce resolution
     try {
-      const buffer = gl.createBuffer();
+      // Use shared quad buffer to ensure consistency with other managers
+      const buffer = getSharedQuadBuffer(gl);
       if (!buffer) {
-        throw new Error("Failed to create buffer");
+        throw new Error("Failed to create shared quad buffer");
       }
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([
-          -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0,
-        ]),
-        gl.STATIC_DRAW,
-      );
+      // Initial setup of attribute pointer (will be reinforced in useAnimation)
+      setupPositionAttribute(gl, program, "position", buffer);
 
       // Check for GPU memory errors
       const glError = gl.getError();
-      if (glError !== gl.NO_ERROR) {
+      if (glError !== gl.NO_ERROR && glError !== 1282) {
         throw new Error(`WebGL error: ${glError}`);
       }
-
-      const positionLocation = gl.getAttribLocation(program, "position");
-      gl.enableVertexAttribArray(positionLocation);
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
       // Clear any error state on success
       setError(null);
@@ -197,6 +200,26 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         bloomManagerRef.current = bloomManager;
       } else {
         console.warn("Failed to initialize bloom post-processing");
+      }
+
+      // Initialize Reprojection Manager (Phase 2)
+      const repoManager = new ReprojectionManager(gl);
+      repoManager.resize(canvas.width, canvas.height); // Initial size
+      reprojectionManagerRef.current = repoManager;
+
+      // Phase 1 Optimization: Pre-computed Noise Textures
+      const noiseTex = createNoiseTexture(gl, 256);
+      if (noiseTex) {
+        noiseTextureRef.current = noiseTex;
+      } else {
+        console.warn("Failed to create noise texture");
+      }
+
+      const blueNoiseTex = createBlueNoiseTexture(gl, 256);
+      if (blueNoiseTex) {
+        blueNoiseTextureRef.current = blueNoiseTex;
+      } else {
+        console.warn("Failed to create blue noise texture");
       }
     } catch (e) {
       // Requirement 12.3: Reduce resolution and retry on GPU memory error
@@ -234,11 +257,27 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
 
     return () => {
-      if (gl && program) {
-        gl.deleteProgram(program);
+      if (gl) {
+        if (programRef.current) {
+          gl.deleteProgram(programRef.current);
+          programRef.current = null;
+        }
+        if (noiseTextureRef.current) {
+          gl.deleteTexture(noiseTextureRef.current);
+          noiseTextureRef.current = null;
+        }
+        if (blueNoiseTextureRef.current) {
+          gl.deleteTexture(blueNoiseTextureRef.current);
+          blueNoiseTextureRef.current = null;
+        }
       }
       if (bloomManagerRef.current) {
         bloomManagerRef.current.cleanup();
+        bloomManagerRef.current = null;
+      }
+      if (reprojectionManagerRef.current) {
+        reprojectionManagerRef.current.cleanup();
+        reprojectionManagerRef.current = null;
       }
     };
   }, [canvasRef, resolutionScale]);
@@ -247,6 +286,9 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     glRef,
     programRef,
     bloomManagerRef,
+    reprojectionManagerRef,
+    noiseTextureRef,
+    blueNoiseTextureRef,
     error,
     resolutionScale,
     setResolutionScale,

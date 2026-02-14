@@ -1,41 +1,23 @@
 /**
- * Physical constants used in black hole simulation calculations.
- * All values are in SI units unless otherwise specified.
+ * Physics Constants for Black Hole Simulation
+ *
+ * Geometric Units (G = c = 1) unless otherwise specified.
  */
 
-/**
- * Speed of light in vacuum (m/s)
- * @constant
- */
-export const SPEED_OF_LIGHT = 299792458;
+// Schwarzschild radius for 1 Solar Mass (normalized units)
+export const SCHWARZSCHILD_RADIUS_SOLAR = 2.0;
 
-/**
- * Gravitational constant (m³/kg·s²)
- * @constant
- */
-export const GRAVITATIONAL_CONSTANT = 6.67430e-11;
+// Speed of light in m/s (approximate)
+export const C = 299792458;
 
-/**
- * Solar mass (kg)
- * @constant
- */
-export const SOLAR_MASS = 1.98847e30;
+// Gravitational constant in m^3 kg^-1 s^-2
+export const G = 6.6743e-11;
 
-/**
- * Schwarzschild radius for one solar mass (meters)
- * Calculated as 2GM☉/c²
- * @constant
- */
-export const SCHWARZSCHILD_RADIUS_SOLAR = 2953;
+// Solar Mass in kg
+export const SOLAR_MASS = 1.989e30;
 
-/**
- * Planck constant (J·Hz⁻¹)
- * @constant
- */
-export const PLANCK_CONSTANT = 6.62607015e-34;
+// Planck Constant
+export const H_BAR = 1.0545718e-34;
 
-/**
- * Boltzmann constant (J/K)
- * @constant
- */
-export const BOLTZMANN_CONSTANT = 1.380649e-23;
+// Stefan-Boltzmann constant
+export const SIGMA = 5.670374419e-8;

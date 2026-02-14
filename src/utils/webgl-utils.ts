@@ -34,29 +34,20 @@ export function createShader(
     const info = gl.getShaderInfoLog(shader);
     const typeStr = type === gl.VERTEX_SHADER ? "VERTEX" : "FRAGMENT";
 
-    console.group(`Shader Compilation Error (${typeStr})`);
-    console.error(info);
-
-    // Log source with line numbers for easy debugging
+    // Format source with line numbers
     const lines = source.split("\n");
     const numberedSource = lines
       .map((l, i) => `${(i + 1).toString().padStart(4, " ")}: ${l}`)
       .join("\n");
-    console.log("Processed Source:");
-    console.log(numberedSource);
-    console.groupEnd();
+
+    console.error(
+      `Shader Compilation Error (${typeStr}):\n${info}\n\nSource:\n${numberedSource}`,
+    );
 
     gl.deleteShader(shader);
 
-    // Pass info up to be caught by hooks
-    throw new Error(
-      JSON.stringify({
-        type: "shader",
-        message: `Shader Compilation Failed (${typeStr})`,
-        details: info,
-        source: numberedSource,
-      }),
-    );
+    // Throw error to be caught by caller
+    throw new Error(`Shader Compilation Failed (${typeStr}): ${info}`);
   }
   return shader;
 }
@@ -90,6 +81,13 @@ export function createProgram(
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
 
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program);
+    console.error(`Program link error: ${info}`);
+    gl.deleteProgram(program);
+    return null;
+  }
+
   return program;
 }
 
@@ -107,10 +105,27 @@ export function createProgram(
  *   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
  * }
  */
-export function createQuadBuffer(
+/**
+ * Shared Geometry Manager
+ * Maintains a single VBO per GL context to avoid duplicate allocations.
+ */
+const sharedQuadBuffers = new WeakMap<WebGLRenderingContext, WebGLBuffer>();
+
+/**
+ * Returns a shared WebGLBuffer containing a full-screen quad.
+ * Creates it if it doesn't exist for the given context.
+ */
+export function getSharedQuadBuffer(
   gl: WebGLRenderingContext,
 ): WebGLBuffer | null {
+  const existing = sharedQuadBuffers.get(gl);
+  if (existing && gl.isBuffer(existing)) {
+    return existing;
+  }
+
   const buffer = gl.createBuffer();
+  if (!buffer) return null;
+
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(
     gl.ARRAY_BUFFER,
@@ -119,7 +134,22 @@ export function createQuadBuffer(
     ]),
     gl.STATIC_DRAW,
   );
+
+  // Unbind to prevent accidental mutations
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+  sharedQuadBuffers.set(gl, buffer);
   return buffer;
+}
+
+/**
+ * Legacy support / Direct creation
+ * @deprecated Use getSharedQuadBuffer instead
+ */
+export function createQuadBuffer(
+  gl: WebGLRenderingContext,
+): WebGLBuffer | null {
+  return getSharedQuadBuffer(gl);
 }
 
 /**
@@ -137,8 +167,110 @@ export function setupPositionAttribute(
   gl: WebGLRenderingContext,
   program: WebGLProgram,
   attributeName: string,
+  buffer: WebGLBuffer | null,
 ): void {
+  if (!buffer) return;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   const positionLocation = gl.getAttribLocation(program, attributeName);
-  gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+  if (positionLocation !== -1) {
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+  }
+}
+
+interface TextureOptions {
+  width: number;
+  height: number;
+  data: Uint8Array;
+  minFilter?: number;
+  magFilter?: number;
+  wrap?: number;
+}
+
+/**
+ * Creates a WebGL texture from raw data
+ */
+export function createTextureFromData(
+  gl: WebGLRenderingContext,
+  options: TextureOptions,
+): WebGLTexture | null {
+  const {
+    width,
+    height,
+    data,
+    minFilter = gl.LINEAR,
+    magFilter = gl.LINEAR,
+    wrap = gl.REPEAT,
+  } = options;
+  const texture = gl.createTexture();
+  if (!texture) return null;
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    width,
+    height,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    data,
+  );
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+
+  return texture;
+}
+
+/**
+ * Generates a high-quality RGBA noise texture for shader lookups
+ * Replaces expensive runtime hash calls.
+ */
+export function createNoiseTexture(
+  gl: WebGLRenderingContext,
+  size: number = 256,
+): WebGLTexture | null {
+  const data = new Uint8Array(size * size * 4);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = Math.floor(Math.random() * 255);
+  }
+  return createTextureFromData(gl, {
+    width: size,
+    height: size,
+    data,
+    minFilter: gl.LINEAR,
+    magFilter: gl.LINEAR,
+    wrap: gl.REPEAT,
+  });
+}
+
+/**
+ * Generates a Blue Noise texture approximation (Uniform distribution with high frequency)
+ * Used for dithering to break banding.
+ */
+export function createBlueNoiseTexture(
+  gl: WebGLRenderingContext,
+  size: number = 256,
+): WebGLTexture | null {
+  // Approximate blue noise by generating white noise per channel
+  // In a real production app, we would load a pre-computed asset.
+  // For this procedural implementation, we'll use high-quality white noise
+  // but use NEAREST filtering to preserve the precise pixel values for dithering.
+  const data = new Uint8Array(size * size * 4);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = Math.floor(Math.random() * 255);
+  }
+
+  return createTextureFromData(gl, {
+    width: size,
+    height: size,
+    data,
+    minFilter: gl.NEAREST,
+    magFilter: gl.NEAREST, // Important for dithering lookup
+    wrap: gl.REPEAT,
+  });
 }

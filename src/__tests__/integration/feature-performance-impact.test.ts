@@ -419,6 +419,8 @@ describe("Feature Performance Impact - Integration Tests", () => {
         paused: false,
         zoom: 14.0,
         autoSpin: 0.005,
+        diskSize: 4.5,
+        renderScale: 1.0,
         quality: "high",
         features: DEFAULT_FEATURES,
         performancePreset: "ultra-quality",
@@ -428,7 +430,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
       // Verify all feature toggles are updated
       expect(updatedParams.features?.gravitationalLensing).toBe(false);
-      expect(updatedParams.features?.rayTracingQuality).toBe("low");
+      expect(updatedParams.features?.rayTracingQuality).toBe("off");
       expect(updatedParams.features?.accretionDisk).toBe(false);
       expect(updatedParams.features?.dopplerBeaming).toBe(false);
       expect(updatedParams.features?.backgroundStars).toBe(false);
@@ -452,6 +454,8 @@ describe("Feature Performance Impact - Integration Tests", () => {
         paused: false,
         zoom: 14.0,
         autoSpin: 0.005,
+        diskSize: 4.5,
+        renderScale: 1.0,
         quality: "low",
         features: getPreset("maximum-performance"),
         performancePreset: "maximum-performance",
@@ -485,6 +489,8 @@ describe("Feature Performance Impact - Integration Tests", () => {
         paused: false,
         zoom: 14.0,
         autoSpin: 0.005,
+        diskSize: 4.5,
+        renderScale: 1.0,
         quality: "low",
         features: getPreset("maximum-performance"),
         performancePreset: "maximum-performance",
@@ -604,11 +610,11 @@ describe("Feature Performance Impact - Integration Tests", () => {
       expect(hasLensingOrQuality).toBe(true);
     });
 
-    it("should trigger frame budget warning when exceeding 13.3ms", () => {
-      // Requirement 1.2: Target frame time is 13.3ms (75 FPS)
-      // Simulate frames at 15ms (66 FPS, but over budget)
+    it("should trigger frame budget warning when exceeding target budget", () => {
+      // Requirement 1.2: Target frame time is 16.67ms (60 FPS - updated default)
+      // Simulate frames at 17ms (58 FPS, so over budget)
       for (let i = 0; i < 60; i++) {
-        monitor.updateMetrics(15);
+        monitor.updateMetrics(17);
       }
 
       const warnings = monitor.getWarnings();
@@ -626,9 +632,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
       const budgetUsage = monitor.getFrameTimeBudgetUsage();
 
-      // 20ms / 13.3ms = ~150%
-      expect(budgetUsage).toBeGreaterThan(140);
-      expect(budgetUsage).toBeLessThan(160);
+      // 20ms / 16.67ms = ~120%
+      expect(budgetUsage).toBeGreaterThan(115);
+      expect(budgetUsage).toBeLessThan(125);
     });
 
     it("should recommend quality reduction when performance is poor", () => {
@@ -652,13 +658,13 @@ describe("Feature Performance Impact - Integration Tests", () => {
     });
 
     it("should not recommend quality increase if near frame budget", () => {
-      // Simulate 12ms frames (83 FPS, but close to budget)
+      // Simulate 14ms frames (71 FPS, close to 16.67ms budget ~84% usage)
       for (let i = 0; i < 60; i++) {
-        monitor.updateMetrics(12);
+        monitor.updateMetrics(14);
       }
 
-      // Should not increase quality even though FPS > 75
-      // because we're using > 80% of frame budget
+      // Should not increase quality even though FPS > 60 (but <75 requirement)
+      // and budget > 80%
       expect(monitor.shouldIncreaseQuality()).toBe(false);
     });
   });

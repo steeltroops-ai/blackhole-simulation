@@ -1,3 +1,4 @@
+import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
 import type { RayTracingQuality } from "@/types/features";
 
 export interface PerformanceMetrics {
@@ -31,9 +32,21 @@ export class PerformanceMonitor {
     this.frameTimes.push(deltaTime);
     if (this.frameTimes.length > this.WINDOW) this.frameTimes.shift();
 
+    return this.getMetrics(deltaTime);
+  }
+
+  private getMetrics(currentDeltaTime?: number): PerformanceMetrics {
     const avgTime =
-      this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
-    const fps = deltaTime > 0 ? 1000 / deltaTime : 0;
+      this.frameTimes.reduce((a, b) => a + b, 0) /
+      (this.frameTimes.length || 1);
+
+    // Use provided deltaTime for instantaneous FPS, otherwise use last frame or 0
+    const dt =
+      currentDeltaTime ??
+      (this.frameTimes.length > 0
+        ? this.frameTimes[this.frameTimes.length - 1]
+        : 0);
+    const fps = dt > 0 ? 1000 / dt : 0;
 
     return {
       currentFPS: Math.round(fps),
@@ -49,11 +62,14 @@ export class PerformanceMonitor {
   }
 
   setRenderResolution(res: number) {
-    this.renderResolution = res;
+    this.renderResolution = Math.min(
+      Math.max(res, PERFORMANCE_CONFIG.resolution.minScale),
+      PERFORMANCE_CONFIG.resolution.maxScale,
+    );
   }
 
   getDebugMetrics(): DebugMetrics {
-    const metrics = this.updateMetrics(0);
+    const metrics = this.getMetrics();
     return {
       ...metrics,
       totalFrameTimeMs: metrics.frameTimeMs,
@@ -64,12 +80,12 @@ export class PerformanceMonitor {
     const avgTime =
       this.frameTimes.reduce((a, b) => a + b, 0) /
       (this.frameTimes.length || 1);
-    const targetTime = 1000 / 60; // 60 FPS target
+    const targetTime = 1000 / PERFORMANCE_CONFIG.scheduler.targetFPS;
     return (avgTime / targetTime) * 100;
   }
 
   getWarnings(): PerformanceWarning[] {
-    const metrics = this.updateMetrics(0);
+    const metrics = this.getMetrics();
     const budgetUsage = this.getFrameTimeBudgetUsage();
     const warnings: PerformanceWarning[] = [];
 
@@ -90,7 +106,7 @@ export class PerformanceMonitor {
     if (budgetUsage > 100) {
       warnings.push({
         severity: "info",
-        message: "Frame time budget exceeded (>13.3ms)",
+        message: `Frame time budget exceeded (>${(1000 / PERFORMANCE_CONFIG.scheduler.targetFPS).toFixed(1)}ms)`,
         suggestions: ["Enable Adaptive Resolution"],
       });
     }
@@ -99,11 +115,11 @@ export class PerformanceMonitor {
   }
 
   shouldReduceQuality(): boolean {
-    return this.updateMetrics(0).rollingAverageFPS < 60;
+    return this.getMetrics().rollingAverageFPS < 60;
   }
 
   shouldIncreaseQuality(): boolean {
-    const metrics = this.updateMetrics(0);
+    const metrics = this.getMetrics();
     const budgetUsage = this.getFrameTimeBudgetUsage();
     // Increase only if FPS is high AND we have budget headroom (< 80% usage)
     return metrics.rollingAverageFPS > 75 && budgetUsage < 80;
@@ -113,10 +129,10 @@ export class PerformanceMonitor {
     this.frameTimes = [];
   }
 
-  recordCPUTime(t: number) {}
-  recordGPUTime(t: number) {}
-  recordIdleTime(t: number) {}
-  recordUniformUpdates(n: number) {}
-  recordDrawCalls(n: number) {}
-  recordBufferSwapTime(t: number) {}
+  recordCPUTime(_t: number) {}
+  recordGPUTime(_t: number) {}
+  recordIdleTime(_t: number) {}
+  recordUniformUpdates(_n: number) {}
+  recordDrawCalls(_n: number) {}
+  recordBufferSwapTime(_t: number) {}
 }

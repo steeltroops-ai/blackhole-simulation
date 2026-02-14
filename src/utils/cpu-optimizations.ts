@@ -1,184 +1,287 @@
 /**
  * CPU-side optimization utilities
- * 
+ *
  * Provides caching, debouncing, and idle detection for performance optimization
  * Requirements: 14.1, 14.2, 14.3, 14.4, 14.5
  */
 
 /**
  * Physics value cache for unchanged inputs
- * 
+ *
  * Requirements: 14.2
  * Property 15: Physics value caching
  */
 export class PhysicsCache<TInput, TOutput> {
-    private cache = new Map<string, TOutput>();
+  private cache = new Map<string, TOutput>();
 
-    /**
-     * Get a cached value or compute it if not cached
-     * 
-     * @param input - Input parameters
-     * @param computeFn - Function to compute the value if not cached
-     * @param keyFn - Function to generate cache key from input (optional)
-     * @returns Cached or computed value
-     */
-    get(
-        input: TInput,
-        computeFn: (input: TInput) => TOutput,
-        keyFn?: (input: TInput) => string
-    ): TOutput {
-        const key = keyFn ? keyFn(input) : JSON.stringify(input);
+  /**
+   * Get a cached value or compute it if not cached
+   *
+   * @param input - Input parameters
+   * @param computeFn - Function to compute the value if not cached
+   * @param keyFn - Function to generate cache key from input (optional)
+   * @returns Cached or computed value
+   */
+  get(
+    input: TInput,
+    computeFn: (input: TInput) => TOutput,
+    keyFn?: (input: TInput) => string,
+  ): TOutput {
+    const key = keyFn ? keyFn(input) : JSON.stringify(input);
 
-        if (this.cache.has(key)) {
-            return this.cache.get(key)!;
-        }
-
-        const value = computeFn(input);
-        this.cache.set(key, value);
-        return value;
+    if (this.cache.has(key)) {
+      return this.cache.get(key) as TOutput;
     }
 
-    /**
-     * Clear the cache
-     */
-    clear(): void {
-        this.cache.clear();
-    }
+    const value = computeFn(input);
+    this.cache.set(key, value);
+    return value;
+  }
 
-    /**
-     * Get cache size
-     */
-    size(): number {
-        return this.cache.size;
-    }
+  /**
+   * Clear the cache
+   */
+  clear(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Get cache size
+   */
+  size(): number {
+    return this.cache.size;
+  }
 }
 
 /**
  * Debounce function for parameter changes
- * 
+ *
  * Requirements: 14.3
  * Property 16: Parameter debouncing
  */
-export function debounce<T extends (...args: any[]) => any>(
-    func: T,
-    wait: number
+export function debounce<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  wait: number,
 ): (...args: Parameters<T>) => void {
-    let timeout: NodeJS.Timeout | null = null;
+  let timeout: NodeJS.Timeout | null = null;
 
-    return (...args: Parameters<T>) => {
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), wait);
-    };
+  return (...args: Parameters<T>) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
 }
 
 /**
  * Idle detector for frame rate reduction
- * 
+ *
  * Requirements: 14.5
  * Property 17: Idle frame rate reduction
  */
 export class IdleDetector {
-    private lastActivityTime: number = Date.now();
-    private idleThresholdMs: number;
+  private lastActivityTime: number = Date.now();
+  private idleThresholdMs: number;
 
-    constructor(idleThresholdMs: number = 5000) {
-        this.idleThresholdMs = idleThresholdMs;
-    }
+  constructor(idleThresholdMs: number = 5000) {
+    this.idleThresholdMs = idleThresholdMs;
+  }
 
-    /**
-     * Record user activity
-     */
-    recordActivity(): void {
-        this.lastActivityTime = Date.now();
-    }
+  /**
+   * Record user activity
+   */
+  recordActivity(): void {
+    this.lastActivityTime = Date.now();
+  }
 
-    /**
-     * Check if the system is idle
-     * 
-     * @returns true if idle (no activity for > threshold)
-     */
-    isIdle(): boolean {
-        return Date.now() - this.lastActivityTime > this.idleThresholdMs;
-    }
+  /**
+   * Check if the system is idle
+   *
+   * @returns true if idle (no activity for > threshold)
+   */
+  isIdle(): boolean {
+    return Date.now() - this.lastActivityTime > this.idleThresholdMs;
+  }
 
-    /**
-     * Get time since last activity in milliseconds
-     */
-    getTimeSinceActivity(): number {
-        return Date.now() - this.lastActivityTime;
-    }
+  /**
+   * Get time since last activity in milliseconds
+   */
+  getTimeSinceActivity(): number {
+    return Date.now() - this.lastActivityTime;
+  }
 
-    /**
-     * Reset the idle timer
-     */
-    reset(): void {
-        this.lastActivityTime = Date.now();
-    }
+  /**
+   * Reset the idle timer
+   */
+  reset(): void {
+    this.lastActivityTime = Date.now();
+  }
 
-    /**
-     * Set the idle threshold
-     */
-    setThreshold(thresholdMs: number): void {
-        this.idleThresholdMs = thresholdMs;
-    }
+  /**
+   * Set the idle threshold
+   */
+  setThreshold(thresholdMs: number): void {
+    this.idleThresholdMs = thresholdMs;
+  }
 }
 
 /**
  * Batch uniform updates for WebGL
- * 
+ *
+ * Requirements: 14.1
+ */
+/**
+ * Optimized Uniform Manager for WebGL
+ *
+ * Improvements over previous version:
+ * 1. Caches uniform locations at startup (removes gl.getUniformLocation from render loop).
+ * 2. Implements dirty checking (only updates WebGL if value changed).
+ * 3. Uses direct WebGL calls instead of intermediate Map storage.
+ *
  * Requirements: 14.1
  */
 export class UniformBatcher {
-    private uniforms: Map<string, any> = new Map();
+  private locations = new Map<string, WebGLUniformLocation>();
+  private valueCache = new Map<string, unknown>(); // For dirty checking
+  private gl: WebGLRenderingContext | null = null;
+  public program: WebGLProgram | null = null;
 
-    /**
-     * Queue a uniform update
-     */
-    set(name: string, value: any): void {
-        this.uniforms.set(name, value);
-    }
+  /**
+   * upload active uniforms from the program to the cache
+   * Must be called whenever the program changes
+   */
+  upload(gl: WebGLRenderingContext, program: WebGLProgram): void {
+    this.gl = gl;
+    this.program = program;
+    this.locations.clear();
+    this.valueCache.clear();
 
-    /**
-     * Apply all queued uniform updates to WebGL
-     */
-    flush(gl: WebGLRenderingContext, program: WebGLProgram): void {
-        for (const [name, value] of this.uniforms.entries()) {
-            const location = gl.getUniformLocation(program, name);
-            if (location === null) continue;
-
-            // Determine uniform type and call appropriate gl.uniform* function
-            if (typeof value === 'number') {
-                // Check if this is an integer uniform (quality, maxRaySteps)
-                if (name === 'u_quality' || name === 'u_maxRaySteps') {
-                    gl.uniform1i(location, value);
-                } else {
-                    gl.uniform1f(location, value);
-                }
-            } else if (Array.isArray(value)) {
-                if (value.length === 2) {
-                    gl.uniform2f(location, value[0], value[1]);
-                } else if (value.length === 3) {
-                    gl.uniform3f(location, value[0], value[1], value[2]);
-                } else if (value.length === 4) {
-                    gl.uniform4f(location, value[0], value[1], value[2], value[3]);
-                }
-            }
+    const numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < numUniforms; i++) {
+      const info = gl.getActiveUniform(program, i);
+      if (info) {
+        // Handle arrays if necessary, though basic names usually suffice
+        const loc = gl.getUniformLocation(program, info.name);
+        if (loc) {
+          this.locations.set(info.name, loc);
         }
+      }
+    }
+  }
 
-        this.uniforms.clear();
+  /**
+   * Set a uniform value.
+   * Will only issue a WebGL call if the value is different from the last cached value.
+   */
+  /**
+   * Set a uniform value.
+   * Optimized to handle primitives and TypedArrays without allocation.
+   */
+  set(name: string, value: number | number[] | Float32Array): void {
+    if (!this.gl || !this.program) return;
+
+    const loc = this.locations.get(name);
+    if (!loc) return;
+
+    // Fast path: Number
+    if (typeof value === "number") {
+      const prev = this.valueCache.get(name);
+      if (prev === value) return;
+      this.valueCache.set(name, value);
+
+      if (
+        name === "u_quality" ||
+        name === "u_maxRaySteps" ||
+        name === "u_noiseTex" ||
+        name === "u_blueNoiseTex" ||
+        name === "u_cameraMoving"
+      ) {
+        this.gl.uniform1i(loc, value);
+      } else {
+        this.gl.uniform1f(loc, value);
+      }
+      return;
     }
 
-    /**
-     * Clear all queued uniforms without applying
-     */
-    clear(): void {
-        this.uniforms.clear();
+    // Fast path: Float32Array (Zero-Copy)
+    if (value instanceof Float32Array) {
+      // Deep comparison for arrays is expensive, so we might skip it or use a dirty flag from caller.
+      // For now, we assume if a Float32Array is passed, it might be mutated, so we assume dirty
+      // OR we implement a fast check if we keep a copy.
+      // To be truly O(1), we just check identity if different buffer, or force update.
+      // Let's force update for Float32Array to ensure correctness, assuming caller optimizes frequency.
+      // OR better: check content if small.
+
+      if (value.length === 2) this.gl.uniform2fv(loc, value);
+      else if (value.length === 3) this.gl.uniform3fv(loc, value);
+      else if (value.length === 4) this.gl.uniform4fv(loc, value);
+      return;
     }
 
-    /**
-     * Get number of queued uniforms
-     */
-    size(): number {
-        return this.uniforms.size;
+    // Slow path: Array (inputs like [w, h]) - Deprecated for hot path but supported
+    if (Array.isArray(value)) {
+      if (value.length === 2) this.gl.uniform2f(loc, value[0], value[1]);
+      else if (value.length === 3)
+        this.gl.uniform3f(loc, value[0], value[1], value[2]);
+      else if (value.length === 4)
+        this.gl.uniform4f(loc, value[0], value[1], value[2], value[3]);
     }
+  }
+
+  // Explicit type setters for zero-allocation usage
+  set1f(name: string, v: number): void {
+    this.set(name, v);
+  }
+
+  set2f(name: string, x: number, y: number): void {
+    if (!this.gl || !this.program) return;
+    const loc = this.locations.get(name);
+    if (!loc) return;
+    this.gl.uniform2f(loc, x, y);
+  }
+
+  set3f(name: string, x: number, y: number, z: number): void {
+    if (!this.gl || !this.program) return;
+    const loc = this.locations.get(name);
+    if (!loc) return;
+    this.gl.uniform3f(loc, x, y, z);
+  }
+
+  /**
+   * Helper to compare values for dirty checking
+   */
+  private isEqual(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (Math.abs(a[i] - b[i]) > 0.00001) return false; // Float epsilon
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Flush is now a no-op or reset, as we set immediately.
+   * retained for API compatibility if needed, or we can remove it.
+   */
+  flush(_gl: WebGLRenderingContext, _program: WebGLProgram): void {
+    // No-op in this optimized version
+  }
+
+  /**
+   * Clear context references
+   */
+  clear(): void {
+    this.locations.clear();
+    this.valueCache.clear();
+    this.gl = null;
+    this.program = null;
+  }
+
+  /**
+   * Get number of tracked uniforms
+   */
+  size(): number {
+    return this.locations.size;
+  }
 }

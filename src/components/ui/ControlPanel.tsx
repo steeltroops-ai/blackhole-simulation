@@ -1,35 +1,24 @@
 /**
  * ControlPanel Component
- * Scientific Real-Time Interface - Refined Structure v5
+ * Scientific Real-Time Interface
  *
- * user_request: Refined Layout - 3 Panels (Variables, Modules, System) with Game-like Icons
+ * Provides centralized control over simulation parameters, feature toggles, and performance settings.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   Power,
   RefreshCcw,
   ChevronDown,
-  ChevronUp,
   Settings,
-  Eye,
-  Atom,
-  Cpu,
   Zap,
-  Layers,
   Star,
   Sun,
   Disc,
-  RotateCw,
-  Target,
-  Orbit,
-  Play,
-  Pause,
-  Eclipse,
   Sparkles,
-  Monitor,
   SlidersHorizontal,
 } from "lucide-react";
 import { UserProfile } from "./UserProfile";
@@ -53,9 +42,13 @@ interface ControlPanelProps {
   onParamsChange: (params: SimulationParams) => void;
   showUI: boolean;
   onToggleUI: (show: boolean) => void;
+  onMetricClick?: (id: string, value: unknown) => void;
+  onToggleChange?: (id: string, value: unknown) => void;
   onStartBenchmark?: () => void;
   onCancelBenchmark?: () => void;
   isBenchmarkRunning?: boolean;
+  isCompact: boolean;
+  onCompactChange: (compact: boolean) => void;
 }
 
 const PRESETS: { id: PresetName; label: string }[] = [
@@ -65,6 +58,61 @@ const PRESETS: { id: PresetName; label: string }[] = [
   { id: "ultra-quality", label: "Ultra" },
 ];
 
+const ControlSlider = ({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  unit,
+  decimals = 1,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  unit: string;
+  decimals?: number;
+}) => (
+  <div className="mb-4 last:mb-0 group select-none">
+    <div className="flex justify-between items-center mb-1.5 px-0.5">
+      <span className="text-[9px] uppercase tracking-[0.2em] text-white/50 font-black group-hover:text-white transition-colors">
+        {label}
+      </span>
+      <span className="font-mono text-[10px] text-white font-bold tabular-nums">
+        {value.toFixed(decimals)}
+        <span className="text-white/40 ml-1 text-[8px] uppercase">{unit}</span>
+      </span>
+    </div>
+    <div className="relative h-4 w-full flex items-center">
+      <div className="absolute left-0 right-0 h-[2px] bg-white/[0.08] rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-white/20 to-white/90 rounded-full transition-all duration-300"
+          style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+        />
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+      />
+      <div
+        className="absolute w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.4)] pointer-events-none z-10 border border-white/50 group-hover:scale-125 transition-[transform,opacity,scale]"
+        style={{
+          left: `calc(${((value - min) / (max - min)) * 100}% - 5px)`,
+        }}
+      />
+    </div>
+  </div>
+);
+
 const QUALITY_LEVELS: { id: RayTracingQuality; label: string }[] = [
   { id: "off", label: "Off" },
   { id: "low", label: "Low" },
@@ -73,12 +121,24 @@ const QUALITY_LEVELS: { id: RayTracingQuality; label: string }[] = [
   { id: "ultra", label: "Ultra" },
 ];
 
+const SectionHeader = ({ label }: { label: string }) => (
+  <div className="flex items-center gap-2 text-white mb-4 px-0.5">
+    <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.5)]" />
+    <span className="text-[8px] font-black uppercase tracking-[0.3em] whitespace-nowrap">
+      {label}
+    </span>
+    <div className="h-[1px] flex-1 bg-gradient-to-r from-white/10 to-transparent ml-2" />
+  </div>
+);
+
 export const ControlPanel = ({
   params,
   onParamsChange,
   showUI,
+  onToggleUI,
+  isCompact,
+  onCompactChange,
 }: ControlPanelProps) => {
-  const [isCompact, setIsCompact] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "simulation" | "performance" | "features"
@@ -86,25 +146,15 @@ export const ControlPanel = ({
 
   // 3-Panel State: Variables (Scrollable), Modules (Toggles), System (Performance)
 
-  const [calculatedRadii, setCalculatedRadii] = useState({
-    eventHorizon: 0,
-    photonSphere: 0,
-    isco: 0,
-  });
-
   const { applyPreset } = usePresets();
 
-  const handleZoom = (val: number) => {
-    onParamsChange({ ...params, zoom: Math.max(val, params.mass * 5.0) });
-  };
-
-  useEffect(() => {
+  const calculatedRadii = useMemo(() => {
     const normalizedSpin = Math.max(-1, Math.min(1, params.spin / 5.0));
     const eventHorizon = calculateEventHorizon(params.mass, normalizedSpin);
     const photonSphere = calculatePhotonSphere(params.mass, normalizedSpin);
     const isco = calculateISCO(params.mass, normalizedSpin, true);
 
-    setCalculatedRadii({ eventHorizon, photonSphere, isco });
+    return { eventHorizon, photonSphere, isco };
   }, [params.mass, params.spin]);
 
   const handleReset = () => {
@@ -199,59 +249,13 @@ export const ControlPanel = ({
 
   // --- Premium Inline UI Primitives (Symmetric & Stable) ---
 
-  const renderSlider = (
-    label: string,
-    value: number,
-    min: number,
-    max: number,
-    step: number,
-    onChange: (v: number) => void,
-    unit: string,
-    decimals: number = 1,
-  ) => (
-    <div className="mb-4 last:mb-0 group select-none">
-      <div className="flex justify-between items-center mb-1.5 px-0.5">
-        <span className="text-[9px] uppercase tracking-[0.2em] text-white/50 font-black group-hover:text-white transition-colors">
-          {label}
-        </span>
-        <span className="font-mono text-[10px] text-white font-bold tabular-nums">
-          {value.toFixed(decimals)}
-          <span className="text-white/40 ml-1 text-[8px] uppercase">
-            {unit}
-          </span>
-        </span>
-      </div>
-      <div className="relative h-4 w-full flex items-center">
-        <div className="absolute left-0 right-0 h-[2px] bg-white/[0.08] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-white/20 to-white/90 rounded-full transition-all duration-300"
-            style={{ width: `${((value - min) / (max - min)) * 100}%` }}
-          />
-        </div>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-        />
-        <div
-          className="absolute w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.4)] pointer-events-none z-10 border border-white/50 group-hover:scale-125 transition-[transform,opacity,scale]"
-          style={{
-            left: `calc(${((value - min) / (max - min)) * 100}% - 5px)`,
-          }}
-        />
-      </div>
-    </div>
-  );
+  // --- Premium Inline UI Primitives (Symmetric & Stable) ---
 
   const renderToggle = (
     label: string,
     isActive: boolean,
     onClick: () => void,
-    icon?: any,
+    icon?: React.ComponentType<{ className?: string }>,
   ) => {
     const Icon = icon;
     return (
@@ -322,20 +326,6 @@ export const ControlPanel = ({
     </button>
   );
 
-  const SectionHeader = ({ label }: { label: string }) => (
-    <div className="flex items-center gap-2 text-white mb-4 px-0.5">
-      <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.5)]" />
-      <span className="text-[8px] font-black uppercase tracking-[0.3em] whitespace-nowrap">
-        {label}
-      </span>
-      <div className="h-[1px] flex-1 bg-gradient-to-r from-white/10 to-transparent ml-2" />
-    </div>
-  );
-
-  const VerticalDivider = () => (
-    <div className="h-px w-full lg:w-px lg:h-auto bg-gradient-to-r lg:bg-gradient-to-b from-transparent via-white/5 to-transparent self-stretch lg:opacity-30 opacity-10" />
-  );
-
   return (
     <AnimatePresence mode="wait">
       {showUI &&
@@ -350,7 +340,7 @@ export const ControlPanel = ({
           >
             <div className="flex flex-col-reverse items-center justify-center">
               <button
-                onClick={() => setIsCompact(false)}
+                onClick={() => onCompactChange(false)}
                 className="text-white hover:text-white/80 transition-colors"
                 title="Open Settings"
               >
@@ -380,14 +370,29 @@ export const ControlPanel = ({
                   {/* Header Anchor: Identity & Responsive Telemetry */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                     <div className="flex items-center gap-4 w-full sm:w-auto">
-                      <Eclipse className="w-7 h-7 text-white icon-glow shrink-0" />
+                      <Image
+                        src="/icon.png"
+                        alt="Project Icon"
+                        width={48}
+                        height={48}
+                        className="w-12 h-12 object-contain icon-glow shrink-0"
+                        priority
+                      />
                       <div>
-                        <h2 className="text-white text-[13px] font-extralight tracking-[0.3em] uppercase leading-none mb-1">
-                          Black Hole
+                        <h2 className="text-white text-[13px] font-extralight tracking-[0.3em] uppercase leading-none mb-1 text-glow">
+                          Scientific Visualization
                         </h2>
-                        <p className="text-white/60 text-[7px] font-mono tracking-[0.15em] font-medium uppercase">
-                          by Mayank _@steeltroops_ai
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white/60 text-[7px] font-mono tracking-[0.15em] font-medium uppercase">
+                            by Mayank _@steeltroops_ai
+                          </p>
+                          <button
+                            onClick={() => onToggleUI(false)}
+                            className="text-[9px] text-white/40 hover:text-white uppercase tracking-widest border border-white/10 px-1.5 rounded-sm hover:bg-white/10 transition-colors"
+                          >
+                            Hide
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -429,39 +434,42 @@ export const ControlPanel = ({
                             <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
                               <SectionHeader label="Black Hole Parameters" />
                               <div className="space-y-4">
-                                {renderSlider(
-                                  SIMULATION_CONFIG.mass.label,
-                                  params.mass,
-                                  SIMULATION_CONFIG.mass.min,
-                                  SIMULATION_CONFIG.mass.max,
-                                  SIMULATION_CONFIG.mass.step,
-                                  (v) =>
-                                    handleParamChange({ ...params, mass: v }),
-                                  SIMULATION_CONFIG.mass.unit,
-                                  SIMULATION_CONFIG.mass.decimals,
-                                )}
-                                {renderSlider(
-                                  SIMULATION_CONFIG.zoom.label,
-                                  params.zoom,
-                                  SIMULATION_CONFIG.zoom.min,
-                                  SIMULATION_CONFIG.zoom.max,
-                                  SIMULATION_CONFIG.zoom.step,
-                                  (v) =>
-                                    handleParamChange({ ...params, zoom: v }),
-                                  SIMULATION_CONFIG.zoom.unit,
-                                  SIMULATION_CONFIG.zoom.decimals,
-                                )}
-                                {renderSlider(
-                                  SIMULATION_CONFIG.ui_spin.label,
-                                  params.spin,
-                                  SIMULATION_CONFIG.ui_spin.min,
-                                  SIMULATION_CONFIG.ui_spin.max,
-                                  SIMULATION_CONFIG.ui_spin.step,
-                                  (v) =>
-                                    handleParamChange({ ...params, spin: v }),
-                                  SIMULATION_CONFIG.ui_spin.unit,
-                                  SIMULATION_CONFIG.ui_spin.decimals,
-                                )}
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.mass.label}
+                                  value={params.mass}
+                                  min={SIMULATION_CONFIG.mass.min}
+                                  max={SIMULATION_CONFIG.mass.max}
+                                  step={SIMULATION_CONFIG.mass.step}
+                                  onChange={(v) =>
+                                    handleParamChange({ ...params, mass: v })
+                                  }
+                                  unit={SIMULATION_CONFIG.mass.unit}
+                                  decimals={SIMULATION_CONFIG.mass.decimals}
+                                />
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.zoom.label}
+                                  value={params.zoom}
+                                  min={SIMULATION_CONFIG.zoom.min}
+                                  max={SIMULATION_CONFIG.zoom.max}
+                                  step={SIMULATION_CONFIG.zoom.step}
+                                  onChange={(v) =>
+                                    handleParamChange({ ...params, zoom: v })
+                                  }
+                                  unit={SIMULATION_CONFIG.zoom.unit}
+                                  decimals={SIMULATION_CONFIG.zoom.decimals}
+                                />
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.ui_spin.label}
+                                  value={params.spin}
+                                  min={SIMULATION_CONFIG.ui_spin.min}
+                                  max={SIMULATION_CONFIG.ui_spin.max}
+                                  step={SIMULATION_CONFIG.ui_spin.step}
+                                  onChange={(v) =>
+                                    handleParamChange({ ...params, spin: v })
+                                  }
+                                  unit={SIMULATION_CONFIG.ui_spin.unit}
+                                  decimals={SIMULATION_CONFIG.ui_spin.decimals}
+                                />
                               </div>
                             </div>
                           </div>
@@ -469,35 +477,39 @@ export const ControlPanel = ({
                             <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
                               <SectionHeader label="Accretion Dynamics" />
                               <div className="space-y-4">
-                                {renderSlider(
-                                  SIMULATION_CONFIG.autoSpin.label,
-                                  params.autoSpin,
-                                  SIMULATION_CONFIG.autoSpin.min,
-                                  SIMULATION_CONFIG.autoSpin.max,
-                                  SIMULATION_CONFIG.autoSpin.step,
-                                  (v) =>
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.autoSpin.label}
+                                  value={params.autoSpin}
+                                  min={SIMULATION_CONFIG.autoSpin.min}
+                                  max={SIMULATION_CONFIG.autoSpin.max}
+                                  step={SIMULATION_CONFIG.autoSpin.step}
+                                  onChange={(v) =>
                                     handleParamChange({
                                       ...params,
                                       autoSpin: v,
-                                    }),
-                                  SIMULATION_CONFIG.autoSpin.unit,
-                                  SIMULATION_CONFIG.autoSpin.decimals,
-                                )}
-                                {renderSlider(
-                                  SIMULATION_CONFIG.diskSize.label,
-                                  params.diskSize ??
-                                    SIMULATION_CONFIG.diskSize.default,
-                                  SIMULATION_CONFIG.diskSize.min,
-                                  SIMULATION_CONFIG.diskSize.max,
-                                  SIMULATION_CONFIG.diskSize.step,
-                                  (v) =>
+                                    })
+                                  }
+                                  unit={SIMULATION_CONFIG.autoSpin.unit}
+                                  decimals={SIMULATION_CONFIG.autoSpin.decimals}
+                                />
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.diskSize.label}
+                                  value={
+                                    params.diskSize ??
+                                    SIMULATION_CONFIG.diskSize.default
+                                  }
+                                  min={SIMULATION_CONFIG.diskSize.min}
+                                  max={SIMULATION_CONFIG.diskSize.max}
+                                  step={SIMULATION_CONFIG.diskSize.step}
+                                  onChange={(v) =>
                                     handleParamChange({
                                       ...params,
                                       diskSize: v,
-                                    }),
-                                  SIMULATION_CONFIG.diskSize.unit,
-                                  SIMULATION_CONFIG.diskSize.decimals,
-                                )}
+                                    })
+                                  }
+                                  unit={SIMULATION_CONFIG.diskSize.unit}
+                                  decimals={SIMULATION_CONFIG.diskSize.decimals}
+                                />
                               </div>
                             </div>
                           </div>
@@ -519,21 +531,26 @@ export const ControlPanel = ({
                                   ),
                                 )}
                               </div>
-                              {renderSlider(
-                                SIMULATION_CONFIG.renderScale.label,
-                                params.renderScale ??
-                                  SIMULATION_CONFIG.renderScale.default,
-                                SIMULATION_CONFIG.renderScale.min,
-                                SIMULATION_CONFIG.renderScale.max,
-                                SIMULATION_CONFIG.renderScale.step,
-                                (v) =>
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.renderScale.label}
+                                value={
+                                  params.renderScale ??
+                                  SIMULATION_CONFIG.renderScale.default
+                                }
+                                min={SIMULATION_CONFIG.renderScale.min}
+                                max={SIMULATION_CONFIG.renderScale.max}
+                                step={SIMULATION_CONFIG.renderScale.step}
+                                onChange={(v) =>
                                   handleParamChange({
                                     ...params,
                                     renderScale: v,
-                                  }),
-                                SIMULATION_CONFIG.renderScale.unit,
-                                SIMULATION_CONFIG.renderScale.decimals,
-                              )}
+                                  })
+                                }
+                                unit={SIMULATION_CONFIG.renderScale.unit}
+                                decimals={
+                                  SIMULATION_CONFIG.renderScale.decimals
+                                }
+                              />
                             </div>
                           </div>
                           <div className="space-y-6">
@@ -568,39 +585,44 @@ export const ControlPanel = ({
                                 {[
                                   {
                                     label: "Gravitational Lensing",
-                                    key: "gravitationalLensing",
+                                    key: "gravitationalLensing" as const,
                                     icon: Star,
                                   },
                                   {
                                     label: "Accretion Disk",
-                                    key: "accretionDisk",
+                                    key: "accretionDisk" as const,
                                     icon: Disc,
                                   },
                                   {
                                     label: "Doppler Beaming",
-                                    key: "dopplerBeaming",
+                                    key: "dopplerBeaming" as const,
                                     icon: Zap,
                                   },
                                   {
                                     label: "Photon Sphere",
-                                    key: "photonSphereGlow",
+                                    key: "photonSphereGlow" as const,
                                     icon: Sun,
                                   },
                                   {
                                     label: "Ambient Stars",
-                                    key: "backgroundStars",
+                                    key: "backgroundStars" as const,
                                     icon: Star,
                                   },
                                   {
                                     label: "Volumetric Bloom",
-                                    key: "bloom",
+                                    key: "bloom" as const,
                                     icon: Sparkles,
                                   },
                                 ].map((f) =>
                                   renderToggle(
                                     f.label,
-                                    (params.features as any)[f.key] ?? false,
-                                    () => toggleFeature(f.key as any),
+                                    !!params.features?.[
+                                      f.key as keyof FeatureToggles
+                                    ],
+                                    () =>
+                                      toggleFeature(
+                                        f.key as keyof FeatureToggles,
+                                      ),
                                     f.icon,
                                   ),
                                 )}
@@ -611,48 +633,53 @@ export const ControlPanel = ({
                             <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
                               <SectionHeader label="Spectral Properties" />
                               <div className="space-y-4">
-                                {renderSlider(
-                                  SIMULATION_CONFIG.diskTemp.label,
-                                  params.diskTemp,
-                                  SIMULATION_CONFIG.diskTemp.min,
-                                  SIMULATION_CONFIG.diskTemp.max,
-                                  SIMULATION_CONFIG.diskTemp.step,
-                                  (v) =>
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.diskTemp.label}
+                                  value={params.diskTemp}
+                                  min={SIMULATION_CONFIG.diskTemp.min}
+                                  max={SIMULATION_CONFIG.diskTemp.max}
+                                  step={SIMULATION_CONFIG.diskTemp.step}
+                                  onChange={(v) =>
                                     handleParamChange({
                                       ...params,
                                       diskTemp: v,
-                                    }),
-                                  SIMULATION_CONFIG.diskTemp.unit,
-                                  SIMULATION_CONFIG.diskTemp.decimals,
-                                )}
-                                {renderSlider(
-                                  SIMULATION_CONFIG.lensing.label,
-                                  params.lensing,
-                                  SIMULATION_CONFIG.lensing.min,
-                                  SIMULATION_CONFIG.lensing.max,
-                                  SIMULATION_CONFIG.lensing.step,
-                                  (v) =>
+                                    })
+                                  }
+                                  unit={SIMULATION_CONFIG.diskTemp.unit}
+                                  decimals={SIMULATION_CONFIG.diskTemp.decimals}
+                                />
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.lensing.label}
+                                  value={params.lensing}
+                                  min={SIMULATION_CONFIG.lensing.min}
+                                  max={SIMULATION_CONFIG.lensing.max}
+                                  step={SIMULATION_CONFIG.lensing.step}
+                                  onChange={(v) =>
                                     handleParamChange({
                                       ...params,
                                       lensing: v,
-                                    }),
-                                  SIMULATION_CONFIG.lensing.unit,
-                                  SIMULATION_CONFIG.lensing.decimals,
-                                )}
-                                {renderSlider(
-                                  SIMULATION_CONFIG.diskDensity.label,
-                                  params.diskDensity,
-                                  SIMULATION_CONFIG.diskDensity.min,
-                                  SIMULATION_CONFIG.diskDensity.max,
-                                  SIMULATION_CONFIG.diskDensity.step,
-                                  (v) =>
+                                    })
+                                  }
+                                  unit={SIMULATION_CONFIG.lensing.unit}
+                                  decimals={SIMULATION_CONFIG.lensing.decimals}
+                                />
+                                <ControlSlider
+                                  label={SIMULATION_CONFIG.diskDensity.label}
+                                  value={params.diskDensity}
+                                  min={SIMULATION_CONFIG.diskDensity.min}
+                                  max={SIMULATION_CONFIG.diskDensity.max}
+                                  step={SIMULATION_CONFIG.diskDensity.step}
+                                  onChange={(v) =>
                                     handleParamChange({
                                       ...params,
                                       diskDensity: v,
-                                    }),
-                                  SIMULATION_CONFIG.diskDensity.unit,
-                                  SIMULATION_CONFIG.diskDensity.decimals,
-                                )}
+                                    })
+                                  }
+                                  unit={SIMULATION_CONFIG.diskDensity.unit}
+                                  decimals={
+                                    SIMULATION_CONFIG.diskDensity.decimals
+                                  }
+                                />
                               </div>
                             </div>
                           </div>
@@ -699,7 +726,7 @@ export const ControlPanel = ({
                     </button>
 
                     <button
-                      onClick={() => setIsCompact(true)}
+                      onClick={() => onCompactChange(true)}
                       className="flex-1 flex items-center justify-center p-2 rounded-xl bg-white/[0.04] border border-white/10 text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
                       title="Collapse System"
                     >
@@ -724,8 +751,10 @@ export const ControlPanel = ({
                       <button
                         key={tab.id}
                         onClick={() => {
-                          if (isCompact) setIsCompact(false);
-                          setActiveTab(tab.id as any);
+                          if (isCompact) onCompactChange(false);
+                          setActiveTab(
+                            tab.id as unknown as "performance" | "features",
+                          );
                         }}
                         className={`
                           flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all duration-500 relative group overflow-hidden border

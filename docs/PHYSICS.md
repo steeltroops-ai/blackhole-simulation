@@ -30,12 +30,15 @@ Where:
 - **$L^2$**: Squared angular momentum $|\vec{r} \times \vec{v}|^2$.
 - **$\lambda$**: Global lensing strength coefficient.
 
-### Numerical Methods (Ray-Leap)
+### Numerical Methods (Ray-Marching)
 
-To ensure the black hole shadow scales correctly without artifacts:
+The engine employs a custom adaptive integrator to balance precision with frame rate:
 
-1. **Adaptive Stepping**: $\Delta t \propto \max(\Delta r_{horizon}, MIN\_STEP)$. Deceleration occurs exponentially near $r_+$ to prevent numerical tunneling.
-2. **Iteration Budget**: Hard-capped at **500 steps** per fragment to avoid TDR (Timeout Detection and Recovery) on integrated chipsets.
+1.  **Adaptive Step Scaling**: $\Delta t = \Delta t_{base} \cdot (1.0 + \frac{r}{20.0})$.
+    - **Outcome**: Steps exponentially increase as rays depart the gravitational well, reducing total iterations for background stars.
+2.  **Blue Noise Dithering**: Ray entry points are offset by a stochastic blue-noise texture value ($t_0 += \text{noise} \cdot \Delta t_{min}$).
+    - **Outcome**: Converts stepping artifacts (banding) into high-frequency noise, which is then removed by the Temporal Reprojection pass.
+3.  **Iteration Budget**: Hard-capped at **300-500 steps** (quality dependent) to prevent TDR (Timeout Detection and Recovery) on integrated chipsets.
 
 ---
 
@@ -55,6 +58,14 @@ The "Azure" spectral peak is reached when the prograde side hits $T > 40,000K$ d
 - **Intensity Beaming**: Flux is boosted by $\delta^4$ to simulate the searchlight effect.
 - **Relativistic Banking**: Disk inclination is modulated by frame-dragging $\omega = 2Ma / (r^3 + a^2r)$.
 
+### Optimized Turbulence
+
+Volumetric turbulence is simulated using **Texture-Based lookups** rather than procedural noise:
+
+- **Texture**: `u_noiseTex` (256x256 RGBA).
+- **Mapping**: $N(p) = \text{texture}(uv + \text{flow})$.
+- **Performance**: Replaces expensive `sin/cos` ALU operations with O(1) texture sampling.
+
 ---
 
 ## 4. Optical Phenomena
@@ -63,8 +74,8 @@ The "Azure" spectral peak is reached when the prograde side hits $T > 40,000K$ d
 
 High-intensity rings appearing around the shadow are not UI artifacts but are physics-correct:
 
-1. **The Photon Ring ($r=3M$)**: Concentrated grazing light convergence. In cinematic mode, the ring is sharpened via exponential falloff to resolve a razor-thin boundary.
-2. **Einstein Rings**: Focused background starfield light. Intensity is determined by the starfield density threshold ($\tau = 0.998$).
+1.  **The Photon Ring ($r=3M$)**: Concentrated grazing light convergence. In cinematic mode, the ring is sharpened via exponential falloff to resolve a razor-thin boundary.
+2.  **Einstein Rings**: Focused background starfield light. Intensity is determined by the starfield density threshold ($\tau = 0.998$).
 
 ### Viewport Stability
 
@@ -73,8 +84,18 @@ $$r_{outer} = \min(M \cdot 15.0, Zoom \cdot 0.9)$$
 
 ---
 
-## 5. References
+## 5. Temporal Stability (Reprojection)
 
-1. **Shakura, N. I., & Sunyaev, R. A. (1973)** - "Black holes in binary systems. Observational appearance."
-2. **Bardeen, J. M., et al. (1972)** - "The Inner Stable Circular Orbit around a Rotating Black Hole."
-3. **Press, W. H., & Teukolsky, S. A. (1972)** - "Floating Orbits and Black-hole Stability."
+To counter the noise introduced by low-sample ray-marching and dithering:
+
+- **Algorithm**: Feedback accumulation blending.
+- **Formula**: $C_{final} = \text{mix}(C_{current}, C_{history}, \alpha)$
+- **Dynamics**: $\alpha$ shifts from `0.9` (static) to `0.5` (moving) based on camera velocity to prevent ghosting.
+
+---
+
+## 6. References
+
+1.  **Shakura, N. I., & Sunyaev, R. A. (1973)** - "Black holes in binary systems. Observational appearance."
+2.  **Bardeen, J. M., et al. (1972)** - "The Inner Stable Circular Orbit around a Rotating Black Hole."
+3.  **Press, W. H., & Teukolsky, S. A. (1972)** - "Floating Orbits and Black-hole Stability."

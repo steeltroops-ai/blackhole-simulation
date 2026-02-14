@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { clampAndValidate, isValidNumber } from "@/utils/validation";
 import type { MouseState, SimulationParams } from "@/types/simulation";
 import { SCHWARZSCHILD_RADIUS_SOLAR } from "@/physics/constants";
+// Geometric Units: G = c = 1
 
 /**
  * Camera state with spherical coordinates and velocity for momentum
@@ -64,7 +65,7 @@ export function calculateInitialZoom(
     const eventHorizonRadius = mass * SCHWARZSCHILD_RADIUS_SOLAR;
     const diskOuterRadius =
       eventHorizonRadius * ACCRETION_DISK_OUTER_RADIUS_MULTIPLIER;
-    const smallerDimension = Math.min(viewportWidth, viewportHeight);
+    const _smallerDimension = Math.min(viewportWidth, viewportHeight);
     const fovRadians = (FOV_DEGREES * Math.PI) / 180;
     const halfFov = fovRadians / 2;
     const tanHalfFov = Math.tan(halfFov);
@@ -105,7 +106,6 @@ export function useCamera(
   params: SimulationParams,
   setParams: React.Dispatch<React.SetStateAction<SimulationParams>>,
 ) {
-  const [mouse, setMouse] = useState<MouseState>({ x: 0.5, y: 0.5 });
   const [cameraState, setCameraState] = useState<CameraState>({
     theta: Math.PI,
     phi: Math.PI * 0.5,
@@ -114,6 +114,12 @@ export function useCamera(
     zoomVelocity: 0,
     damping: 0.92,
   });
+
+  const mouse = useMemo<MouseState>(() => {
+    const x = cameraState.theta / (2 * Math.PI);
+    const y = cameraState.phi / Math.PI;
+    return { x, y };
+  }, [cameraState.theta, cameraState.phi]);
 
   const isDragging = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -132,77 +138,91 @@ export function useCamera(
 
   useEffect(() => {
     let animationFrameId: number;
+    // Mutable camera data for zero-allocation animation loop
+    // We only sync to React state periodically to avoid GC pressure.
+    const mutableState = {
+      theta: cameraState.theta,
+      phi: cameraState.phi,
+      thetaVelocity: cameraState.thetaVelocity,
+      phiVelocity: cameraState.phiVelocity,
+      zoomVelocity: cameraState.zoomVelocity,
+      damping: cameraState.damping,
+    };
+    let frameCount = 0;
+    const SYNC_INTERVAL = 4; // sync to React every 4th frame (~15Hz)
 
     const applyMomentum = () => {
-      setCameraState((prev) => {
-        const newThetaVelocity = prev.thetaVelocity * prev.damping;
-        const newPhiVelocity = prev.phiVelocity * prev.damping;
-        const newZoomVelocity = prev.zoomVelocity * prev.damping;
+      // Phase 1 Fix: mutate in-place, zero allocations per frame
+      mutableState.thetaVelocity *= mutableState.damping;
+      mutableState.phiVelocity *= mutableState.damping;
+      mutableState.zoomVelocity *= mutableState.damping;
 
-        let newTheta = prev.theta + newThetaVelocity;
-        let newPhi = prev.phi + newPhiVelocity;
+      mutableState.theta += mutableState.thetaVelocity;
+      mutableState.phi += mutableState.phiVelocity;
 
-        // Auto-Spin Logic
-        // Uses the dynamic 'autoSpin' parameter from simulation params.
-        const spinSpeed =
-          paramsRef.current.autoSpin !== undefined
-            ? paramsRef.current.autoSpin
-            : DEFAULT_AUTO_SPIN;
+      // Auto-Spin Logic
+      const spinSpeed =
+        paramsRef.current.autoSpin !== undefined
+          ? paramsRef.current.autoSpin
+          : DEFAULT_AUTO_SPIN;
 
-        if (
-          !isDragging.current &&
-          touchState.current.touches.length === 0 &&
-          Math.abs(newThetaVelocity) < 0.001
-        ) {
-          newTheta += spinSpeed;
+      if (
+        !isDragging.current &&
+        touchState.current.touches.length === 0 &&
+        Math.abs(mutableState.thetaVelocity) < 0.001
+      ) {
+        mutableState.theta += spinSpeed;
+      }
+
+      // Clamp phi to [0, PI]
+      mutableState.phi = Math.max(0, Math.min(Math.PI, mutableState.phi));
+
+      // Wrap theta to [0, 2PI)
+      mutableState.theta = mutableState.theta % (2 * Math.PI);
+      if (mutableState.theta < 0) mutableState.theta += 2 * Math.PI;
+
+      // Deadzone velocity to prevent infinite micro-updates
+      if (Math.abs(mutableState.thetaVelocity) < 0.0001)
+        mutableState.thetaVelocity = 0;
+      if (Math.abs(mutableState.phiVelocity) < 0.0001)
+        mutableState.phiVelocity = 0;
+      if (Math.abs(mutableState.zoomVelocity) < 0.0001)
+        mutableState.zoomVelocity = 0;
+
+      // Sync to React state at throttled interval
+      frameCount++;
+      if (frameCount >= SYNC_INTERVAL) {
+        frameCount = 0;
+        const snapshot = { ...mutableState };
+        setCameraState(snapshot);
+
+        if (Math.abs(mutableState.zoomVelocity) > 0.0001) {
+          const zv = mutableState.zoomVelocity;
+          setParams((prev) => ({
+            ...prev,
+            zoom: clampAndValidate(
+              prev.zoom + zv,
+              MIN_ZOOM,
+              MAX_ZOOM,
+              prev.zoom,
+            ),
+          }));
         }
-
-        newPhi = Math.max(0, Math.min(Math.PI, newPhi));
-        newTheta = newTheta % (2 * Math.PI);
-        if (newTheta < 0) newTheta += 2 * Math.PI;
-
-        return {
-          ...prev,
-          theta: newTheta,
-          phi: newPhi,
-          thetaVelocity:
-            Math.abs(newThetaVelocity) < 0.0001 ? 0 : newThetaVelocity,
-          phiVelocity: Math.abs(newPhiVelocity) < 0.0001 ? 0 : newPhiVelocity,
-          zoomVelocity:
-            Math.abs(newZoomVelocity) < 0.0001 ? 0 : newZoomVelocity,
-        };
-      });
-
-      setParams((prev) => {
-        const newZoom = clampAndValidate(
-          prev.zoom + cameraState.zoomVelocity,
-          MIN_ZOOM,
-          MAX_ZOOM,
-          prev.zoom,
-        );
-        return {
-          ...prev,
-          zoom: newZoom,
-        };
-      });
+      }
 
       animationFrameId = requestAnimationFrame(applyMomentum);
     };
 
     animationFrameId = requestAnimationFrame(applyMomentum);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [cameraState.zoomVelocity, setParams]);
-
-  useEffect(() => {
-    const x = cameraState.theta / (2 * Math.PI);
-    const y = cameraState.phi / Math.PI;
-    setMouse({ x, y });
-  }, [cameraState.theta, cameraState.phi]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setParams]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isValidNumber(e.clientX) || !isValidNumber(e.clientY)) return;
     isDragging.current = true;
-    lastMousePos.current = { x: e.clientX, y: e.clientY };
+    lastMousePos.current.x = e.clientX;
+    lastMousePos.current.y = e.clientY;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -214,7 +234,7 @@ export function useCamera(
 
       const sensitivity = 0.005;
       setCameraState((prev) => {
-        let newTheta = prev.theta + deltaX * sensitivity;
+        const newTheta = prev.theta + deltaX * sensitivity;
         let newPhi = prev.phi + deltaY * sensitivity;
         newPhi = clampAndValidate(newPhi, 0, Math.PI, prev.phi);
         return {
@@ -225,7 +245,9 @@ export function useCamera(
           phiVelocity: deltaY * sensitivity * 0.5,
         };
       });
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      // Phase 1 Fix: mutate in-place instead of allocating a new object
+      lastMousePos.current.x = e.clientX;
+      lastMousePos.current.y = e.clientY;
     }
   };
 
@@ -271,7 +293,8 @@ export function useCamera(
       };
     } else if (touches.length === 1) {
       if (!isValidTouch(touches[0])) return;
-      lastMousePos.current = { x: touches[0].clientX, y: touches[0].clientY };
+      lastMousePos.current.x = touches[0].clientX;
+      lastMousePos.current.y = touches[0].clientY;
     }
   };
 
@@ -338,7 +361,7 @@ export function useCamera(
       const deltaY = touches[0].clientY - lastMousePos.current.y;
       const sensitivity = 0.005;
       setCameraState((prev) => {
-        let newTheta = prev.theta + deltaX * sensitivity;
+        const newTheta = prev.theta + deltaX * sensitivity;
         let newPhi = prev.phi + deltaY * sensitivity;
         newPhi = clampAndValidate(newPhi, 0, Math.PI, prev.phi);
         return {
@@ -349,7 +372,8 @@ export function useCamera(
           phiVelocity: deltaY * sensitivity * 0.5,
         };
       });
-      lastMousePos.current = { x: touches[0].clientX, y: touches[0].clientY };
+      lastMousePos.current.x = touches[0].clientX;
+      lastMousePos.current.y = touches[0].clientY;
     }
   };
 

@@ -19,6 +19,9 @@ export const fragmentShaderSource = `
   uniform float u_lensing_strength;
   uniform float u_disk_size;
   uniform int u_maxRaySteps;
+  uniform sampler2D u_noiseTex;
+  uniform sampler2D u_blueNoiseTex;
+  uniform float u_debug; // Debug mode toggle
 
   // === CONSTANTS ===
 #define PI 3.14159265359
@@ -32,11 +35,12 @@ export const fragmentShaderSource = `
     return mat2(c, -s, s, c);
   }
 
-  // High-quality hash
+  // Texture-based hash (ALU optimization)
   float hash(vec3 p) {
-    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-    p += dot(p, p.yzx + 33.33);
-    return fract((p.x + p.y) * p.z);
+    // Map 3D coordinate to 2D texture UV using prime stride
+    // This avoids expensive fractal arithmetic in the inner loop
+    vec2 uv = (p.xy + p.z * 37.0);
+    return texture2D(u_noiseTex, (uv + 0.5) / 256.0).r;
   }
 
   // 3D noise
@@ -55,6 +59,7 @@ export const fragmentShaderSource = `
     float f = 0.0;
     float amp = 0.5;
     for(int i = 0; i < 4; i++) {
+        // Optimization: fewer octaves far away? No, standard 4 is optimized enough with texture lookups
       f += amp * noise(p);
       p *= 2.0;
       amp *= 0.5;
@@ -62,6 +67,10 @@ export const fragmentShaderSource = `
     return f;
   }
 
+  // ... (blackbody and starfield remain same) ...
+  // Keeping blackbody function inline for now as it wasn't requested to change, 
+  // but I must preserve the existing code structure.
+  
   // Realistic blackbody radiation color
   vec3 blackbody(float temp) {
     temp = clamp(temp, 1000.0, 50000.0);
@@ -123,6 +132,12 @@ export const fragmentShaderSource = `
   void main() {
     // Setup View
     vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+
+    // === DEBUG MODE ===
+    if (u_debug > 0.5) {
+        gl_FragColor = vec4(uv.x + 0.5, uv.y + 0.5, 0.0, 1.0); // Red/Green gradient
+        return;
+    }
     vec3 ro = vec3(0.0, 0.0, -u_zoom);
     vec3 rd = normalize(vec3(uv, 1.8));
     
@@ -174,6 +189,12 @@ export const fragmentShaderSource = `
     
     // Professional 500-step budget
     int maxSteps = int(min(float(u_maxRaySteps), 500.0));
+    
+    // Phase 1 Optimization: Blue Noise Dithering
+    // Offset ray start position to break banding artifacts
+    float dither = texture2D(u_blueNoiseTex, gl_FragCoord.xy / 256.0).r;
+    float rayOffset = dither * MIN_STEP;  // Tiny offset
+    p += v * rayOffset;
 
     for(int i = 0; i < 500; i++) {
         if(i >= maxSteps) break;
@@ -187,8 +208,10 @@ export const fragmentShaderSource = `
         }
         if(r > MAX_DIST) break;
 
-        // Ray-Leap Stepper: Large in vacuum, infinitesimal near horizon
-        float dt = clamp((r - rh) * 0.1, MIN_STEP, MAX_STEP);
+        // Phase 1 Optimization: Adaptive Step Size
+        // Increase step size more aggressively when far from the black hole
+        float distFactor = 1.0 + (r / 20.0); // Boost step size at distance
+        float dt = clamp((r - rh) * 0.1 * distFactor, MIN_STEP, MAX_STEP * distFactor);
         
         // Boost precision near the critical photon ring
         float sphereProx = abs(r - rph);

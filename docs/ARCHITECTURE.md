@@ -1,131 +1,365 @@
-# Black Hole Simulation Architecture
+# System Architecture & Engineering Specifications
 
-System architecture and engineering specifications for the relativistic ray-marching engine.
+This document outlines the high-performance rendering pipeline, mathematical foundations, and software architecture of the relativistic black hole simulation.
 
 ---
 
-## 1. System Architecture Diagram
+## 1. End-to-End Execution Pipeline
 
-The simulation follows a reactive data pipeline where physical parameters flow from the UI state through mathematical transformers into the GPU-side ray-marching engine.
+The rendering engine operates on a reactive data pipeline, transforming user inputs into relativity-corrected visual output via a multi-stage WebGL 2.0 rendering pass.
 
 ```mermaid
 graph TD
-    %% Node Definitions
-    subgraph Frontend ["Frontend & Orchestration (React/Next.js)"]
-        UI["UI Controls & HUD<br/><small>(ControlPanel, PresetSelector)</small>"]
-        State["Simulation State Cache<br/><small>(React Context / Hooks)</small>"]
-        Input["Input Handlers<br/><small>(Camera Controller, Zoom)</small>"]
+    %% Global Styles for Professional Light Theme
+    classDef input fill:#e0f7fa,stroke:#006064,stroke-width:2px,color:#004d40
+    classDef orchestration fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#be5c00
+    classDef math fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#4a148c
+    classDef shader fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px,color:#0d47a1
+    classDef memory fill:#fbe9e7,stroke:#bf360c,stroke-width:2px,color:#bf360c
+    classDef output fill:#f1f8e9,stroke:#33691e,stroke-width:3px,color:#1b5e20
+
+    subgraph UserInteraction ["User Interaction Layer (React/Typescript)"]
+        UI[("User Interface<br/>(Control Panel & Inputs)")]:::input
+        State["State Management<br/>(React Hooks / Context)"]:::input
+        Camera["Camera Controller<br/>(Spherical Coordinates)"]:::input
     end
 
-    subgraph Logic ["Physics & Monitoring Layer (TypeScript)"]
-        Math["Relativistic Math Engine<br/><small>(Kerr Metric, Doppler Logic)</small>"]
-        Perf["Performance Monitor<br/><small>(FPS Tracking, LOD Management)</small>"]
+    subgraph CPULogic ["CPU Orchestration & Physics"]
+        Orchestrator["Render Loop Orchestrator<br/>(requestAnimationFrame)"]:::orchestration
+        Optimizer["Uniform Watcher<br/>(Zero-Overhead Batching)"]:::orchestration
+
+        PhysicsEngine["Physics Kernel"]:::math
+        Metric["Kerr Metric Calculator<br/>(Spin/Mass/Charge)"]:::math
+        Constants["Physical Constants<br/>(G, c, Schwarzschild)"]:::math
     end
 
-    subgraph GPU ["Rendering Engine (WebGL 2.0 / GLSL)"]
-        ShaderMgr["Shader Manager<br/><small>(Uniform Buffer, Compilation)</small>"]
-        MainRay["Main Ray-Marching Loop<br/><small>(Geodesic Integration)</small>"]
-        PostProc["Post-Processing Pipeline<br/><small>(HDR Bloom, ACES Tone Mapping)</small>"]
+    subgraph RenderPipeline ["GPU Rendering Pipeline (WebGL 2.0 / GLSL)"]
+
+        subgraph Pass1 ["Pass 1: Relativistic Ray-Marching"]
+            Vertex["Vertex Shader<br/>(Full-Screen Quad)"]:::shader
+            Integrator["Geodesic Integrator<br/>(Runge-Kutta 4th Order)"]:::shader
+            EventHorizon["Event Horizon Detection<br/>(Schwarzschild Radius Check)"]:::shader
+            DiskRender["Accretion Disk Shader<br/>(Doppler Shift & Redshift)"]:::shader
+        end
+
+        subgraph Pass2 ["Pass 2: Temporal Reprojection (TAA)"]
+            ReprojectionShader["Reprojection Shader<br/>(History Blending)"]:::shader
+            MotionLogic["Motion Adaptive Blending<br/>(Dynamic Alpha)"]:::shader
+        end
+
+        subgraph Pass3 ["Pass 3: Bloom Processing"]
+            BrightPass["Bright Pass Filter<br/>(Luminance Threshold)"]:::shader
+            BlurH["Gaussian Blur<br/>(Horizontal)"]:::shader
+            BlurV["Gaussian Blur<br/>(Vertical)"]:::shader
+            Composite["Additive Composite"]:::shader
+        end
+
+        ToneMap["ACES Tone Mapping<br/>(Gamma Correction)"]:::shader
     end
 
-    %% Flow Definitions
+    subgraph Memory ["GPU Memory Management"]
+        PingBuffer[("Ping Buffer<br/>(RGBA16F)")]:::memory
+        PongBuffer[("Pong Buffer<br/>(RGBA16F)")]:::memory
+        BloomBuffer1[("Bloom Buffer 1<br/>(RGBA8)")]:::memory
+        BloomBuffer2[("Bloom Buffer 2<br/>(RGBA8)")]:::memory
+    end
+
+    Display(("Viewport Output<br/>(Canvas Element)")):::output
+
+    %% Data Flow
     UI --> State
-    Input --> State
-    State --> Math
-    Math --> ShaderMgr
-    Perf --> ShaderMgr
-    ShaderMgr --> MainRay
-    MainRay --> PostProc
-    PostProc --> Display["Canvas Output Viewport"]
+    Camera --> State
+    State --> Orchestrator
 
-    %% Styling
-    style Frontend fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#fff
-    style Logic fill:#0f172a,stroke:#8b5cf6,stroke-width:2px,color:#fff
-    style GPU fill:#0f172a,stroke:#ef4444,stroke-width:2px,color:#fff
-    style Display fill:#000,stroke:#fff,stroke-width:3px,color:#fff
+    Orchestrator --> PhysicsEngine
+    PhysicsEngine --> Metric
+    Metric --> Constants
 
-    %% Node Colors
-    style UI fill:#1e293b,color:#3b82f6
-    style Math fill:#1e293b,color:#8b5cf6
-    style MainRay fill:#1e293b,color:#ef4444
+    Orchestrator --> Optimizer
+    Optimizer -- "Upload Uniforms" --> Vertex
+
+    Vertex --> Integrator
+    Integrator -- "Ray Trajectory" --> EventHorizon
+    EventHorizon -- "Hit/Miss" --> DiskRender
+
+    DiskRender -- "High Dynamic Range" --> PingBuffer
+    PingBuffer -- "Read Previous Frame" --> ReprojectionShader
+    PongBuffer -- "Read Current Frame" --> ReprojectionShader
+    ReprojectionShader -.-> MotionLogic
+    ReprojectionShader --> PongBuffer
+
+    PongBuffer --> BrightPass
+    BrightPass --> BloomBuffer1
+    BloomBuffer1 --> BlurH
+    BlurH --> BloomBuffer2
+    BloomBuffer2 --> BlurV
+    BlurV --> Composite
+
+    Composite --> ToneMap
+    ToneMap --> Display
+
+    %% Feedback Loop
+    Display -.-> Orchestrator
 ```
 
 ---
 
-## 2. Optimized Project Structure
+## 2. Project File Structure Analysis
 
-The project is organized into functional layers to separate physical modeling, GPU execution, and UI management.
+The project is organized into strictly defined modules to separate concerns between the React application lifecycle, the CPU-side physics engine, and the GPU-side shader programs.
 
 ```text
 src/
-├── app/                  # Next.js App Router (Layouts & Pages)
-├── components/           # UI & Rendering Components
-│   ├── canvas/           # WebGL Entry points (Canvas, Context initialization)
-│   └── ui/               # HUD, Controls, and Settings Panels
-├── hooks/                # Reactive Logic (Camera, Animation, Presets)
-├── physics/              # Mathematical Foundations (Metric, Doppler, Relativistic)
-├── shaders/              # GLSL Implementations
-│   ├── blackhole/        # Surface & Volumetric Shaders
-│   ├── postprocess/      # Bloom, Blur, and Tone Mapping Kernels
-│   └── manager.ts        # Shader Compilation & Uniform Handling
-├── rendering/            # Pipeline Orchestration (Adaptive Resolution, Pass Management)
-├── performance/          # System Reliability (Monitoring, Validation, Benchmarks)
-├── storage/              # Persistence Layer (Settings, History)
-├── types/                # Global Type Definitions
-└── utils/                # General Utilities (Memory, Debugging, WebGL Helpers)
+├── app/                                  # Next.js App Router (Entry Points)
+│   ├── globals.css                       # Global Tailwind resets & font faces
+│   ├── layout.tsx                        # Root layout & SEO Metadata injection
+│   ├── page.tsx                          # Main simulation view controller
+│   ├── robots.ts                         # Search engine indexing directives
+│   └── sitemap.ts                        # XML Sitemap generator
+│
+├── components/                           # UI & Rendering Components
+│   ├── canvas/
+│   │   └── WebGLCanvas.tsx               # Manages WebGL context lifecycle
+│   └── ui/
+│       ├── ControlPanel.tsx              # User inputs (mass, spin, resolution)
+│       ├── DebugOverlay.tsx              # Developer metrics (buffers, TAA)
+│       ├── SimulationInfo.tsx            # Semantic overlay for physics education
+│       ├── Telemetry.tsx                 # Real-time FPS & resolution HUD
+│       └── UserProfile.tsx               # Session identity display
+│
+├── configs/                              # Static Configuration
+│   ├── features.ts                       # Feature flags (RayTracing, Bloom)
+│   ├── performance.config.ts             # Hardware tier thresholds
+│   ├── physics.config.ts                 # Simulation constants (G, c)
+│   └── simulation.config.ts              # Default camera & quality settings
+│
+├── hooks/                                # Logic & State Management
+│   ├── useAdaptiveResolution.ts          # Dynamic DPI scaling logic
+│   ├── useAnimation.ts                   # Main Render Loop (requestAnimationFrame)
+│   ├── useCamera.ts                      # Spherical coordinate physics & inputs
+│   ├── useMobileOptimization.ts          # Device tier detection logic
+│   ├── usePresets.ts                     # Graphics quality profiles (Low/Ultra)
+│   └── useWebGL.ts                       # Low-level GL context initialization
+│
+├── performance/                          # Telemetry & Optimization
+│   ├── benchmark.ts                      # Automated hardware capability testing
+│   └── monitor.ts                        # Frame time & memory tracking
+│
+├── physics/                              # Core Mathematics
+│   ├── constants.ts                      # Geometric unit definitions
+│   └── kerr-metric.ts                    # Tensor calculations for space-time
+│
+├── rendering/                            # WebGL Pass Orchestration
+│   ├── adaptive-resolution.ts            # Scaling strategy implementation
+│   ├── bloom.ts                          # Dual-pass Gaussian blur engine
+│   └── reprojection.ts                   # Temporal Anti-Aliasing manager
+│
+├── shaders/                              # GLSL Programs
+│   ├── blackhole/
+│   │   └── fragment.glsl                 # Core Ray-Marching Kernel
+│   ├── postprocess/
+│   │   ├── bloom.glsl                    # Bright Pass & Blur shaders
+│   │   └── reprojection.glsl             # Velocity-based history blending
+│   └── manager.ts                        # Program linker & validator
+│
+├── storage/                              # Persistence
+│   └── settings.ts                       # LocalStorage wrapper for user prefs
+│
+├── types/                                # TypeScript Interfaces
+│   ├── features.ts                       # Feature flag definitions
+│   └── simulation.ts                     # Core state shapes (Params, Camera)
+│
+└── utils/                                # Helpers
+    ├── cpu-optimizations.ts              # Uniform batching & dirty-checking
+    ├── device-detection.ts               # GPU model identification
+    ├── geometry.ts                       # Vertex buffer geometric primitives
+    ├── validation.ts                     # Input sanitization
+    └── webgl-utils.ts                    # GL function wrappers
 ```
 
 ---
 
-## 3. Data Flow & Execution Pipeline
+## 3. Mathematical Framework & Physics
 
-### 3.1 Orchestration
+The simulation leverages General Relativity to visualize spacetime curvature. All calculations use **Geometric Units** ($G = c = 1$) to avoid floating-point underflow.
 
-Integrated via **Next.js**, managing the lifecycle of the WebGL context. Parameter changes trigger uniform updates without re-compiling shaders, ensuring zero-latency interaction.
+### 3.1. The Kerr Metric (Rotating Black Hole)
 
-### 3.2 Physics Integration
+The spacetime geometry is defined by the Kerr Metric in Boyer-Lindquist coordinates:
 
-Physical constants and metric calculations are performed in `src/physics/`. These results are passed as uniforms to the GPU, where the **Geodesic Integrator** solves the null geodesic equations using an optimized $r^{-4}$ pseudo-potential for real-time visualization.
+$$
+ds^2 = -\left(1 - \frac{2Mr}{\Sigma}\right) dt^2 - \frac{4Mar \sin^2\theta}{\Sigma} dt d\phi + \frac{\Sigma}{\Delta} dr^2 + \Sigma d\theta^2 + \left(r^2 + a^2 + \frac{2Ma^2r \sin^2\theta}{\Sigma}\right) \sin^2\theta d\phi^2
+$$
 
-### 3.3 Post-Processing
+Where:
 
-The rendering pipeline uses a multi-pass approach:
+- $\Sigma = r^2 + a^2 \cos^2\theta$
+- $\Delta = r^2 - 2Mr + a^2$
+- $a = J/M$ (Spin parameter)
 
-1. **Geometry Pass**: Ray-march the black hole and accretion disk.
-2. **Bloom Pass**: Extract high-luminance areas and apply Gaussian blur.
-3. **Resolve Pass**: Composite layers with ACES Filmic Tone Mapping and Gamma correction.
+### 3.2. Geodesic Integration (Ray Marching)
 
----
+Light rays are traced by solving the **Null Geodesic Equation**:
 
-## 4. Performance Models (LOD)
+$$
+\frac{d^2x^\mu}{d\lambda^2} + \Gamma^\mu_{\alpha\beta} \frac{dx^\alpha}{d\lambda} \frac{dx^\beta}{d\lambda} = 0
+$$
 
-The system dynamically adjusts complexity based on hardware capability:
+To optimize performance, we approximate this using an RK4 stepper with an adaptive step size $\Delta t$:
 
-| Tier       | Model     | Strategy                                      | Target Hardware          |
-| :--------- | :-------- | :-------------------------------------------- | :----------------------- |
-| **High**   | Full Kerr | Full geodesic ray-marching (200 steps).       | Dedicated RTX/GTX GPUs   |
-| **Medium** | Geometric | Optimized steps (100) + simplified noise.     | Integrated GPUs / M1 Mac |
-| **Low**    | Analytic  | 2D Lensing approximation + zero ray-marching. | Mobile Devices           |
+$$
+\Delta t = \max(\Delta t_{\min}, k \cdot (r - r_s))
+$$
 
----
-
-## 5. Engineering Constraints
-
-- **TDR Prevention**: Loop iterations are hard-capped to avoid driver timeouts on integrated chipsets.
-- **Memory Footprint**: All procedural assets (stars, noise) are generated on-the-fly to maintain a <2MB bundle size.
-- **Precision**: Physics-critical variables use `highp` precision; visual-only data uses `mediump` for optimization.
+This allocates more computational power near the event horizon where curvature is extreme.
 
 ---
 
-## 6. Confidentiality & Intellectual Property
+## 4. Shader Pipeline Breakdown
 
-This project is licensed as **Proprietary and Confidential**. The confidentiality protects the following core intellectual assets:
+The visual output is generated via a multi-pass pipeline to ensure high fidelity and temporal stability.
 
-### 6.1 Trade Secret Algorithms
+```mermaid
+graph LR
+    %% Styles
+    classDef buffer fill:#fbe9e7,stroke:#d84315,stroke-width:2px,color:#d84315
+    classDef pass fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#01579b
+    classDef final fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#2e7d32
 
-- **Interleaved Performance-FBM**: A manual shader-unroll optimization that achieves volumetric turbulence appearance at a fraction of the standard noise cost.
-- **Pseudo-Potential Ray-Marching**: A unique adaptation of General Relativity equations using a scientifically tuned $r^{-4}$ correction model. It enables accurate visualization of the photon sphere at $3M$ and stable light orbits while maintaining high performance on consumer-grade GPUs.
+    subgraph Pipeline ["Frame Generation Cycle"]
+        R1[("Ray Marching<br/>(Highp RGBA16F)")]:::pass
+        R2[("Reprojection TAA<br/>(Blend History)")]:::pass
+        R3[("Bright Pass<br/>(Luminance > 1.0)")]:::pass
+        R4[("Gaussian Blur H<br/>(Horizontal)")]:::pass
+        R5[("Gaussian Blur V<br/>(Vertical)")]:::pass
+        R6[("Composite & Tone<br/>(ACES + Gamma)")]:::final
+    end
 
-### 6.2 Competitive Edge
+    R1 --> R2
+    R2 --> R3
+    R3 --> R4
+    R4 --> R5
+    R5 --> R6
+```
 
-The project's primary value lies in its high-fidelity performance on consumer-grade and integrated GPUs, achieved through these non-public mathematical heuristics.
+### 4.1 Detailed Pass Configurations
+
+| Pass  | Shader                          | Resolution  | Format      | Purpose                                                                                                                                                                                                                      |
+| :---- | :------------------------------ | :---------- | :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** | `blackhole/fragment.glsl`       | Full Screen | **RGBA16F** | Ray-marches the scene. Calculates event horizon intersections, accretion disk emission (blackbody), and gravitational lensing.                                                                                               |
+| **2** | `postprocess/reprojection.glsl` | Full Screen | **RGBA16F** | **Temporal Anti-Aliasing (TAA)**. Blends current frame with previous frame (`HistoryBuffer`) to reduce noise. Alpha ($\alpha$) adapts to motion: • Static: $\alpha=0.9$ (High Quality) • Moving: $\alpha=0.5$ (Low Ghosting) |
+| **3** | `postprocess/bloom.glsl`        | 1/2 Screen  | **RGBA8**   | **Bright Pass**. Extracts pixels with Luminance $> 1.0$ (High Dynamic Range glow).                                                                                                                                           |
+| **4** | `postprocess/bloom.glsl`        | 1/4 Screen  | **RGBA8**   | **Gaussian Blur H**. Blurs the bright pass horizontally.                                                                                                                                                                     |
+| **5** | `postprocess/bloom.glsl`        | 1/4 Screen  | **RGBA8**   | **Gaussian Blur V**. Blurs the result vertically to complete the glow effect.                                                                                                                                                |
+| **6** | `compositing`                   | Full Screen | **RGBA8**   | **Final Compose**. Adds Bloom to Scene, applies ACES Tone Mapping, and performs Gamma Correction ($2.2$).                                                                                                                    |
+
+---
+
+## 5. Performance Complexity Standards
+
+This project adheres to strict **Time** and **Space** complexity constraints to ensure performance on consumer hardware.
+
+### 5.1 Time Complexity Targets
+
+- **CPU Render Loop**: $O(1)$ relative to simulation time.
+  - No per-frame allocations inside `requestAnimationFrame`.
+  - All uniform updates use cached `Float32Array` views or dirty-checking.
+- **GPU Ray Marching**: $O(N)$ where $N$ is steps.
+  - Optimized via **Adaptive Stepping** near mass concentrations.
+  - Target: < 16ms per frame.
+
+### 5.2. Memory Safety & Space Complexity
+
+- **Space Complexity**: $O(1)$ (Constant) relative to time.
+  - All heavy assets (Textures, Buffers) are allocated **once** at startup or resize.
+  - No dynamic object creation in the simulation loop.
+- **Leak Prevention**:
+  - `gl.deleteTexture`, `gl.deleteFramebuffer`, and `gl.deleteProgram` are explicitly called in cleanup hooks.
+  - "Zero-Copy" architecture where possible (using Typed Arrays).
+
+---
+
+## 6. Component & State Architecture
+
+The user interface and simulation state are decoupled from the render loop via React refs and efficient context management.
+
+```mermaid
+graph TD
+    classDef react fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#1565c0
+    classDef logic fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#e65100
+    classDef view fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#4a148c
+
+    subgraph AppRoots ["Observation Layer"]
+        Page["Page (Root UI)"]:::react
+        Control["Control Panel"]:::react
+        Info["Simulation Info"]:::react
+        HUD["Telemetry HUD"]:::react
+    end
+
+    subgraph StateLogic ["State Logic"]
+        UseAnim["useAnimation Loop"]:::logic
+        UseCam["useCamera (Input)"]:::logic
+        UseRes["useAdaptiveResolution"]:::logic
+        SimParams["Simulation Params (Ref)"]:::logic
+    end
+
+    subgraph RenderTarget ["Render Target"]
+        Canvas["WebGL Canvas"]:::view
+        GL["WebGL Context"]:::view
+    end
+
+    Page --> Control
+    Page --> Info
+    Page --> HUD
+    Page --> Canvas
+
+    Control -- "Update Mass/Spin" --> SimParams
+    UseCam -- "Update Theta/Phi" --> SimParams
+
+    Canvas --> UseAnim
+    Canvas --> UseCam
+
+    UseAnim -- "Read State" --> SimParams
+    UseAnim -- "Draw Frame" --> GL
+
+    UseRes -- "Monitor FPS" --> GL
+    UseRes -- "Adjust Scale" --> SimParams
+```
+
+---
+
+## 7. Adaptive Performance Loop
+
+The system implements a closed-loop control system to maintain framerate stability by dynamically adjusting render quality.
+
+```mermaid
+graph LR
+    classDef monitor fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#c62828
+    classDef decision fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#2e7d32
+    classDef action fill:#fffde7,stroke:#fbc02d,stroke-width:2px,color:#fbc02d
+
+    Measure[("Monitor Frame Time<br/>(ms)")]:::monitor
+    History{("History Buffer<br/>(Avg 60 Frames)")]:::monitor
+    Threshold{("Check Thresholds<br/>(<16ms vs >33ms)")]:::decision
+
+    ScaleDown["Downgrade Resolution<br/>(Current - 0.1)"]:::action
+    ScaleUp["subgraph Upgrade"]:::action
+    PresetDrop["Fallback to Lower Preset<br/>(High -> Medium)"]:::action
+
+    Measure --> History
+    History --> Threshold
+
+    Threshold -- "Stable (<14ms)" --> ScaleUp["Upgrade Resolution<br/>(Current + 0.05)"]
+    Threshold -- "Struggling (>18ms)" --> ScaleDown
+    Threshold -- "Critical (>33ms)" --> PresetDrop
+
+    ScaleUp --> Measure
+    ScaleDown --> Measure
+    PresetDrop --> Measure
+```
+
+### 7.1. Logic Rules
+
+1. **Warmup Phase**: The first 120 frames are ignored to allow JIT compilation and texture upload.
+2. **Hysteresis**: Resolution upgrade requires 60 consecutive "good" frames to prevent oscillation (flickering).
+3. **Critical Drop**: If instantaneous FPS drops below 20, the preset is immediately downgraded (e.g., _Ultra_ → _High_).

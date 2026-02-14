@@ -1,21 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import type {
-  SimulationParams,
-  MouseState,
-  QualityLevel,
-} from "@/types/simulation";
+import type { SimulationParams, MouseState } from "@/types/simulation";
 import { getMaxRaySteps, DEFAULT_FEATURES } from "@/types/features";
 import { PerformanceMonitor } from "@/performance/monitor";
 import type { PerformanceMetrics } from "@/performance/monitor";
 import { UniformBatcher, IdleDetector } from "@/utils/cpu-optimizations";
 import type { BloomManager } from "@/rendering/bloom";
+import type { ReprojectionManager } from "@/rendering/reprojection"; // Added import
 import { SIMULATION_CONFIG } from "@/configs/simulation.config";
 import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
+import {
+  getSharedQuadBuffer,
+  setupPositionAttribute,
+} from "@/utils/webgl-utils";
+
+interface AnimationRefs {
+  glRef: React.RefObject<WebGLRenderingContext | null>;
+  programRef: React.RefObject<WebGLProgram | null>;
+  bloomManagerRef: React.RefObject<BloomManager | null>;
+  reprojectionManagerRef: React.RefObject<ReprojectionManager | null>;
+  noiseTextureRef: React.RefObject<WebGLTexture | null>;
+  blueNoiseTextureRef: React.RefObject<WebGLTexture | null>;
+}
 
 export function useAnimation(
-  glRef: React.RefObject<WebGLRenderingContext | null>,
-  programRef: React.RefObject<WebGLProgram | null>,
-  bloomManagerRef: React.RefObject<BloomManager | null>,
+  {
+    glRef,
+    programRef,
+    bloomManagerRef,
+    reprojectionManagerRef,
+    noiseTextureRef,
+    blueNoiseTextureRef,
+  }: AnimationRefs,
   params: SimulationParams,
   mouse: MouseState,
   setResolutionScale?: (scale: number) => void,
@@ -26,21 +41,42 @@ export function useAnimation(
   const mouseRef = useRef(mouse);
   const performanceMonitor = useRef(new PerformanceMonitor());
 
-  const [metrics, setMetrics] = useState<PerformanceMetrics>({
+  /*
+   * Internal reference for metrics to avoid stale closures in the animation loop.
+   * This is the source of truth for the animation loop.
+   */
+  // Initialize metrics object once to use for both ref and state
+  const initialMetrics: PerformanceMetrics = {
     currentFPS: PERFORMANCE_CONFIG.scheduler.targetFPS,
     frameTimeMs: PERFORMANCE_CONFIG.scheduler.frameBudgetMs,
     rollingAverageFPS: 60,
     quality: params.quality || "high",
     renderResolution: params.renderScale || 1.0,
-  });
+  };
 
-  const lastFrameTime = useRef(performance.now());
+  const metricsRef = useRef<PerformanceMetrics>(initialMetrics);
+
+  const [metrics, setMetrics] = useState<PerformanceMetrics>(initialMetrics);
+
+  const lastFrameTime = useRef(0);
+  useEffect(() => {
+    lastFrameTime.current = performance.now();
+  }, []);
   const isVisible = useRef(true);
   const uniformBatcher = useRef(new UniformBatcher());
   const idleDetector = useRef(
     new IdleDetector(PERFORMANCE_CONFIG.scheduler.idleTimeoutMs),
   );
-  const targetFrameTime = useRef(PERFORMANCE_CONFIG.scheduler.frameBudgetMs);
+  const targetFrameTime = useRef<number>(
+    PERFORMANCE_CONFIG.scheduler.frameBudgetMs,
+  );
+  const lastMetricsUpdate = useRef(0);
+
+  // Camera movement detection refs
+  const lastMousePos = useRef({ x: 0, y: 0 });
+  const isCameraMovingRef = useRef(false);
+  const cameraMoveTimeout = useRef<NodeJS.Timeout | null>(null);
+  const canvasSizeRef = useRef({ width: 0, height: 0 });
 
   useEffect(() => {
     paramsRef.current = params;
@@ -48,6 +84,22 @@ export function useAnimation(
   useEffect(() => {
     mouseRef.current = mouse;
     idleDetector.current.recordActivity();
+
+    // Simple motion detection based on mouse delta
+    const dx = Math.abs(mouse.x - lastMousePos.current.x);
+    const dy = Math.abs(mouse.y - lastMousePos.current.y);
+
+    // Threshold for "moving" - lowered to catch subtle momentum
+    if (dx > 0.0001 || dy > 0.0001) {
+      isCameraMovingRef.current = true;
+      if (cameraMoveTimeout.current) clearTimeout(cameraMoveTimeout.current);
+
+      // "Debounce" the stop state - increase timeout to cover momentum
+      cameraMoveTimeout.current = setTimeout(() => {
+        isCameraMovingRef.current = false;
+      }, 300); // Increased from 100ms to 300ms
+    }
+    lastMousePos.current = { x: mouse.x, y: mouse.y };
   }, [mouse]);
 
   useEffect(() => {
@@ -72,15 +124,6 @@ export function useAnimation(
     };
   }, []);
 
-  const adjustQuality = (fps: number, q: QualityLevel): QualityLevel => {
-    if (fps < 25) {
-      if (q === "high") return "medium";
-      if (q === "medium") return "low";
-      if (q === "low") return "off";
-    }
-    return q;
-  };
-
   useEffect(() => {
     const animate = (currentTime: number) => {
       if (!isVisible.current) {
@@ -94,8 +137,17 @@ export function useAnimation(
       const currentMouse = mouseRef.current;
 
       const frameStartTime = performance.now();
-      const deltaTime = currentTime - lastFrameTime.current;
-      lastFrameTime.current = currentTime;
+      const deltaTimeMs = frameStartTime - lastFrameTime.current;
+      lastFrameTime.current = frameStartTime;
+
+      // Unbind all textures to prevent feedback loops across frames
+      if (gl) {
+        for (let i = 0; i < 8; i++) {
+          gl.activeTexture(gl.TEXTURE0 + i);
+          gl.bindTexture(gl.TEXTURE_2D, null);
+        }
+        gl.activeTexture(gl.TEXTURE0); // Return to default
+      }
 
       if (idleDetector.current.isIdle()) {
         targetFrameTime.current =
@@ -104,25 +156,23 @@ export function useAnimation(
         targetFrameTime.current = PERFORMANCE_CONFIG.scheduler.frameBudgetMs;
       }
 
-      if (deltaTime < targetFrameTime.current) {
+      if (deltaTimeMs < targetFrameTime.current) {
         requestRef.current = requestAnimationFrame(animate);
         return;
       }
 
       const updatedMetrics =
-        performanceMonitor.current.updateMetrics(deltaTime);
+        performanceMonitor.current.updateMetrics(deltaTimeMs);
 
-      // PAUSE LOGIC: Only increment simulation time if not paused
+      // PAUSE LOGIC
       if (!currentParams.paused) {
         timeRef.current += 0.01;
       }
 
-      // OPTIMIZATION: If paused and no interaction, skip heavy rendering to save GPU/CPU
-      // But keep loop running for responsiveness
       const isInteractionActive =
         Math.abs(currentMouse.x - mouseRef.current.x) > 0.0001 ||
         Math.abs(currentMouse.y - mouseRef.current.y) > 0.0001 ||
-        paramsRef.current !== currentParams; // Check if params changed
+        paramsRef.current !== currentParams;
 
       const shouldRender = !currentParams.paused || isInteractionActive;
 
@@ -132,94 +182,169 @@ export function useAnimation(
       }
 
       if (gl && program) {
+        // If program changed, we MUST reset the batcher to get new uniform locations
+        if (uniformBatcher.current.program !== program) {
+          uniformBatcher.current.clear();
+          uniformBatcher.current.upload(gl, program);
+        }
+
         const features = currentParams.features || DEFAULT_FEATURES;
-        const currentQuality = currentParams.quality || metrics.quality;
-        const newQuality = adjustQuality(
-          updatedMetrics.currentFPS,
-          currentQuality,
-        );
-        const maxRaySteps = getMaxRaySteps(features.rayTracingQuality);
 
-        const dynamicScale = (() => {
-          if (
-            !PERFORMANCE_CONFIG.resolution.enableDynamicScaling ||
-            !setResolutionScale
-          )
-            return 1.0;
+        // Dynamic Quality Logic (using refs)
+        if (performanceMonitor.current.shouldReduceQuality()) {
+          const q = metricsRef.current.quality;
+          metricsRef.current.quality =
+            q === "ultra" ? "high" : q === "high" ? "medium" : "low";
+        } else if (performanceMonitor.current.shouldIncreaseQuality()) {
+          const q = metricsRef.current.quality;
+          metricsRef.current.quality =
+            q === "low" ? "medium" : q === "medium" ? "high" : "ultra";
+        }
 
+        // Resolution Logic (using refs)
+        if (
+          PERFORMANCE_CONFIG.resolution.enableDynamicScaling &&
+          setResolutionScale
+        ) {
           if (
             updatedMetrics.currentFPS <
             PERFORMANCE_CONFIG.resolution.adaptiveThreshold
           ) {
-            return Math.max(
+            metricsRef.current.renderResolution = Math.max(
               PERFORMANCE_CONFIG.resolution.minScale,
-              metrics.renderResolution * 0.9,
+              metricsRef.current.renderResolution * 0.9,
             );
           } else if (
             updatedMetrics.currentFPS >
             PERFORMANCE_CONFIG.resolution.recoveryThreshold
           ) {
-            return Math.min(
+            metricsRef.current.renderResolution = Math.min(
               PERFORMANCE_CONFIG.resolution.maxScale,
-              metrics.renderResolution * 1.05,
+              metricsRef.current.renderResolution * 1.05,
             );
           }
-          return metrics.renderResolution;
-        })();
-
-        if (
-          setResolutionScale &&
-          Math.abs(dynamicScale - metrics.renderResolution) > 0.05
-        ) {
-          setResolutionScale(dynamicScale);
         }
 
-        setMetrics({
-          ...updatedMetrics,
-          quality: newQuality,
-          renderResolution: dynamicScale,
-        });
+        const maxRaySteps = getMaxRaySteps(features.rayTracingQuality);
+
+        // Throttle UI Updates and Resolution Changes to 5Hz (200ms)
+        if (currentTime - lastMetricsUpdate.current > 200) {
+          lastMetricsUpdate.current = currentTime;
+
+          // Sync refs to state for UI
+          setMetrics({
+            ...updatedMetrics,
+            quality: metricsRef.current.quality,
+            renderResolution: metricsRef.current.renderResolution,
+          });
+
+          if (
+            setResolutionScale &&
+            Math.abs(
+              metricsRef.current.renderResolution - (params.renderScale || 1.0),
+            ) > 0.05
+          ) {
+            setResolutionScale(metricsRef.current.renderResolution);
+          }
+        }
 
         const bloomManager = bloomManagerRef.current;
-        if (bloomManager) {
-          bloomManager.updateConfig({
-            enabled: features.bloom,
-            intensity: 0.5,
-            threshold: 0.8,
-            blurPasses: 2,
-          });
-          bloomManager.resize(gl.canvas.width, gl.canvas.height);
+        const repoManager = reprojectionManagerRef.current;
+
+        // Resize managers if canvas size changed
+        if (
+          canvasSizeRef.current.width !== gl.canvas.width ||
+          canvasSizeRef.current.height !== gl.canvas.height
+        ) {
+          canvasSizeRef.current = {
+            width: gl.canvas.width,
+            height: gl.canvas.height,
+          };
+          if (bloomManager) {
+            bloomManager.resize(gl.canvas.width, gl.canvas.height);
+          }
+          if (repoManager) {
+            repoManager.resize(gl.canvas.width, gl.canvas.height);
+          }
         }
 
+        // Sync Bloom Config with UI State
+        if (bloomManager) {
+          bloomManager.updateConfig({ enabled: !!features.bloom });
+        }
+
+        // Force scene to be rendered to texture if Reprojection (TAA) is active
+        // DISABLING TAA TEMPORARILY due to black screen issues
+        const forceOffscreen = false; // !!repoManager;
+
         const targetFramebuffer = bloomManager
-          ? bloomManager.beginScene()
+          ? bloomManager.beginScene(forceOffscreen)
           : null;
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.useProgram(program);
 
-        uniformBatcher.current.set("u_resolution", [
+        // ... Set Uniforms & Textures ...
+        if (noiseTextureRef.current) {
+          gl.activeTexture(gl.TEXTURE2);
+          gl.bindTexture(gl.TEXTURE_2D, noiseTextureRef.current);
+          uniformBatcher.current.set("u_noiseTex", 2);
+        }
+        if (blueNoiseTextureRef.current) {
+          gl.activeTexture(gl.TEXTURE3);
+          gl.bindTexture(gl.TEXTURE_2D, blueNoiseTextureRef.current);
+          uniformBatcher.current.set1f("u_blueNoiseTex", 3);
+        }
+
+        // Optimized Uniform Updates (Zero-Allocation)
+        uniformBatcher.current.set2f(
+          "u_resolution",
           gl.canvas.width,
           gl.canvas.height,
-        ]);
-        uniformBatcher.current.set("u_time", timeRef.current);
-        uniformBatcher.current.set("u_mass", currentParams.mass);
-        uniformBatcher.current.set("u_disk_density", currentParams.diskDensity);
-        uniformBatcher.current.set("u_disk_temp", currentParams.diskTemp);
-        uniformBatcher.current.set("u_mouse", [currentMouse.x, currentMouse.y]);
-        uniformBatcher.current.set("u_spin", currentParams.spin);
-        uniformBatcher.current.set("u_lensing_strength", currentParams.lensing);
-        uniformBatcher.current.set("u_zoom", currentParams.zoom);
-        uniformBatcher.current.set(
+        );
+        uniformBatcher.current.set1f("u_time", timeRef.current);
+        uniformBatcher.current.set1f("u_mass", currentParams.mass);
+        uniformBatcher.current.set1f(
+          "u_disk_density",
+          currentParams.diskDensity,
+        );
+        uniformBatcher.current.set1f("u_disk_temp", currentParams.diskTemp);
+        uniformBatcher.current.set2f("u_mouse", currentMouse.x, currentMouse.y);
+        uniformBatcher.current.set1f("u_spin", currentParams.spin);
+        uniformBatcher.current.set1f(
+          "u_lensing_strength",
+          currentParams.lensing,
+        );
+        uniformBatcher.current.set1f("u_zoom", currentParams.zoom);
+        uniformBatcher.current.set1f(
           "u_disk_size",
           currentParams.diskSize ?? SIMULATION_CONFIG.diskSize.default,
         );
-        uniformBatcher.current.set("u_maxRaySteps", maxRaySteps);
+        uniformBatcher.current.set1f("u_maxRaySteps", maxRaySteps);
+        uniformBatcher.current.set1f("u_debug", 0.0); // Set to 1.0 to debug shader output
 
-        uniformBatcher.current.flush(gl, program);
+        // Ensure viewport matches canvas dimensions for the draw call
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+        // Critical Fix: Explicitly bind the geometry buffer
+        // This ensures the attribute pointer is correct even if other managers changed it
+        const quadBuffer = getSharedQuadBuffer(gl);
+        if (quadBuffer) {
+          setupPositionAttribute(gl, program, "position", quadBuffer);
+        }
+
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-        if (bloomManager) bloomManager.applyBloom();
+        // Phase 2: Resolve TAA (TEMPORARILY DISABLED)
+        /* if (bloomManager && repoManager) {
+             // ... TAA Logic ...
+        } else */ if (bloomManager) {
+          bloomManager.applyBloom();
+        }
+
+        // Safety: Unbind Framebuffer to ensure backbuffer is ready for next frame
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       }
 
       requestRef.current = requestAnimationFrame(animate);
@@ -229,7 +354,16 @@ export function useAnimation(
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [glRef, programRef]);
+  }, [
+    glRef,
+    programRef,
+    bloomManagerRef,
+    reprojectionManagerRef,
+    noiseTextureRef,
+    blueNoiseTextureRef,
+    setResolutionScale,
+    params.renderScale,
+  ]);
 
   return { metrics, timeRef };
 }
