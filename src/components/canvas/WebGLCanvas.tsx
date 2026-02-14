@@ -11,10 +11,10 @@ interface WebGLCanvasProps {
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: (e: React.MouseEvent) => void;
-  onWheel: (e: React.WheelEvent) => void;
-  onTouchStart: (e: React.TouchEvent) => void;
-  onTouchMove: (e: React.TouchEvent) => void;
-  onTouchEnd: (e: React.TouchEvent) => void;
+  onWheel: (e: React.WheelEvent | WheelEvent) => void;
+  onTouchStart: (e: React.TouchEvent | TouchEvent) => void;
+  onTouchMove: (e: React.TouchEvent | TouchEvent) => void;
+  onTouchEnd: (e: React.TouchEvent | TouchEvent) => void;
   onMetricsUpdate?: (metrics: PerformanceMetrics) => void;
 }
 
@@ -101,14 +101,10 @@ export const WebGLCanvas = ({
     // Attach listeners with passive: false to allow preventDefault()
     const options: AddEventListenerOptions = { passive: false };
 
-    const wheelHandler = (e: WheelEvent) =>
-      onWheel(e as unknown as React.WheelEvent<HTMLCanvasElement>);
-    const touchStartHandler = (e: TouchEvent) =>
-      onTouchStart(e as unknown as React.TouchEvent<HTMLCanvasElement>);
-    const touchMoveHandler = (e: TouchEvent) =>
-      onTouchMove(e as unknown as React.TouchEvent<HTMLCanvasElement>);
-    const touchEndHandler = (e: TouchEvent) =>
-      onTouchEnd(e as unknown as React.TouchEvent<HTMLCanvasElement>);
+    const wheelHandler = (e: WheelEvent) => onWheel(e);
+    const touchStartHandler = (e: TouchEvent) => onTouchStart(e);
+    const touchMoveHandler = (e: TouchEvent) => onTouchMove(e);
+    const touchEndHandler = (e: TouchEvent) => onTouchEnd(e);
 
     canvas.addEventListener("wheel", wheelHandler, options);
     canvas.addEventListener("touchstart", touchStartHandler, options);

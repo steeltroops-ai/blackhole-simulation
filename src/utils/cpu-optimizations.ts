@@ -246,29 +246,6 @@ export class UniformBatcher {
   }
 
   /**
-   * Helper to compare values for dirty checking
-   */
-  private isEqual(a: unknown, b: unknown): boolean {
-    if (a === b) return true;
-    if (Array.isArray(a) && Array.isArray(b)) {
-      if (a.length !== b.length) return false;
-      for (let i = 0; i < a.length; i++) {
-        if (Math.abs(a[i] - b[i]) > 0.00001) return false; // Float epsilon
-      }
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Flush is now a no-op or reset, as we set immediately.
-   * retained for API compatibility if needed, or we can remove it.
-   */
-  flush(_gl: WebGLRenderingContext, _program: WebGLProgram): void {
-    // No-op in this optimized version
-  }
-
-  /**
    * Clear context references
    */
   clear(): void {

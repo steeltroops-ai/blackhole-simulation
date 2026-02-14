@@ -43,10 +43,3 @@ export interface MouseState {
   x: number;
   y: number;
 }
-
-export interface PerformanceMetrics {
-  fps: number;
-  frameTime: number;
-  quality: QualityLevel;
-  rayStepsUsed: number;
-}

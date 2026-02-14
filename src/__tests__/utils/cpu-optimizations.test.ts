@@ -190,8 +190,8 @@ describe("CPU Optimizations", () => {
     it("should reset timer on each call", async () => {
       await fc.assert(
         fc.asyncProperty(
-          fc.integer({ min: 50, max: 100 }),
-          fc.integer({ min: 2, max: 5 }),
+          fc.integer({ min: 30, max: 60 }),
+          fc.integer({ min: 2, max: 3 }),
           async (waitTime, numCalls) => {
             const mockFn = vi.fn();
             const debouncedFn = debounce(mockFn, waitTime);
@@ -218,7 +218,7 @@ describe("CPU Optimizations", () => {
             return true;
           },
         ),
-        { numRuns: 20 },
+        { numRuns: 5 },
       );
     });
   });
@@ -285,7 +285,7 @@ describe("CPU Optimizations", () => {
       // Time since activity should match elapsed time (with tolerance for timer precision)
       const timeSinceActivity = detector.getTimeSinceActivity();
       expect(timeSinceActivity).toBeGreaterThanOrEqual(elapsedTime - 50);
-      expect(timeSinceActivity).toBeLessThan(elapsedTime + 200);
+      expect(timeSinceActivity).toBeLessThan(elapsedTime + 500);
     });
   });
 

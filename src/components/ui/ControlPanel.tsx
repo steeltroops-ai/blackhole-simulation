@@ -737,24 +737,26 @@ export const ControlPanel = ({
                   <div className="flex items-center gap-3 max-w-lg mx-auto bg-white/[0.02] p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
                     {[
                       {
-                        id: "simulation",
+                        id: "simulation" as const,
                         label: "General",
                         icon: SlidersHorizontal,
                       },
                       {
-                        id: "performance",
+                        id: "performance" as const,
                         label: "Performance",
                         icon: Activity,
                       },
-                      { id: "features", label: "Features", icon: Settings },
+                      {
+                        id: "features" as const,
+                        label: "Features",
+                        icon: Settings,
+                      },
                     ].map((tab) => (
                       <button
                         key={tab.id}
                         onClick={() => {
                           if (isCompact) onCompactChange(false);
-                          setActiveTab(
-                            tab.id as unknown as "performance" | "features",
-                          );
+                          setActiveTab(tab.id);
                         }}
                         className={`
                           flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all duration-500 relative group overflow-hidden border

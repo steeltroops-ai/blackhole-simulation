@@ -16,7 +16,7 @@ import {
   blurShader,
   combineShader,
 } from "../shaders/postprocess/bloom.glsl";
-import { createQuadBuffer, setupPositionAttribute } from "../utils/webgl-utils";
+import { createQuadBuffer } from "../utils/webgl-utils";
 
 /**
  * Bloom configuration
@@ -75,6 +75,37 @@ export class BloomManager {
   private width: number = 0;
   private height: number = 0;
 
+  // Phase 2: Cached uniform and attribute locations
+  // Eliminates ~16 gl.getUniformLocation() string lookups per frame
+  private locs: {
+    // brightPass program
+    bp_texture: WebGLUniformLocation | null;
+    bp_threshold: WebGLUniformLocation | null;
+    bp_position: number;
+    // blur program
+    blur_texture: WebGLUniformLocation | null;
+    blur_resolution: WebGLUniformLocation | null;
+    blur_direction: WebGLUniformLocation | null;
+    blur_position: number;
+    // combine program
+    combine_sceneTexture: WebGLUniformLocation | null;
+    combine_bloomTexture: WebGLUniformLocation | null;
+    combine_bloomIntensity: WebGLUniformLocation | null;
+    combine_position: number;
+  } = {
+    bp_texture: null,
+    bp_threshold: null,
+    bp_position: -1,
+    blur_texture: null,
+    blur_resolution: null,
+    blur_direction: null,
+    blur_position: -1,
+    combine_sceneTexture: null,
+    combine_bloomTexture: null,
+    combine_bloomIntensity: null,
+    combine_position: -1,
+  };
+
   constructor(
     gl: WebGLRenderingContext,
     config: BloomConfig = DEFAULT_BLOOM_CONFIG,
@@ -116,6 +147,9 @@ export class BloomManager {
       ) {
         throw new Error("Failed to compile bloom shaders");
       }
+
+      // Phase 2: Cache all uniform and attribute locations at init time
+      this.cacheLocations();
 
       // Create framebuffers and textures
       this.createFramebuffers();
@@ -268,6 +302,67 @@ export class BloomManager {
   }
 
   /**
+   * Cache all uniform and attribute locations for all 3 programs.
+   * Called once at initialization. Eliminates per-frame string lookups.
+   */
+  private cacheLocations(): void {
+    const gl = this.gl;
+
+    if (this.brightPassProgram) {
+      this.locs.bp_texture = gl.getUniformLocation(
+        this.brightPassProgram,
+        "u_texture",
+      );
+      this.locs.bp_threshold = gl.getUniformLocation(
+        this.brightPassProgram,
+        "u_threshold",
+      );
+      this.locs.bp_position = gl.getAttribLocation(
+        this.brightPassProgram,
+        "position",
+      );
+    }
+
+    if (this.blurProgram) {
+      this.locs.blur_texture = gl.getUniformLocation(
+        this.blurProgram,
+        "u_texture",
+      );
+      this.locs.blur_resolution = gl.getUniformLocation(
+        this.blurProgram,
+        "u_resolution",
+      );
+      this.locs.blur_direction = gl.getUniformLocation(
+        this.blurProgram,
+        "u_direction",
+      );
+      this.locs.blur_position = gl.getAttribLocation(
+        this.blurProgram,
+        "position",
+      );
+    }
+
+    if (this.combineProgram) {
+      this.locs.combine_sceneTexture = gl.getUniformLocation(
+        this.combineProgram,
+        "u_sceneTexture",
+      );
+      this.locs.combine_bloomTexture = gl.getUniformLocation(
+        this.combineProgram,
+        "u_bloomTexture",
+      );
+      this.locs.combine_bloomIntensity = gl.getUniformLocation(
+        this.combineProgram,
+        "u_bloomIntensity",
+      );
+      this.locs.combine_position = gl.getAttribLocation(
+        this.combineProgram,
+        "position",
+      );
+    }
+  }
+
+  /**
    * Begin scene rendering
    * Requirements: 8.1, 8.2
    *
@@ -354,20 +449,16 @@ export class BloomManager {
 
     gl.useProgram(this.brightPassProgram);
 
-    setupPositionAttribute(
-      gl,
-      this.brightPassProgram,
-      "position",
-      this.quadBuffer,
-    );
+    // Phase 2: Use cached attribute location
+    if (this.locs.bp_position !== -1) {
+      gl.enableVertexAttribArray(this.locs.bp_position);
+      gl.vertexAttribPointer(this.locs.bp_position, 2, gl.FLOAT, false, 0, 0);
+    }
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, inputTexture); // USE INPUT TEXTURE
-    gl.uniform1i(gl.getUniformLocation(this.brightPassProgram, "u_texture"), 0);
-    gl.uniform1f(
-      gl.getUniformLocation(this.brightPassProgram, "u_threshold"),
-      this.config.threshold,
-    );
+    gl.bindTexture(gl.TEXTURE_2D, inputTexture);
+    gl.uniform1i(this.locs.bp_texture, 0);
+    gl.uniform1f(this.locs.bp_threshold, this.config.threshold);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -378,16 +469,13 @@ export class BloomManager {
     // === PASS 2: Blur passes ===
     gl.useProgram(this.blurProgram);
 
-    setupPositionAttribute(gl, this.blurProgram, "position", this.quadBuffer);
+    // Phase 2: Use cached attribute location
+    if (this.locs.blur_position !== -1) {
+      gl.enableVertexAttribArray(this.locs.blur_position);
+      gl.vertexAttribPointer(this.locs.blur_position, 2, gl.FLOAT, false, 0, 0);
+    }
 
-    const resolutionLoc = gl.getUniformLocation(
-      this.blurProgram,
-      "u_resolution",
-    );
-    const directionLoc = gl.getUniformLocation(this.blurProgram, "u_direction");
-    const textureLoc = gl.getUniformLocation(this.blurProgram, "u_texture");
-
-    gl.uniform2f(resolutionLoc, halfWidth, halfHeight);
+    gl.uniform2f(this.locs.blur_resolution, halfWidth, halfHeight);
 
     let sourceTexture = this.brightTexture;
     let targetFramebuffer = this.blurFramebuffer1;
@@ -398,8 +486,8 @@ export class BloomManager {
       gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-      gl.uniform1i(textureLoc, 0);
-      gl.uniform2f(directionLoc, 1.0, 0.0);
+      gl.uniform1i(this.locs.blur_texture, 0);
+      gl.uniform2f(this.locs.blur_direction, 1.0, 0.0);
       gl.clear(gl.COLOR_BUFFER_BIT); // Clear buffer before drawing
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -415,8 +503,8 @@ export class BloomManager {
       gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-      gl.uniform1i(textureLoc, 0);
-      gl.uniform2f(directionLoc, 0.0, 1.0);
+      gl.uniform1i(this.locs.blur_texture, 0);
+      gl.uniform2f(this.locs.blur_direction, 0.0, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT); // Clear buffer
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -434,34 +522,32 @@ export class BloomManager {
     gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
     gl.useProgram(this.combineProgram);
-    setupPositionAttribute(
-      gl,
-      this.combineProgram,
-      "position",
-      this.quadBuffer,
-    );
+
+    // Phase 2: Use cached attribute location
+    if (this.locs.combine_position !== -1) {
+      gl.enableVertexAttribArray(this.locs.combine_position);
+      gl.vertexAttribPointer(
+        this.locs.combine_position,
+        2,
+        gl.FLOAT,
+        false,
+        0,
+        0,
+      );
+    }
 
     // Bind scene texture (Original Input)
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, inputTexture); // USE INPUT TEXTURE
-    gl.uniform1i(
-      gl.getUniformLocation(this.combineProgram, "u_sceneTexture"),
-      0,
-    );
+    gl.bindTexture(gl.TEXTURE_2D, inputTexture);
+    gl.uniform1i(this.locs.combine_sceneTexture, 0);
 
     // Bind bloom texture (Blurred Result)
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-    gl.uniform1i(
-      gl.getUniformLocation(this.combineProgram, "u_bloomTexture"),
-      1,
-    );
+    gl.uniform1i(this.locs.combine_bloomTexture, 1);
 
     // Set bloom intensity
-    gl.uniform1f(
-      gl.getUniformLocation(this.combineProgram, "u_bloomIntensity"),
-      this.config.intensity,
-    );
+    gl.uniform1f(this.locs.combine_bloomIntensity, this.config.intensity);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -487,31 +573,29 @@ export class BloomManager {
     gl.viewport(0, 0, this.width, this.height);
     gl.useProgram(this.combineProgram);
 
-    setupPositionAttribute(
-      gl,
-      this.combineProgram,
-      "position",
-      this.quadBuffer,
-    );
+    // Phase 2: Use cached locations
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
+    if (this.locs.combine_position !== -1) {
+      gl.enableVertexAttribArray(this.locs.combine_position);
+      gl.vertexAttribPointer(
+        this.locs.combine_position,
+        2,
+        gl.FLOAT,
+        false,
+        0,
+        0,
+      );
+    }
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.uniform1i(
-      gl.getUniformLocation(this.combineProgram, "u_sceneTexture"),
-      0,
-    );
+    gl.uniform1i(this.locs.combine_sceneTexture, 0);
 
-    gl.activeTexture(gl.TEXTURE1); // Bind something to avoid warning, though unused
+    gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.brightTexture); // safe dummy
-    gl.uniform1i(
-      gl.getUniformLocation(this.combineProgram, "u_bloomTexture"),
-      1,
-    );
+    gl.uniform1i(this.locs.combine_bloomTexture, 1);
 
-    gl.uniform1f(
-      gl.getUniformLocation(this.combineProgram, "u_bloomIntensity"),
-      0.0,
-    );
+    gl.uniform1f(this.locs.combine_bloomIntensity, 0.0);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -527,7 +611,14 @@ export class BloomManager {
    * Update bloom configuration
    */
   updateConfig(config: Partial<BloomConfig>): void {
-    this.config = { ...this.config, ...config };
+    // Phase 2: Mutate in-place instead of spread-allocating
+    if (config.enabled !== undefined) this.config.enabled = config.enabled;
+    if (config.intensity !== undefined)
+      this.config.intensity = config.intensity;
+    if (config.threshold !== undefined)
+      this.config.threshold = config.threshold;
+    if (config.blurPasses !== undefined)
+      this.config.blurPasses = config.blurPasses;
   }
 
   /**

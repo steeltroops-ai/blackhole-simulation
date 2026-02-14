@@ -134,8 +134,8 @@ export const SimulationInfo = ({
                     <div className="grid grid-cols-2 gap-6 mt-4 px-4">
                       {[
                         { l: "Anti-Aliasing", v: "Temporal Reprojection" },
-                        { l: "Tone Mapping", v: "ACES HDR Workflow" },
-                        { l: "Integration", v: "Runge-Kutta 4th Order" },
+                        { l: "Tone Mapping", v: "ACES Filmic (Narkowicz)" },
+                        { l: "Integration", v: "Euler (Adaptive Step)" },
                         { l: "Optimization", v: "Adaptive Step Scaling" },
                       ].map((i, k) => (
                         <div key={k} className="space-y-1">

@@ -256,41 +256,42 @@ describe("ShaderManager", () => {
             "precision highp float;\nvoid main() { gl_FragColor = vec4(1.0); }";
           const generated = manager.generateShaderSource(baseSource, features);
 
-          // Check that defines are present
+          // ShaderManager only emits #define when a feature is ENABLED.
+          // When disabled, the define is absent so GLSL #ifdef evaluates correctly.
           if (features.gravitationalLensing) {
             expect(generated).toContain("#define ENABLE_LENSING 1");
           } else {
-            expect(generated).toContain("#define ENABLE_LENSING 0");
+            expect(generated).not.toContain("#define ENABLE_LENSING");
           }
 
           if (features.accretionDisk) {
             expect(generated).toContain("#define ENABLE_DISK 1");
           } else {
-            expect(generated).toContain("#define ENABLE_DISK 0");
+            expect(generated).not.toContain("#define ENABLE_DISK");
           }
 
           if (features.dopplerBeaming) {
             expect(generated).toContain("#define ENABLE_DOPPLER 1");
           } else {
-            expect(generated).toContain("#define ENABLE_DOPPLER 0");
+            expect(generated).not.toContain("#define ENABLE_DOPPLER");
           }
 
           if (features.backgroundStars) {
             expect(generated).toContain("#define ENABLE_STARS 1");
           } else {
-            expect(generated).toContain("#define ENABLE_STARS 0");
+            expect(generated).not.toContain("#define ENABLE_STARS");
           }
 
           if (features.photonSphereGlow) {
             expect(generated).toContain("#define ENABLE_PHOTON_GLOW 1");
           } else {
-            expect(generated).toContain("#define ENABLE_PHOTON_GLOW 0");
+            expect(generated).not.toContain("#define ENABLE_PHOTON_GLOW");
           }
 
           if (features.bloom) {
             expect(generated).toContain("#define ENABLE_BLOOM 1");
           } else {
-            expect(generated).toContain("#define ENABLE_BLOOM 0");
+            expect(generated).not.toContain("#define ENABLE_BLOOM");
           }
 
           // Check quality define

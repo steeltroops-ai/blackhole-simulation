@@ -255,7 +255,7 @@ export function useCamera(
     isDragging.current = false;
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = (e: React.WheelEvent | WheelEvent) => {
     e.preventDefault();
     if (!isValidNumber(e.deltaY)) return;
     const sensitivity = 0.005;
@@ -272,9 +272,9 @@ export function useCamera(
     setCameraState((prev) => ({ ...prev, zoomVelocity: zoomDelta * 0.3 }));
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = (e: React.TouchEvent | TouchEvent) => {
     e.preventDefault();
-    const touches = Array.from(e.touches);
+    const touches = Array.from(e.touches) as React.Touch[];
     if (touches.length === 0) return;
     touchState.current.touches = touches;
 
@@ -298,9 +298,9 @@ export function useCamera(
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
+  const handleTouchMove = (e: React.TouchEvent | TouchEvent) => {
     e.preventDefault();
-    const touches = Array.from(e.touches);
+    const touches = Array.from(e.touches) as React.Touch[];
     if (touches.length === 0) return;
 
     if (touches.length === 2) {
@@ -377,9 +377,9 @@ export function useCamera(
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  const handleTouchEnd = (e: React.TouchEvent | TouchEvent) => {
     e.preventDefault();
-    const touches = Array.from(e.touches);
+    const touches = Array.from(e.touches) as React.Touch[];
     touchState.current.touches = touches;
     if (touches.length === 0) {
       touchState.current.initialDistance = 0;

@@ -62,9 +62,16 @@ export class BenchmarkController {
   private state: BenchmarkState = "idle";
   private currentPresetIndex: number = 0;
   private testStartTime: number = 0;
-  private fpsReadings: number[] = [];
   private results: BenchmarkResult[] = [];
   private savedSettings: FeatureToggles | null = null;
+
+  // Phase 2: Incremental statistics instead of unbounded array
+  // Previous: fpsReadings.push() + Math.min(...fpsReadings) = O(n) + potential stack overflow
+  // Now: O(1) per update, O(1) finalization
+  private fpsSum: number = 0;
+  private fpsCount: number = 0;
+  private fpsMin: number = Infinity;
+  private fpsMax: number = -Infinity;
 
   private readonly TEST_DURATION_MS = 10000; // 10 seconds per preset (Requirement 19.1)
   private readonly PRESETS_TO_TEST: PresetName[] = [
@@ -141,8 +148,11 @@ export class BenchmarkController {
       return null;
     }
 
-    // Record FPS reading
-    this.fpsReadings.push(currentFPS);
+    // Record FPS reading incrementally (O(1))
+    this.fpsSum += currentFPS;
+    this.fpsCount++;
+    if (currentFPS < this.fpsMin) this.fpsMin = currentFPS;
+    if (currentFPS > this.fpsMax) this.fpsMax = currentFPS;
 
     const elapsed = Date.now() - this.testStartTime;
     const progress = Math.min(elapsed / this.TEST_DURATION_MS, 1.0);
@@ -212,7 +222,10 @@ export class BenchmarkController {
    */
   private startPresetTest(): void {
     this.testStartTime = Date.now();
-    this.fpsReadings = [];
+    this.fpsSum = 0;
+    this.fpsCount = 0;
+    this.fpsMin = Infinity;
+    this.fpsMax = -Infinity;
   }
 
   /**
@@ -221,24 +234,21 @@ export class BenchmarkController {
    * Requirement 19.2: Display average FPS for each preset
    */
   private finishPresetTest(): void {
-    if (this.fpsReadings.length === 0) {
+    if (this.fpsCount === 0) {
       return;
     }
 
     const presetName = this.PRESETS_TO_TEST[this.currentPresetIndex];
 
-    // Calculate statistics
-    const sum = this.fpsReadings.reduce((a, b) => a + b, 0);
-    const averageFPS = sum / this.fpsReadings.length;
-    const minFPS = Math.min(...this.fpsReadings);
-    const maxFPS = Math.max(...this.fpsReadings);
+    // Phase 2: Use incremental statistics (O(1) finalization)
+    const averageFPS = this.fpsSum / this.fpsCount;
     const averageFrameTimeMs = 1000 / averageFPS;
 
     const result: BenchmarkResult = {
       presetName,
       averageFPS,
-      minFPS,
-      maxFPS,
+      minFPS: this.fpsMin,
+      maxFPS: this.fpsMax,
       averageFrameTimeMs,
       testDurationSeconds: this.TEST_DURATION_MS / 1000,
     };
@@ -323,7 +333,10 @@ export class BenchmarkController {
   private reset(): void {
     this.currentPresetIndex = 0;
     this.testStartTime = 0;
-    this.fpsReadings = [];
+    this.fpsSum = 0;
+    this.fpsCount = 0;
+    this.fpsMin = Infinity;
+    this.fpsMax = -Infinity;
     this.savedSettings = null;
     this.progressCallback = undefined;
     this.completeCallback = undefined;
