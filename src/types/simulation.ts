@@ -19,7 +19,7 @@ export interface SimulationParams {
   diskSize: number;
   quality?: QualityLevel;
   features?: FeatureToggles;
-  performancePreset?: string;
+  performancePreset?: import("./features").PresetName;
   adaptiveResolution?: boolean;
   renderScale: number;
 }

@@ -33,7 +33,7 @@ describe("Preset Application Logic", () => {
 
   // Helper function that mimics the hook's applyPreset logic
   const applyPreset = (
-    preset: string,
+    preset: PresetName,
     params: SimulationParams,
   ): SimulationParams => {
     const features = getPreset(preset as PresetName);

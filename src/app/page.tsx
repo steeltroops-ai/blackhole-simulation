@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp } from "lucide-react";
@@ -10,16 +10,15 @@ import { ControlPanel } from "@/components/ui/ControlPanel";
 import { Telemetry } from "@/components/ui/Telemetry";
 import { SimulationInfo } from "@/components/ui/SimulationInfo";
 import { useCamera } from "@/hooks/useCamera";
+import { useBenchmark } from "@/hooks/useBenchmark";
 
 import { useAdaptiveResolution } from "@/hooks/useAdaptiveResolution";
 import { useMobileOptimization } from "@/hooks/useMobileOptimization";
 import { usePresets } from "@/hooks/usePresets";
 import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
 import type { PerformanceMetrics } from "@/performance/monitor";
-import { DEFAULT_FEATURES } from "@/types/features";
+import { DEFAULT_FEATURES, type PresetName } from "@/types/features";
 import { settingsStorage } from "@/storage/settings";
-import { BenchmarkController } from "@/performance/benchmark";
-import type { BenchmarkReport } from "@/performance/benchmark";
 
 const App = () => {
   const { isMobile, getMobileFeatures } = useMobileOptimization();
@@ -28,7 +27,7 @@ const App = () => {
   const [params, setParams] = useState<SimulationParams>(() => {
     // Forced Config Authority: Ignore local storage to respect simulation.config.ts defaults
     let initialFeatures = DEFAULT_FEATURES;
-    let initialPreset = "ultra-quality";
+    let initialPreset: PresetName = "ultra-quality";
 
     if (isMobile) {
       initialFeatures = getMobileFeatures();
@@ -48,18 +47,21 @@ const App = () => {
   const [metrics, setMetrics] = useState<PerformanceMetrics | undefined>(
     undefined,
   );
-  const [benchmarkReport, setBenchmarkReport] =
-    useState<BenchmarkReport | null>(null);
-  const [showBenchmarkResults, setShowBenchmarkResults] = useState(false);
   const [isCompact, setIsCompact] = useState(true);
   const [isInfoExpanded, setIsInfoExpanded] = useState(false);
 
-  // Sync benchmark state with React for rendering
-  const [isBenchmarkRunning, setIsBenchmarkRunning] = useState(false);
-  const [benchmarkPreset, setBenchmarkPreset] = useState<string | null>(null);
-  const [benchmarkProgress, setBenchmarkProgress] = useState(0);
-
-  const benchmarkController = useRef(new BenchmarkController());
+  // Phase 5: Extracted benchmark logic into dedicated hook
+  const {
+    benchmarkReport,
+    showBenchmarkResults,
+    setShowBenchmarkResults,
+    isBenchmarkRunning,
+    benchmarkPreset,
+    benchmarkProgress,
+    startBenchmark,
+    cancelBenchmark,
+    applyRecommendedPreset,
+  } = useBenchmark(params, setParams, metrics, applyPreset);
 
   useAdaptiveResolution(metrics?.currentFPS || 60, {
     enabled: params.adaptiveResolution,
@@ -72,21 +74,8 @@ const App = () => {
     if (params.features) {
       settingsStorage.saveFeatures(params.features);
     }
-    settingsStorage.savePreset(
-      (params.performancePreset ??
-        "ultra-quality") as import("@/types/features").PresetName,
-    );
+    settingsStorage.savePreset(params.performancePreset ?? "ultra-quality");
   }, [params.features, params.performancePreset]);
-
-  useEffect(() => {
-    if (!benchmarkController.current.isRunning() || !metrics) return;
-    const currentPreset = benchmarkController.current.update(
-      metrics.currentFPS,
-    );
-    if (currentPreset && currentPreset !== params.performancePreset) {
-      setParams((prev) => applyPreset(currentPreset, prev));
-    }
-  }, [metrics, params.performancePreset, applyPreset]);
 
   const {
     mouse,
@@ -98,36 +87,6 @@ const App = () => {
     handleTouchMove,
     handleTouchEnd,
   } = useCamera(params, setParams);
-
-  const startBenchmark = () => {
-    setIsBenchmarkRunning(true);
-    setBenchmarkProgress(0);
-    benchmarkController.current.start(
-      params.features || DEFAULT_FEATURES,
-      (preset, progress) => {
-        setBenchmarkPreset(preset);
-        setBenchmarkProgress(progress);
-      },
-      (report) => {
-        setBenchmarkReport(report);
-        setShowBenchmarkResults(true);
-        setIsBenchmarkRunning(false);
-      },
-    );
-  };
-
-  const cancelBenchmark = () => {
-    const restored = benchmarkController.current.cancel();
-    if (restored) setParams((prev) => ({ ...prev, features: restored }));
-    setIsBenchmarkRunning(false);
-  };
-
-  const applyRecommendedPreset = () => {
-    if (benchmarkReport) {
-      setParams((prev) => applyPreset(benchmarkReport.recommendedPreset, prev));
-      setShowBenchmarkResults(false);
-    }
-  };
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans text-white">
