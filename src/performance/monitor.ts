@@ -78,6 +78,9 @@ class RingBuffer {
 
 export class PerformanceMonitor {
   private readonly frameTimes: RingBuffer;
+  private readonly cpuTimes: RingBuffer;
+  private readonly gpuTimes: RingBuffer;
+  private readonly idleTimes: RingBuffer;
   private readonly WINDOW = 60;
   private currentQuality: RayTracingQuality = "high";
   private renderResolution: number = 1.0;
@@ -89,6 +92,9 @@ export class PerformanceMonitor {
 
   constructor() {
     this.frameTimes = new RingBuffer(this.WINDOW);
+    this.cpuTimes = new RingBuffer(this.WINDOW);
+    this.gpuTimes = new RingBuffer(this.WINDOW);
+    this.idleTimes = new RingBuffer(this.WINDOW);
   }
 
   updateMetrics(deltaTime: number): PerformanceMetrics {
@@ -145,7 +151,22 @@ export class PerformanceMonitor {
     return {
       ...metrics,
       totalFrameTimeMs: metrics.frameTimeMs,
+      cpuTimeMs: Math.round(this.cpuTimes.average() * 100) / 100,
+      gpuTimeMs: Math.round(this.gpuTimes.average() * 100) / 100,
+      idleTimeMs: Math.round(this.idleTimes.average() * 100) / 100,
     };
+  }
+
+  recordCPUTime(ms: number): void {
+    this.cpuTimes.push(ms);
+  }
+
+  recordGPUTime(ms: number): void {
+    this.gpuTimes.push(ms);
+  }
+
+  recordIdleTime(ms: number): void {
+    this.idleTimes.push(ms);
   }
 
   getFrameTimeBudgetUsage(): number {
@@ -199,6 +220,9 @@ export class PerformanceMonitor {
 
   reset(): void {
     this.frameTimes.clear();
+    this.cpuTimes.clear();
+    this.gpuTimes.clear();
+    this.idleTimes.clear();
     this.invalidateCache();
   }
 }

@@ -21,7 +21,7 @@
  * }
  */
 export function createShader(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
   type: number,
   source: string,
 ): WebGLShader | null {
@@ -67,7 +67,7 @@ export function createShader(
  * }
  */
 export function createProgram(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
   vertexShader: WebGLShader,
   fragmentShader: WebGLShader,
 ): WebGLProgram | null {
@@ -109,14 +109,14 @@ export function createProgram(
  * Shared Geometry Manager
  * Maintains a single VBO per GL context to avoid duplicate allocations.
  */
-const sharedQuadBuffers = new WeakMap<WebGLRenderingContext, WebGLBuffer>();
+const sharedQuadBuffers = new WeakMap<WebGL2RenderingContext, WebGLBuffer>();
 
 /**
  * Returns a shared WebGLBuffer containing a full-screen quad.
  * Creates it if it doesn't exist for the given context.
  */
 export function getSharedQuadBuffer(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
 ): WebGLBuffer | null {
   const existing = sharedQuadBuffers.get(gl);
   if (existing && gl.isBuffer(existing)) {
@@ -147,7 +147,7 @@ export function getSharedQuadBuffer(
  * @deprecated Use getSharedQuadBuffer instead
  */
 export function createQuadBuffer(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
 ): WebGLBuffer | null {
   return getSharedQuadBuffer(gl);
 }
@@ -164,7 +164,7 @@ export function createQuadBuffer(
  * setupPositionAttribute(gl, program, 'position');
  */
 export function setupPositionAttribute(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
   program: WebGLProgram,
   attributeName: string,
   buffer: WebGLBuffer | null,
@@ -191,7 +191,7 @@ interface TextureOptions {
  * Creates a WebGL texture from raw data
  */
 export function createTextureFromData(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
   options: TextureOptions,
 ): WebGLTexture | null {
   const {
@@ -231,7 +231,7 @@ export function createTextureFromData(
  * Replaces expensive runtime hash calls.
  */
 export function createNoiseTexture(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
   size: number = 256,
 ): WebGLTexture | null {
   const data = new Uint8Array(size * size * 4);
@@ -253,7 +253,7 @@ export function createNoiseTexture(
  * Used for dithering to break banding.
  */
 export function createBlueNoiseTexture(
-  gl: WebGLRenderingContext,
+  gl: WebGL2RenderingContext,
   size: number = 256,
 ): WebGLTexture | null {
   // Approximate blue noise by generating white noise per channel

@@ -242,6 +242,9 @@ describe("Adaptive Systems - Integration Tests", () => {
         backgroundStars: true,
         photonSphereGlow: false,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       // Save features
@@ -637,6 +640,9 @@ describe("Adaptive Systems - Integration Tests", () => {
         backgroundStars: true,
         photonSphereGlow: true,
         bloom: true,
+        relativisticJets: true,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       benchmark.start(currentSettings);

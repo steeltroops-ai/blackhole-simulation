@@ -141,14 +141,14 @@ export class IdleDetector {
 export class UniformBatcher {
   private locations = new Map<string, WebGLUniformLocation>();
   private valueCache = new Map<string, unknown>(); // For dirty checking
-  private gl: WebGLRenderingContext | null = null;
+  private gl: WebGL2RenderingContext | null = null;
   public program: WebGLProgram | null = null;
 
   /**
    * upload active uniforms from the program to the cache
    * Must be called whenever the program changes
    */
-  upload(gl: WebGLRenderingContext, program: WebGLProgram): void {
+  upload(gl: WebGL2RenderingContext, program: WebGLProgram): void {
     this.gl = gl;
     this.program = program;
     this.locations.clear();

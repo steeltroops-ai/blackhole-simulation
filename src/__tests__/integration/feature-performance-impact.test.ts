@@ -75,6 +75,8 @@ const FEATURE_COSTS = {
     high: 6.0,
     ultra: 10.0,
   },
+  // 5% reduction for jets (approximate)
+  relativisticJets: BASELINE_FRAME_TIME * (5 / 95),
 };
 
 /**
@@ -101,6 +103,9 @@ function calculateFrameTime(features: FeatureToggles): number {
   if (features.bloom) {
     frameTime += FEATURE_COSTS.bloom;
   }
+  if (features.relativisticJets) {
+    frameTime += FEATURE_COSTS.relativisticJets;
+  }
 
   frameTime += FEATURE_COSTS.rayTracingQuality[features.rayTracingQuality];
 
@@ -126,6 +131,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: false,
         photonSphereGlow: false,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -154,6 +162,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: false,
         photonSphereGlow: false,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -182,6 +193,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: false,
         photonSphereGlow: false,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -210,6 +224,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: true,
         photonSphereGlow: false,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -238,6 +255,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: false,
         photonSphereGlow: true,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -266,6 +286,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: false,
         photonSphereGlow: false,
         bloom: true,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -312,6 +335,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: true,
         photonSphereGlow: true,
         bloom: true,
+        relativisticJets: true,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       // Disable features one by one
@@ -359,6 +385,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: true,
         photonSphereGlow: true,
         bloom: true,
+        relativisticJets: true,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const allDisabled: FeatureToggles = {
@@ -369,6 +398,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: false,
         photonSphereGlow: false,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const frameTimeAll = calculateFrameTime(allEnabled);
@@ -393,6 +425,9 @@ describe("Feature Performance Impact - Integration Tests", () => {
         backgroundStars: true,
         photonSphereGlow: false,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const frameTime = calculateFrameTime(customConfig);

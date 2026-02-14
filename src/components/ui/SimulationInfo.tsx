@@ -135,7 +135,7 @@ export const SimulationInfo = ({
                       {[
                         { l: "Anti-Aliasing", v: "Temporal Reprojection" },
                         { l: "Tone Mapping", v: "ACES Filmic (Narkowicz)" },
-                        { l: "Integration", v: "Euler (Adaptive Step)" },
+                        { l: "Integration", v: "Velocity Verlet (Symplectic)" },
                         { l: "Optimization", v: "Adaptive Step Scaling" },
                       ].map((i, k) => (
                         <div key={k} className="space-y-1">

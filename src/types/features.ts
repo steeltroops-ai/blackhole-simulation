@@ -20,6 +20,9 @@ export interface FeatureToggles {
   backgroundStars: boolean;
   photonSphereGlow: boolean;
   bloom: boolean;
+  relativisticJets: boolean;
+  gravitationalRedshift: boolean;
+  kerrShadow: boolean;
 }
 
 export type PresetName =
@@ -70,6 +73,9 @@ export function validateFeatureToggles(
     "backgroundStars",
     "photonSphereGlow",
     "bloom",
+    "relativisticJets",
+    "gravitationalRedshift",
+    "kerrShadow",
   ];
 
   for (const key of requiredBooleans) {
@@ -113,9 +119,18 @@ export function matchesPreset(features: FeatureToggles): PresetName {
   ];
 
   for (const presetName of presetNames) {
+    const p = PERFORMANCE_PRESETS[presetName];
     if (
-      JSON.stringify(features) ===
-      JSON.stringify(PERFORMANCE_PRESETS[presetName])
+      features.gravitationalLensing === p.gravitationalLensing &&
+      features.rayTracingQuality === p.rayTracingQuality &&
+      features.accretionDisk === p.accretionDisk &&
+      features.dopplerBeaming === p.dopplerBeaming &&
+      features.backgroundStars === p.backgroundStars &&
+      features.photonSphereGlow === p.photonSphereGlow &&
+      features.bloom === p.bloom &&
+      features.relativisticJets === p.relativisticJets &&
+      features.gravitationalRedshift === p.gravitationalRedshift &&
+      features.kerrShadow === p.kerrShadow
     ) {
       return presetName;
     }

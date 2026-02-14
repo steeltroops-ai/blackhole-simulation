@@ -106,6 +106,8 @@ describe("Feature Toggles - Property-Based Tests", () => {
             expect(preset.backgroundStars).toBe(false);
             expect(preset.photonSphereGlow).toBe(false);
             expect(preset.bloom).toBe(false);
+            expect(preset.gravitationalRedshift).toBe(false);
+            expect(preset.kerrShadow).toBe(false);
           },
         ),
         { numRuns: 100 },
@@ -130,6 +132,8 @@ describe("Feature Toggles - Property-Based Tests", () => {
           expect(preset.backgroundStars).toBe(true);
           expect(preset.photonSphereGlow).toBe(false);
           expect(preset.bloom).toBe(false);
+          expect(preset.gravitationalRedshift).toBe(false);
+          expect(preset.kerrShadow).toBe(false);
         }),
         { numRuns: 100 },
       );
@@ -153,6 +157,8 @@ describe("Feature Toggles - Property-Based Tests", () => {
           expect(preset.backgroundStars).toBe(true);
           expect(preset.photonSphereGlow).toBe(true);
           expect(preset.bloom).toBe(true);
+          expect(preset.gravitationalRedshift).toBe(true);
+          expect(preset.kerrShadow).toBe(true);
         }),
         { numRuns: 100 },
       );
@@ -178,6 +184,8 @@ describe("Feature Toggles - Property-Based Tests", () => {
             expect(preset.backgroundStars).toBe(true);
             expect(preset.photonSphereGlow).toBe(true);
             expect(preset.bloom).toBe(true);
+            expect(preset.gravitationalRedshift).toBe(true);
+            expect(preset.kerrShadow).toBe(true);
           },
         ),
         { numRuns: 100 },
@@ -210,6 +218,8 @@ describe("Feature Toggles - Property-Based Tests", () => {
             expect(preset.backgroundStars).toBeDefined();
             expect(preset.photonSphereGlow).toBeDefined();
             expect(preset.bloom).toBeDefined();
+            expect(preset.gravitationalRedshift).toBeDefined();
+            expect(preset.kerrShadow).toBeDefined();
 
             // Verify the object is a valid FeatureToggles
             expect(validateFeatureToggles(preset)).toBe(true);
@@ -266,6 +276,9 @@ describe("Feature Toggles - Property-Based Tests", () => {
             backgroundStars: fc.boolean(),
             photonSphereGlow: fc.boolean(),
             bloom: fc.boolean(),
+            relativisticJets: fc.boolean(),
+            gravitationalRedshift: fc.boolean(),
+            kerrShadow: fc.boolean(),
           }),
           (features) => {
             expect(validateFeatureToggles(features)).toBe(true);
@@ -346,6 +359,9 @@ describe("Feature Toggles - Property-Based Tests", () => {
             backgroundStars: fc.boolean(),
             photonSphereGlow: fc.boolean(),
             bloom: fc.boolean(),
+            relativisticJets: fc.boolean(),
+            gravitationalRedshift: fc.boolean(),
+            kerrShadow: fc.boolean(),
           }),
           (features) => {
             const matched = matchesPreset(features);

@@ -212,6 +212,9 @@ export class PerformanceValidator {
       backgroundStars: false,
       photonSphereGlow: false,
       bloom: false,
+      relativisticJets: false,
+      gravitationalRedshift: false,
+      kerrShadow: false,
     };
 
     return this.measureConfiguration(
@@ -235,6 +238,8 @@ export class PerformanceValidator {
     const lensingFeatures: FeatureToggles = {
       ...baselineMeasurement.features,
       gravitationalLensing: true,
+      gravitationalRedshift: false, // Ensure consistent base
+      kerrShadow: false,
     };
     const lensingMeasurement = await this.measureConfiguration(
       lensingFeatures,
@@ -253,6 +258,8 @@ export class PerformanceValidator {
     const diskFeatures: FeatureToggles = {
       ...baselineMeasurement.features,
       accretionDisk: true,
+      gravitationalRedshift: false,
+      kerrShadow: false,
     };
     const diskMeasurement = await this.measureConfiguration(
       diskFeatures,
@@ -272,6 +279,8 @@ export class PerformanceValidator {
       ...baselineMeasurement.features,
       accretionDisk: true, // Doppler requires disk
       dopplerBeaming: true,
+      gravitationalRedshift: false,
+      kerrShadow: false,
     };
     const dopplerMeasurement = await this.measureConfiguration(
       dopplerFeatures,
@@ -290,6 +299,8 @@ export class PerformanceValidator {
     const starsFeatures: FeatureToggles = {
       ...baselineMeasurement.features,
       backgroundStars: true,
+      gravitationalRedshift: false,
+      kerrShadow: false,
     };
     const starsMeasurement = await this.measureConfiguration(
       starsFeatures,
@@ -308,6 +319,8 @@ export class PerformanceValidator {
     const bloomFeatures: FeatureToggles = {
       ...baselineMeasurement.features,
       bloom: true,
+      gravitationalRedshift: false,
+      kerrShadow: false,
     };
     const bloomMeasurement = await this.measureConfiguration(
       bloomFeatures,

@@ -26,7 +26,7 @@ export interface SimulationParams {
 
 export const DEFAULT_PARAMS: SimulationParams = {
   mass: SIMULATION_CONFIG.mass.default,
-  spin: SIMULATION_CONFIG.spin.default,
+  spin: SIMULATION_CONFIG.ui_spin.default,
   diskDensity: SIMULATION_CONFIG.diskDensity.default,
   diskTemp: SIMULATION_CONFIG.diskTemp.default,
   lensing: SIMULATION_CONFIG.lensing.default,

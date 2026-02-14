@@ -57,7 +57,7 @@ export const UserProfile = () => {
             className="flex flex-col items-center gap-5 z-50"
           >
             <a
-              href="https://github.com/steeltroops_ai"
+              href="https://github.com/steeltroops-ai/blackhole-simulation"
               target="_blank"
               rel="noopener noreferrer"
               className="text-white opacity-60 hover:opacity-100 transition-all transform hover:scale-125"

@@ -1,11 +1,11 @@
 /**
- * Vertex Shader for Reprojection Pass
+ * Vertex Shader for Reprojection Pass (WebGL2 / GLSL 300 es)
  *
  * Simply passes coordinates through for potential reuse in TAA/Velocity calculation.
  */
-export const reprojectionVertexShader = `
-  attribute vec2 position;
-  varying vec2 v_texCoord;
+export const reprojectionVertexShader = `#version 300 es
+  in vec2 position;
+  out vec2 v_texCoord;
 
   void main() {
     v_texCoord = position * 0.5 + 0.5;
@@ -14,7 +14,7 @@ export const reprojectionVertexShader = `
 `;
 
 /**
- * Fragment Shader for Temporal Reprojection (Velocity Buffer Calculation)
+ * Fragment Shader for Temporal Reprojection (WebGL2 / GLSL 300 es)
  *
  * In a true TAA system, we would need a velocity buffer (motion vectors) generated
  * by the main render pass.
@@ -36,7 +36,7 @@ export const reprojectionVertexShader = `
  * This shader performs the blend:
  * NewColor = mix(CurrentFrame, HistoryFrame, 0.95)
  */
-export const reprojectionFragmentShader = `
+export const reprojectionFragmentShader = `#version 300 es
   precision highp float;
 
   uniform sampler2D u_currentFrame;
@@ -45,11 +45,12 @@ export const reprojectionFragmentShader = `
   uniform float u_blendFactor; // 0.0 = all new, 1.0 = all old
   uniform bool u_cameraMoving;
 
-  varying vec2 v_texCoord;
+  in vec2 v_texCoord;
+  out vec4 fragColor;
 
   void main() {
-    vec4 current = texture2D(u_currentFrame, v_texCoord);
-    vec4 history = texture2D(u_historyFrame, v_texCoord);
+    vec4 current = texture(u_currentFrame, v_texCoord);
+    vec4 history = texture(u_historyFrame, v_texCoord);
 
     // Adaptive Blending
     // If camera is moving, drastically reduce history influence to prevent ghosting
@@ -58,6 +59,6 @@ export const reprojectionFragmentShader = `
     // Neighborhood clamping (Anti-Ghosting logic would go here)
     // Simple clamp: not implemented in Phase 1 of optimizations
     
-    gl_FragColor = mix(current, history, alpha);
+    fragColor = mix(current, history, alpha);
   }
 `;

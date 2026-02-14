@@ -63,6 +63,8 @@ export const WebGLCanvas = ({
   }, [metrics, onMetricsUpdate]);
 
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handleResize = () => {
       const canvas = canvasRef.current;
       if (canvas) {
@@ -87,11 +89,21 @@ export const WebGLCanvas = ({
       }
     };
 
-    window.addEventListener("resize", handleResize);
-    // Initial resize to set correct size on mount
+    // Debounce resize to prevent framebuffer thrashing during window dragging.
+    // Bloom/reprojection managers recreate GPU textures on resize, which is expensive.
+    const debouncedResize = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(handleResize, 100);
+    };
+
+    window.addEventListener("resize", debouncedResize);
+    // Initial resize fires immediately (no debounce)
     handleResize();
 
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", debouncedResize);
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   }, [resolutionScale, bloomManagerRef, reprojectionManagerRef]);
 
   useEffect(() => {

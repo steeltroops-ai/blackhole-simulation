@@ -22,6 +22,9 @@ const PERFORMANCE_PRESETS = {
     backgroundStars: false,
     photonSphereGlow: false,
     bloom: false,
+    relativisticJets: false,
+    gravitationalRedshift: false,
+    kerrShadow: false,
   },
   balanced: {
     gravitationalLensing: true,
@@ -31,6 +34,9 @@ const PERFORMANCE_PRESETS = {
     backgroundStars: true,
     photonSphereGlow: false,
     bloom: false,
+    relativisticJets: false,
+    gravitationalRedshift: false,
+    kerrShadow: false,
   },
   "high-quality": {
     gravitationalLensing: true,
@@ -40,6 +46,9 @@ const PERFORMANCE_PRESETS = {
     backgroundStars: true,
     photonSphereGlow: true,
     bloom: true,
+    relativisticJets: true,
+    gravitationalRedshift: true,
+    kerrShadow: true,
   },
   "ultra-quality": {
     gravitationalLensing: true,
@@ -49,6 +58,9 @@ const PERFORMANCE_PRESETS = {
     backgroundStars: true,
     photonSphereGlow: true,
     bloom: true,
+    relativisticJets: true,
+    gravitationalRedshift: true,
+    kerrShadow: true,
   },
 } as const;
 
@@ -98,7 +110,7 @@ export const SIMULATION_CONFIG = {
 
   // System Kinetics
   autoSpin: {
-    default: 0.005,
+    default: 0.001,
     min: -0.05,
     max: 0.05,
     step: 0.001,

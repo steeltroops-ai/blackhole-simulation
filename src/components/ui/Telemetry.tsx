@@ -7,10 +7,7 @@
 
 import type { SimulationParams } from "@/types/simulation";
 import type { PerformanceMetrics } from "@/performance/monitor";
-import {
-  calculateEventHorizon,
-  calculateTimeDilation,
-} from "@/physics/kerr-metric";
+import { usePhysicsState } from "@/hooks/usePhysicsState";
 
 interface TelemetryProps {
   params: SimulationParams;
@@ -23,14 +20,8 @@ export const Telemetry = ({
   metrics,
   budgetUsage = 0,
 }: TelemetryProps) => {
-  // Calculate accurate physics values
-  const normalizedSpin = Math.max(-1, Math.min(1, params.spin / 5.0));
-  const eventHorizonRadius = calculateEventHorizon(params.mass, normalizedSpin);
-
-  // Observer-Dynamic: Calculate metrics at the ACTUAL camera distance (Zoom)
-  // This makes the HUD react as the user moves throughout the manifold.
-  const timeDilation = calculateTimeDilation(params.zoom, params.mass);
-  const redshift = 1 / Math.max(0.001, timeDilation) - 1;
+  const { eventHorizonRadius, timeDilation, redshift } =
+    usePhysicsState(params);
 
   // Determine FPS opacity based on thresholds
   const getFPSOpacity = (fps: number): string => {

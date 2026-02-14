@@ -10,7 +10,7 @@ import { ShaderManager } from "@/shaders/manager";
 import type { FeatureToggles, RayTracingQuality } from "@/types/features";
 
 // Mock WebGL context for testing
-function createMockWebGLContext(): WebGLRenderingContext {
+function createMockWebGLContext(): WebGL2RenderingContext {
   const shaders = new Map<WebGLShader, { type: number; source: string }>();
   const programs = new Map<
     WebGLProgram,
@@ -88,7 +88,7 @@ function createMockWebGLContext(): WebGLRenderingContext {
     deleteProgram(program: WebGLProgram): void {
       programs.delete(program);
     },
-  } as unknown as WebGLRenderingContext;
+  } as unknown as WebGL2RenderingContext;
 
   return gl;
 }
@@ -108,10 +108,13 @@ const featureTogglesArbitrary = fc.record({
   backgroundStars: fc.boolean(),
   photonSphereGlow: fc.boolean(),
   bloom: fc.boolean(),
+  relativisticJets: fc.boolean(),
+  gravitationalRedshift: fc.boolean(),
+  kerrShadow: fc.boolean(),
 });
 
 describe("ShaderManager", () => {
-  let gl: WebGLRenderingContext;
+  let gl: WebGL2RenderingContext;
   let manager: ShaderManager;
 
   beforeEach(() => {
@@ -315,6 +318,9 @@ describe("ShaderManager", () => {
         backgroundStars: true,
         photonSphereGlow: true,
         bloom: false,
+        relativisticJets: false,
+        gravitationalRedshift: false,
+        kerrShadow: false,
       };
 
       const vertexSource =

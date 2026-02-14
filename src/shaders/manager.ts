@@ -16,9 +16,9 @@ export interface ShaderVariant {
 
 export class ShaderManager {
   private variantCache: Map<string, ShaderVariant> = new Map();
-  private gl: WebGLRenderingContext;
+  private gl: WebGL2RenderingContext;
 
-  constructor(gl: WebGLRenderingContext) {
+  constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
   }
 
@@ -31,6 +31,9 @@ export class ShaderManager {
       stars: features.backgroundStars,
       photon: features.photonSphereGlow,
       bloom: features.bloom,
+      jets: features.relativisticJets,
+      redshift: features.gravitationalRedshift,
+      shadow: features.kerrShadow,
     });
   }
 
@@ -56,6 +59,10 @@ export class ShaderManager {
     if (features.backgroundStars) defines.push("#define ENABLE_STARS 1");
     if (features.photonSphereGlow) defines.push("#define ENABLE_PHOTON_GLOW 1");
     if (features.bloom) defines.push("#define ENABLE_BLOOM 1");
+    if (features.relativisticJets) defines.push("#define ENABLE_JETS 1");
+    if (features.gravitationalRedshift)
+      defines.push("#define ENABLE_REDSHIFT 1");
+    if (features.kerrShadow) defines.push("#define ENABLE_SHADOW_GUIDE 1");
 
     // Quality LODs
     defines.push(
@@ -64,12 +71,30 @@ export class ShaderManager {
 
     const sanitized = baseSource.replace(/\r/g, "").replace(/\t/g, "  ");
     const lines = sanitized.split("\n");
+
+    // Find insertion point
+    // 1. If #version exists, we MUST insert after it.
+    // 2. If precision exists, it's good practice to insert after it (but after version is strict req).
+    let insertAt = 0;
+
+    const versionIndex = lines.findIndex((line) =>
+      line.trim().startsWith("#version"),
+    );
     const precisionIndex = lines.findIndex((line) =>
       line.trim().startsWith("precision"),
     );
 
-    // Ensure precision is found or fallback to start
-    const insertAt = precisionIndex !== -1 ? precisionIndex + 1 : 0;
+    if (versionIndex !== -1) {
+      // Must be after version
+      insertAt = versionIndex + 1;
+      // If precision is after version, put defines after precision too (cleaner)
+      if (precisionIndex > versionIndex) {
+        insertAt = precisionIndex + 1;
+      }
+    } else if (precisionIndex !== -1) {
+      // No version, but precision exists
+      insertAt = precisionIndex + 1;
+    }
 
     // Add a guard to ensure no empty lines or weird formatting in defines
     const cleanDefines = defines.map((d) => d.trim());

@@ -12,9 +12,10 @@ import {
   getSharedQuadBuffer,
   setupPositionAttribute,
 } from "@/utils/webgl-utils";
+import { GPUTimer } from "@/performance/gpu-timer";
 
 interface AnimationRefs {
-  glRef: React.RefObject<WebGLRenderingContext | null>;
+  glRef: React.RefObject<WebGL2RenderingContext | null>;
   programRef: React.RefObject<WebGLProgram | null>;
   bloomManagerRef: React.RefObject<BloomManager | null>;
   reprojectionManagerRef: React.RefObject<ReprojectionManager | null>;
@@ -64,6 +65,7 @@ export function useAnimation(
   }, []);
   const isVisible = useRef(true);
   const uniformBatcher = useRef(new UniformBatcher());
+  const gpuTimer = useRef(new GPUTimer());
   const idleDetector = useRef(
     new IdleDetector(PERFORMANCE_CONFIG.scheduler.idleTimeoutMs),
   );
@@ -99,7 +101,8 @@ export function useAnimation(
         isCameraMovingRef.current = false;
       }, 300); // Increased from 100ms to 300ms
     }
-    lastMousePos.current = { x: mouse.x, y: mouse.y };
+    lastMousePos.current.x = mouse.x;
+    lastMousePos.current.y = mouse.y;
   }, [mouse]);
 
   useEffect(() => {
@@ -186,6 +189,10 @@ export function useAnimation(
         if (uniformBatcher.current.program !== program) {
           uniformBatcher.current.clear();
           uniformBatcher.current.upload(gl, program);
+          // Initialize GPU timer on first context usage
+          if (!gpuTimer.current.available) {
+            gpuTimer.current.initialize(gl);
+          }
         }
 
         const features = currentParams.features || DEFAULT_FEATURES;
@@ -274,8 +281,9 @@ export function useAnimation(
         }
 
         // Force scene to be rendered to texture if Reprojection (TAA) is active
-        // DISABLING TAA TEMPORARILY due to black screen issues
-        const forceOffscreen = false; // !!repoManager;
+        // Bug 1.1 (frame gating unit mismatch) caused the black screen, NOT TAA.
+        // Re-enabled after fix.
+        const forceOffscreen = !!repoManager;
 
         const targetFramebuffer = bloomManager
           ? bloomManager.beginScene(forceOffscreen)
@@ -311,7 +319,13 @@ export function useAnimation(
         );
         uniformBatcher.current.set1f("u_disk_temp", currentParams.diskTemp);
         uniformBatcher.current.set2f("u_mouse", currentMouse.x, currentMouse.y);
-        uniformBatcher.current.set1f("u_spin", currentParams.spin);
+        // Normalize spin from UI range [-5, 5] to physics range [-1, 1]
+        // The Kerr metric requires |a/M| <= 1; sending raw UI values violates this.
+        const physSpin = Math.max(
+          -1.0,
+          Math.min(1.0, currentParams.spin / 5.0),
+        );
+        uniformBatcher.current.set1f("u_spin", physSpin);
         uniformBatcher.current.set1f(
           "u_lensing_strength",
           currentParams.lensing,
@@ -322,6 +336,14 @@ export function useAnimation(
           currentParams.diskSize ?? SIMULATION_CONFIG.diskSize.default,
         );
         uniformBatcher.current.set1f("u_maxRaySteps", maxRaySteps);
+        uniformBatcher.current.set1f(
+          "u_show_redshift",
+          features.gravitationalRedshift ? 1.0 : 0.0,
+        );
+        uniformBatcher.current.set1f(
+          "u_show_kerr_shadow",
+          features.kerrShadow ? 1.0 : 0.0,
+        );
         uniformBatcher.current.set1f("u_debug", 0.0); // Set to 1.0 to debug shader output
 
         // Ensure viewport matches canvas dimensions for the draw call
@@ -334,12 +356,43 @@ export function useAnimation(
           setupPositionAttribute(gl, program, "position", quadBuffer);
         }
 
+        // GPU Timing: begin measurement around draw calls
+        if (gpuTimer.current.available) {
+          gpuTimer.current.beginFrame();
+        }
+
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-        // Phase 2: Resolve TAA (TEMPORARILY DISABLED)
-        /* if (bloomManager && repoManager) {
-             // ... TAA Logic ...
-        } else */ if (bloomManager) {
+        if (gpuTimer.current.available) {
+          gpuTimer.current.endFrame();
+        }
+
+        // Post-processing pipeline:
+        //   1. Scene renders into bloom's offscreen FBO
+        //   2. If TAA active: blend raw scene with history buffer (before bloom)
+        //   3. Apply bloom to either TAA output or raw scene
+        //
+        // TAA must happen BEFORE bloom to avoid accumulating bloom artifacts
+        // in the history buffer (which would cause glow to "grow" over time).
+        if (bloomManager && repoManager) {
+          // TAA + Bloom pipeline
+          const sceneTexture = bloomManager.getSceneTexture();
+          if (sceneTexture) {
+            // TAA: blend raw scene with history
+            repoManager.resolve(sceneTexture, 0.7, isCameraMovingRef.current);
+            // Get TAA-stabilized output and apply bloom to it
+            const taaResult = repoManager.getResultTexture();
+            if (taaResult) {
+              bloomManager.applyBloomToTexture(taaResult);
+            } else {
+              // Fallback: apply bloom directly if TAA result failed
+              bloomManager.applyBloom();
+            }
+          } else {
+            bloomManager.applyBloom();
+          }
+        } else if (bloomManager) {
+          // Bloom only (no TAA)
           bloomManager.applyBloom();
         }
 

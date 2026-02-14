@@ -57,6 +57,9 @@ const featureTogglesArbitrary: fc.Arbitrary<FeatureToggles> = fc.record({
   backgroundStars: fc.boolean(),
   photonSphereGlow: fc.boolean(),
   bloom: fc.boolean(),
+  relativisticJets: fc.boolean(),
+  gravitationalRedshift: fc.boolean(),
+  kerrShadow: fc.boolean(),
 });
 
 /**

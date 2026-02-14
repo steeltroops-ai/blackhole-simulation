@@ -116,7 +116,7 @@ describe('Device Detection', () => {
                         }
                         return null;
                     }),
-                } as unknown as WebGLRenderingContext;
+                } as unknown as WebGL2RenderingContext;
 
                 const result = hasIntegratedGPU(mockGL);
                 expect(result).toBe(true);
@@ -149,7 +149,7 @@ describe('Device Detection', () => {
                         }
                         return null;
                     }),
-                } as unknown as WebGLRenderingContext;
+                } as unknown as WebGL2RenderingContext;
 
                 const result = hasIntegratedGPU(mockGL);
                 expect(result).toBe(false);
@@ -160,7 +160,7 @@ describe('Device Detection', () => {
             const mockGL = {
                 getExtension: vi.fn().mockReturnValue(null),
                 getParameter: vi.fn(),
-            } as unknown as WebGLRenderingContext;
+            } as unknown as WebGL2RenderingContext;
 
             expect(hasIntegratedGPU(mockGL)).toBe(false);
         });
@@ -178,7 +178,7 @@ describe('Device Detection', () => {
             const mockGL = {
                 getExtension: vi.fn().mockReturnValue(null),
                 getParameter: vi.fn(),
-            } as unknown as WebGLRenderingContext;
+            } as unknown as WebGL2RenderingContext;
 
             const info = getHardwareInfo(mockGL);
 

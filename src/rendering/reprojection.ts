@@ -20,7 +20,7 @@ import {
  * Phase 2 Architectural Component
  */
 export class ReprojectionManager {
-  private gl: WebGLRenderingContext;
+  private gl: WebGL2RenderingContext;
   private program: WebGLProgram | null = null;
   private quadBuffer: WebGLBuffer | null = null;
 
@@ -43,7 +43,7 @@ export class ReprojectionManager {
   private loc_cameraMoving: WebGLUniformLocation | null = null;
   private attrib_position: number = -1;
 
-  constructor(gl: WebGLRenderingContext) {
+  constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
     this.initShaders();
     this.quadBuffer = getSharedQuadBuffer(gl);
@@ -117,12 +117,12 @@ export class ReprojectionManager {
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGBA,
+      gl.RGBA16F, // Internal format: 16-bit floating point per channel (HDR)
       width,
       height,
       0,
       gl.RGBA,
-      gl.UNSIGNED_BYTE,
+      gl.HALF_FLOAT, // Type: Half float is sufficient for HDR and faster
       null,
     );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);

@@ -24,11 +24,7 @@ import {
 import { UserProfile } from "./UserProfile";
 import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
 import { SIMULATION_CONFIG } from "@/configs/simulation.config";
-import {
-  calculateEventHorizon,
-  calculatePhotonSphere,
-  calculateISCO,
-} from "@/physics/kerr-metric";
+import { usePhysicsState } from "@/hooks/usePhysicsState";
 import { clampAndValidate } from "@/utils/validation";
 import { usePresets } from "@/hooks/usePresets";
 import type {
@@ -49,6 +45,8 @@ interface ControlPanelProps {
   isBenchmarkRunning?: boolean;
   isCompact: boolean;
   onCompactChange: (compact: boolean) => void;
+  onStartCinematic?: (path: "orbit" | "dive") => void;
+  onResetCamera?: () => void;
 }
 
 const PRESETS: { id: PresetName; label: string }[] = [
@@ -136,8 +134,13 @@ export const ControlPanel = ({
   onParamsChange,
   showUI,
   onToggleUI,
+  onStartBenchmark,
+  onCancelBenchmark,
+  isBenchmarkRunning,
   isCompact,
   onCompactChange,
+  onStartCinematic,
+  onResetCamera,
 }: ControlPanelProps) => {
   const [isResetting, setIsResetting] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -148,18 +151,21 @@ export const ControlPanel = ({
 
   const { applyPreset } = usePresets();
 
-  const calculatedRadii = useMemo(() => {
-    const normalizedSpin = Math.max(-1, Math.min(1, params.spin / 5.0));
-    const eventHorizon = calculateEventHorizon(params.mass, normalizedSpin);
-    const photonSphere = calculatePhotonSphere(params.mass, normalizedSpin);
-    const isco = calculateISCO(params.mass, normalizedSpin, true);
+  const physicsState = usePhysicsState(params);
 
-    return { eventHorizon, photonSphere, isco };
-  }, [params.mass, params.spin]);
+  const calculatedRadii = useMemo(
+    () => ({
+      eventHorizon: physicsState.eventHorizonRadius,
+      photonSphere: physicsState.photonSphereRadius,
+      isco: physicsState.iscoRadius,
+    }),
+    [physicsState],
+  );
 
   const handleReset = () => {
     setIsResetting(true);
     onParamsChange(DEFAULT_PARAMS);
+    if (onResetCamera) onResetCamera();
     setTimeout(() => setIsResetting(false), 500);
   };
 
@@ -565,11 +571,49 @@ export const ControlPanel = ({
                                   ),
                                 )}
                               </div>
-                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                                <p className="text-[7.5px] text-white/30 uppercase tracking-widest leading-relaxed">
-                                  Spectral precision and volumetric scattering
-                                  density limit.
-                                </p>
+                            </div>
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="System Validation" />
+                              <button
+                                onClick={
+                                  isBenchmarkRunning
+                                    ? onCancelBenchmark
+                                    : onStartBenchmark
+                                }
+                                className={`w-full py-3 rounded-xl border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                                  isBenchmarkRunning
+                                    ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
+                                    : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                                }`}
+                              >
+                                {isBenchmarkRunning ? (
+                                  <>
+                                    <Power className="w-3.5 h-3.5 text-red-400" />
+                                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">
+                                      Abort Benchmark
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Activity className="w-3.5 h-3.5" />
+                                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">
+                                      Run Performance Suite
+                                    </span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="space-y-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Display Precision" />
+                              <div className="space-y-4">
+                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                                  <p className="text-[7.5px] text-white/30 uppercase tracking-widest leading-relaxed">
+                                    Spectral precision and volumetric scattering
+                                    density limit.
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -612,6 +656,16 @@ export const ControlPanel = ({
                                     label: "Volumetric Bloom",
                                     key: "bloom" as const,
                                     icon: Sparkles,
+                                  },
+                                  {
+                                    label: "Gravitational Redshift",
+                                    key: "gravitationalRedshift" as const,
+                                    icon: Activity,
+                                  },
+                                  {
+                                    label: "Kerr Shadow Guide",
+                                    key: "kerrShadow" as const,
+                                    icon: Disc,
                                   },
                                 ].map((f) =>
                                   renderToggle(
@@ -680,6 +734,27 @@ export const ControlPanel = ({
                                     SIMULATION_CONFIG.diskDensity.decimals
                                   }
                                 />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Cinematic Tools - Features Tab Extension */}
+                          <div className="space-y-6 mt-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Cinematic Tools" />
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  onClick={() => onStartCinematic?.("orbit")}
+                                  className="py-2 px-3 rounded-lg bg-white/5 border border-white/10 hover:bg-indigo-500/20 hover:border-indigo-500/40 text-[9px] uppercase tracking-wider text-white transition-colors"
+                                >
+                                  Orbit Demo
+                                </button>
+                                <button
+                                  onClick={() => onStartCinematic?.("dive")}
+                                  className="py-2 px-3 rounded-lg bg-white/5 border border-white/10 hover:bg-red-500/20 hover:border-red-500/40 text-[9px] uppercase tracking-wider text-white transition-colors"
+                                >
+                                  Infall Dive
+                                </button>
                               </div>
                             </div>
                           </div>

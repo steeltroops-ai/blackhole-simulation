@@ -38,7 +38,7 @@ export interface WebGLError {
  * @returns WebGL context, program, error state, and retry function
  */
 export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
-  const glRef = useRef<WebGLRenderingContext | null>(null);
+  const glRef = useRef<WebGL2RenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
   const bloomManagerRef = useRef<BloomManager | null>(null);
   const reprojectionManagerRef = useRef<ReprojectionManager | null>(null);
@@ -83,10 +83,10 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       return;
     }
 
-    // Try to create WebGL context with error handling
-    let gl: WebGLRenderingContext | null = null;
+    // Try to create WebGL2 context (required for GLSL 300 es, RGBA16F, HDR pipeline)
+    let gl: WebGL2RenderingContext | null = null;
     try {
-      gl = canvas.getContext("webgl", {
+      gl = canvas.getContext("webgl2", {
         alpha: PERFORMANCE_CONFIG.context.alpha,
         antialias: PERFORMANCE_CONFIG.context.antialias,
         depth: PERFORMANCE_CONFIG.context.depth,
@@ -95,19 +95,13 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         powerPreference: PERFORMANCE_CONFIG.context.powerPreference,
         failIfMajorPerformanceCaveat: false,
       });
-
-      if (!gl) {
-        gl = canvas.getContext(
-          "experimental-webgl",
-        ) as WebGLRenderingContext | null;
-      }
     } catch {
-      const errorMsg = "Failed to create WebGL context";
+      const errorMsg = "Failed to create WebGL2 context";
       setError({
         type: "context",
         message: errorMsg,
         details:
-          "An unknown error occurred while trying to create the WebGL context.",
+          "An unknown error occurred while trying to create the WebGL2 context.",
       });
       console.error(errorMsg);
       return;
@@ -125,6 +119,14 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       });
       console.error(errorMsg);
       return;
+    }
+
+    // Enable float texture rendering support (required for HDR buffers)
+    const floatExt = gl.getExtension("EXT_color_buffer_float");
+    if (!floatExt) {
+      console.warn(
+        "EXT_color_buffer_float not supported. HDR rendering may be disabled or fallback to LDR.",
+      );
     }
 
     // Initialize shader manager and compile initial variant
@@ -256,7 +258,41 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
     }
 
+    // Context loss/restore handlers (Bug 3.10)
+    // Mobile tab switches, driver resets, and GPU watchdog timeouts
+    // invalidate all WebGL resources. We must detect this and clean up.
+    const handleContextLost = (e: Event) => {
+      e.preventDefault(); // Allow browser to attempt automatic restore
+      console.warn("WebGL context lost -- invalidating all GPU resources");
+      // Invalidate all refs to prevent using stale handles
+      programRef.current = null;
+      noiseTextureRef.current = null;
+      blueNoiseTextureRef.current = null;
+      bloomManagerRef.current = null;
+      reprojectionManagerRef.current = null;
+      glRef.current = null;
+      setError({
+        type: "context",
+        message: "GPU context lost",
+        details:
+          "The GPU context was lost (driver reset or resource pressure). Attempting recovery...",
+      });
+    };
+
+    const handleContextRestored = () => {
+      console.warn("WebGL context restored -- re-initialization required");
+      // Clear error to allow the effect to re-run on next dependency change
+      // The user can also refresh to fully reinitialize
+      setError(null);
+    };
+
+    canvas.addEventListener("webglcontextlost", handleContextLost);
+    canvas.addEventListener("webglcontextrestored", handleContextRestored);
+
     return () => {
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+
       if (gl) {
         if (programRef.current) {
           gl.deleteProgram(programRef.current);

@@ -314,7 +314,7 @@ describe("CPU Optimizations", () => {
               getUniformLocation: vi.fn((_, name) => ({ name })), // Mock location object
               uniform1f: vi.fn(),
               uniform1i: vi.fn(),
-            } as unknown as WebGLRenderingContext;
+            } as unknown as WebGL2RenderingContext;
 
             const mockProgram = {} as WebGLProgram;
 

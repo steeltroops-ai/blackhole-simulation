@@ -79,11 +79,15 @@ Open `http://localhost:3000` to view the event horizon.
 
 ## Controls & Interaction
 
-| Input              | Action                                                   |
-| :----------------- | :------------------------------------------------------- |
-| **Left Drag**      | Orbit Camera (Spherical Coordinates)                     |
-| **Scroll / Pinch** | Zoom to Event Horizon / Zoom Out to ISCO                 |
-| **Control Panel**  | Adjust Mass ($M$), Spin ($a$), and Accretion Temperature |
+| Input              | Action                                               |
+| :----------------- | :--------------------------------------------------- |
+| **Left Drag**      | Orbit Camera (Spherical Coordinates)                 |
+| **Arrow Keys**     | Orbit Camera (Precision Control)                     |
+| **Scroll / Pinch** | Zoom to Event Horizon / Zoom Out to ISCO             |
+| **+/-**            | Zoom In/Out (Keyboard)                               |
+| **Space**          | Pause/Resume Simulation                              |
+| **H**              | Toggle UI Overlay                                    |
+| **Control Panel**  | Adjust Mass ($M$), Spin ($a$), and _Cinematic Tools_ |
 
 ---
 

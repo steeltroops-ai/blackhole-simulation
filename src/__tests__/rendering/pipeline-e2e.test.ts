@@ -55,11 +55,11 @@ const createMockGL = () => {
     FRAMEBUFFER_COMPLETE: 36053,
     TRIANGLES: 4,
     TEXTURE0: 33984,
-  } as unknown as WebGLRenderingContext;
+  } as unknown as WebGL2RenderingContext;
 };
 
 describe("Rendering Pipeline", () => {
-  let gl: WebGLRenderingContext;
+  let gl: WebGL2RenderingContext;
 
   beforeEach(() => {
     gl = createMockGL();

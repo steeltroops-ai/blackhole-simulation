@@ -49,7 +49,7 @@ The user requested a **complete, critical audit** of the black hole simulation w
 
 ## 2. PHYSICS & MATHEMATICS ERRORS
 
-### 2.1 [BUG] Incorrect Schwarzschild Radius Formula
+### 2.1 [FIXED] Incorrect Schwarzschild Radius Formula
 
 - **File**: `src/physics/kerr-metric.ts:10`
 - **Current**: `rg = mass * 0.5` (this gives half the gravitational radius)
@@ -58,7 +58,7 @@ The user requested a **complete, critical audit** of the black hole simulation w
 - **Impact**: Event horizon, photon sphere, and ISCO are all calculated at half the correct radius.
 - **Severity**: HIGH -- affects all physics display values in the UI.
 
-### 2.2 [BUG] Shader Preprocessor `#ifdef` vs `#define VALUE 0`
+### 2.2 [FIXED] Shader Preprocessor `#ifdef` vs `#define VALUE 0`
 
 - **File**: `src/shaders/manager.ts:49-65`
 - **Current**: When features are disabled, the manager emits `#define ENABLE_DISK 0`. The shader uses `#ifdef ENABLE_DISK`. Since `#ifdef` checks if a symbol is _defined_ (not if its value is truthy), `#define ENABLE_DISK 0` still passes `#ifdef ENABLE_DISK`.
@@ -76,14 +76,14 @@ The user requested a **complete, critical audit** of the black hole simulation w
 - **Fix**: Standardize: Store internally as physics spin [-1, 1]. ControlPanel slider maps [-1, 1]. Remove ui_spin dual-mapping. Telemetry uses value directly. Shader receives value directly.
 - **Severity**: HIGH -- core physics display and shader behavior are inconsistent.
 
-### 2.4 [BUG] Gravitational Time Dilation Uses Inconsistent Schwarzschild Radius
+### 2.4 [FIXED] Gravitational Time Dilation Uses Inconsistent Schwarzschild Radius
 
 - **File**: `src/physics/kerr-metric.ts:48`
 - **Current**: `rs = mass` while `calculateEventHorizon` uses `rg = mass * 0.5`.
 - **Inconsistency**: One function treats "mass" as M, the other as 2M.
 - **Fix**: Standardize: mass parameter = M, Schwarzschild radius = 2M everywhere.
 
-### 2.5 [BUG] ISCO Formula Uses Wrong Gravitational Radius
+### 2.5 [FIXED] ISCO Formula Uses Wrong Gravitational Radius
 
 - **File**: `src/physics/kerr-metric.ts:33`
 - **Current**: `rg = mass * 0.5` then returns `rg * 6.0` for Schwarzschild case. This gives `3M` instead of correct `6M`.
@@ -268,7 +268,7 @@ The user requested a **complete, critical audit** of the black hole simulation w
 
 ## 5. TIME & SPACE COMPLEXITY ANALYSIS
 
-### 5.1 Animation Loop -- Target: O(1) Per Frame
+### 5.1 ✅ [DONE] Animation Loop -- Target: O(1) Per Frame
 
 | Operation                     | Current              | Target           | Status                    |
 | ----------------------------- | -------------------- | ---------------- | ------------------------- |
@@ -284,7 +284,7 @@ The user requested a **complete, critical audit** of the black hole simulation w
 | gl.getUniformLocation (bloom) | O(12) string lookups | O(0) cached      | Fix needed                |
 | gl.getUniformLocation (TAA)   | O(4) string lookups  | O(0) cached      | Fix needed                |
 
-### 5.2 Performance Monitor -- Current: O(n), Target: O(1)
+### 5.2 ✅ [DONE] Performance Monitor -- Current: O(n), Target: O(1)
 
 - **File**: `src/performance/monitor.ts:31-33`
 - **Current**: `push()` O(1) + `shift()` O(n) + `reduce()` O(n) = **O(n)** per frame where n=60.
@@ -320,26 +320,26 @@ The user requested a **complete, critical audit** of the black hole simulation w
   }
   ```
 
-### 5.3 Benchmark FPS Readings -- Current: O(n) Unbounded
+### 5.3 ✅ [DONE] Benchmark FPS Readings
 
 - **File**: `src/performance/benchmark.ts`
 - **Bug**: `fpsReadings.push(currentFPS)` unbounded. `Math.min(...fpsReadings)` spread can stack overflow.
 - **Fix**: Track min/max/sum/count incrementally. O(1) per update, O(1) final computation.
 
-### 5.4 Shader Source Generation -- Current: O(lines)
+### 5.4 ✅ [DONE] Shader Source Generation
 
 - **File**: `src/shaders/manager.ts:72-85`
 - **Current**: `source.replace()` creates new string O(n). `split('\n')` creates array O(n). `splice()` modifies array O(n). `join('\n')` creates string O(n). Total: **O(4n)** where n = shader source length (~300 lines).
 - **Acceptable**: Only runs on feature toggle change (not per frame). Cache makes repeat lookups O(1).
 - **Improvement**: Pre-split shader source at module load time.
 
-### 5.5 Settings Storage Validation -- Current: O(k)
+### 5.5 ✅ [DONE] Settings Storage Validation
 
 - **File**: `src/storage/settings.ts`
 - **Current**: `validateFeatureToggles()` iterates keys. O(k) where k=7 (constant).
 - **Status**: Effectively O(1). No issues.
 
-### 5.6 `PhysicsCache.get()` -- Current: O(n) Default Key
+### 5.6 ✅ [DONE] `PhysicsCache.get()`
 
 - **File**: `src/utils/cpu-optimizations.ts:30`
 - **Current**: `JSON.stringify(input)` default is O(depth \* keys).
@@ -349,92 +349,92 @@ The user requested a **complete, critical audit** of the black hole simulation w
 
 ## 6. PERFORMANCE OPTIMIZATIONS
 
-### 6.1 [CRITICAL] Uniform Location Caching in Post-Processing Managers
+### 6.1 ✅ [DONE] [CRITICAL] Uniform Location Caching in Post-Processing Managers
 
 - **Files**: `bloom.ts`, `reprojection.ts`
 - **Issue**: ~16 `gl.getUniformLocation()` calls per frame.
 - **Fix**: Cache all locations in constructor/init.
 - **Impact**: Removes ~16 string hash lookups per frame.
 
-### 6.2 [HIGH] Ring Buffer for Performance Monitor
+### 6.2 ✅ [DONE] [HIGH] Ring Buffer for Performance Monitor
 
 - **File**: `src/performance/monitor.ts`
 - **Fix**: Pre-allocated Float64Array ring buffer with running sum. O(1) everything.
 
-### 6.3 [HIGH] Attribute Location Caching in Bloom/Reprojection
+### 6.3 ✅ [DONE] [HIGH] Attribute Location Caching in Bloom/Reprojection
 
 - **Files**: `bloom.ts:357,381,437,490`, `reprojection.ts:194`
 - **Issue**: 5x `gl.getAttribLocation()` per frame via `setupPositionAttribute()`.
 - **Fix**: Cache attrib locations alongside uniform locations. Call `gl.vertexAttribPointer` only on program switch.
 
-### 6.4 [MEDIUM] Reduce Texture Unbinding to Used Slots
+### 6.4 ✅ [DONE] [MEDIUM] Reduce Texture Unbinding to Used Slots
 
 - **File**: `src/hooks/useAnimation.ts`
 - **Fix**: Only unbind TEXTURE0 through TEXTURE3 (4 used, not 8).
 
-### 6.5 [MEDIUM] Avoid Redundant `gl.viewport()` Calls
+### 6.5 ✅ [DONE] [MEDIUM] Avoid Redundant `gl.viewport()` Calls
 
 - **File**: `src/hooks/useAnimation.ts`
 - **Fix**: Track current viewport state, skip if unchanged.
 
-### 6.6 [MEDIUM] `setupPositionAttribute` Caching
+### 6.6 ✅ [DONE] [MEDIUM] `setupPositionAttribute` Caching
 
 - **File**: `src/hooks/useAnimation.ts`
 - **Fix**: Only call when program changes (tracked by uniformBatcher check).
 
-### 6.7 [LOW] Bloom Downsampling for Blur Passes
+### 6.7 ✅ [DONE] Bloom Downsampling for Blur Passes
 
 - **File**: `src/rendering/bloom.ts`
-- **Current**: Bright pass is already at half resolution. Blur operates at half. Good.
-- **Improvement**: Add a 1/4 resolution mip for wider bloom radius with fewer passes.
+- **Current**: Blur passes now operate at 1/4 resolution for wider bloom radius and improved performance.
+- **Improvement**: Downsample from 1/2 (bright pass) to 1/4 before blurring.
 
-### 6.8 [LOW] Canvas Resize Debouncing
+### 6.8 ✅ [DONE] Canvas Resize Debouncing
 
 - **File**: `src/components/canvas/WebGLCanvas.tsx:66-88`
-- **Current**: Resize handler fires on every `resize` event with no debouncing.
-- **Fix**: Debounce resize to 100ms to prevent framebuffer thrashing during window dragging.
+- **Current**: Resize logic is wrapped in a 100ms debounce handler.
+- **Fix**: Debounce resize to 100ms to prevent framebuffer thrashing.
 
-### 6.9 [LOW] Dead `PerformanceMonitor` Recording Methods
+### 6.9 ✅ [DONE] Dead `PerformanceMonitor` Recording Methods
 
 - **File**: `src/performance/monitor.ts:132-137`
-- **Current**: `recordCPUTime()`, `recordGPUTime()`, `recordIdleTime()`, etc. are all no-ops.
-- **Fix**: Either implement them with the ring buffer system or remove them.
+- **Current**: Implemented `recordCPUTime`, `recordGPUTime`, `recordIdleTime` using `RingBuffer`.
+- **Fix**: Connect to debugging UI.
 
 ---
 
 ## 7. VISUAL QUALITY IMPROVEMENTS
 
-### 7.1 [HIGH] Fix TAA (Temporal Anti-Aliasing) -- Currently Disabled
+### 7.1 ✅ [DONE] [HIGH] Fix TAA (Temporal Anti-Aliasing)
 
 - **File**: `src/hooks/useAnimation.ts`
 - **Status**: `forceOffscreen = false` -- TAA disabled due to black screen.
 - **Root Cause**: Black screen was bug 1.1 (frame gating), not TAA.
 - **Fix**: Re-enable TAA. The ReprojectionManager ping-pong is already implemented correctly.
 
-### 7.2 [HIGH] Gravitational Redshift in Disk Emission
+### 7.2 ✅ [DONE] [HIGH] Gravitational Redshift in Disk Emission
 
 - **Physics**: `T_obs = T_emit * sqrt(1 - rs/r)`.
 - **Fix**: Multiply temperature by redshift factor before blackbody().
 
-### 7.3 [HIGH] Dynamic ISCO Disk Inner Edge
+### 7.3 ✅ [DONE] [HIGH] Dynamic ISCO Disk Inner Edge
 
 - **Current**: Hardcoded `isco = rs * 3.0` in shader.
 - **Fix**: Pass `u_isco` from `calculateISCO(mass, spin, true)`.
 
-### 7.4 [MEDIUM] Doppler Beaming Verification
+### 7.4 ✅ [DONE] [MEDIUM] Doppler Beaming Verification
 
 - **File**: `src/shaders/blackhole/fragment.glsl.ts:261-267`
 - **Current**: Uses `delta = 1/(gamma * (1 - beta * cosTheta))` then `beaming = pow(delta, 4.5)`.
 - **Physics**: Correct relativistic Doppler factor for emission is `delta^3` (for continuous emission) or `delta^4` (for discrete photons). Using 4.5 is non-standard.
 - **Fix**: Change exponent to 3.0 for thermal continuum emission (Shakura-Sunyaev disk).
 
-### 7.5 [MEDIUM] Photon Ring Rendering Accuracy
+### 7.5 ✅ [DONE] [MEDIUM] Photon Ring Rendering Accuracy
 
 - **Current**: Simple `exp(-dist * 40.0)` glow around photon sphere.
 - **Improvement**: The photon ring should be a thin, bright ring showing lensed starfield. Current implementation is a diffuse glow, not a ring.
 - **Fix Phase 6**: Separate photon ring pass that detects rays making >1 orbit.
 
-### 7.6 [MEDIUM] Tone Mapping Quality
+### 7.6 ✅ [DONE] [MEDIUM] Tone Mapping Quality
 
 - **File**: `src/shaders/blackhole/fragment.glsl.ts:299`
 - **Current**: `finalColor = finalColor / (finalColor + vec3(1.0))` -- Reinhard operator.
@@ -447,19 +447,19 @@ The user requested a **complete, critical audit** of the black hole simulation w
   }
   ```
 
-### 7.7 [LOW] Blue Noise Quality
+### 7.7 ✅ [DONE] [LOW] Blue Noise Quality
 
 - **File**: `src/utils/webgl-utils.ts:255-276`
 - **Current**: "Blue noise" is actually white noise with NEAREST filtering.
 - **Fix**: Implement proper blue noise via void-and-cluster algorithm or load precomputed texture.
 
-### 7.8 [LOW] Star Rendering Quality
+### 7.8 🔴 [TODO] [LOW] Star Rendering Quality
 
 - **File**: `src/shaders/blackhole/fragment.glsl.ts:108-130`
 - **Current**: Stars are hash-based point samples. No twinkling, no color variation, no magnitude distribution.
 - **Improvement**: Add star color based on spectral class (hash-based B-V color index). Add subtle scintillation.
 
-### 7.9 [NEW] Relativistic Jet Visualization
+### 7.9 ✅ [DONE] [NEW] Relativistic Jet Visualization
 
 - Optional relativistic jets along spin axis for high-spin black holes (|a| > 0.5).
 - Render as collimated cone emission with Doppler beaming.
@@ -468,36 +468,36 @@ The user requested a **complete, critical audit** of the black hole simulation w
 
 ## 8. NEW FEATURES
 
-### 8.1 Gravitational Redshift Overlay Mode
+### 8.1 🔴 [TODO] Gravitational Redshift Overlay Mode
 
 - Toggle to show redshift magnitude as a color overlay across the scene.
 
-### 8.2 Frame-Dragging Visualization (Ergosphere)
+### 8.2 ✅ [DONE] Frame-Dragging Visualization (Ergosphere)
 
 - Render the ergosphere boundary: `r_ergo = M + sqrt(M^2 - a^2*cos^2(theta))`.
 - Semi-transparent shell around the black hole showing the ergosphere.
 
-### 8.3 Volumetric 3D Noise for Disk Turbulence
+### 8.3 ✅ [DONE] Volumetric 3D Noise for Disk Turbulence
 
 - **Current**: Uses 2D noise textures.
 - **Improvement**: 3D Simplex noise for volumetric turbulence varying with disk height.
 
-### 8.4 Kerr Shadow Silhouette
+### 8.4 🔴 [TODO] Kerr Shadow Silhouette
 
 - Black hole shadow boundary is not circular for spinning holes. Render the analytical Kerr shadow curve.
 
-### 8.5 WebGL2 HDR Pipeline
+### 8.5 ✅ [DONE] WebGL2 HDR Pipeline
 
 - Upgrade context to `"webgl2"`.
 - Use `gl.RGBA16F` for all framebuffer textures.
 - Proper HDR tone mapping pipeline.
 
-### 8.6 Screenshot/Recording Capability
+### 8.6 🔴 [TODO] Screenshot/Recording Capability
 
 - Add screenshot button that captures canvas to PNG.
 - Optional: Record canvas to WebM using MediaRecorder API.
 
-### 8.7 Keyboard Controls
+### 8.7 ✅ [DONE] Keyboard Controls
 
 - Arrow keys for camera orbit.
 - +/- for zoom.
@@ -506,17 +506,17 @@ The user requested a **complete, critical audit** of the black hole simulation w
 - `D` for debug overlay toggle.
 - `H` for UI hide/show.
 
-### 8.8 URL State Persistence
+### 8.8 ✅ [DONE] URL State Persistence
 
 - Encode simulation parameters in URL hash for shareable links.
 - `#mass=0.5&spin=0.9&zoom=50&preset=ultra-quality`
 
-### 8.9 Cinematic Camera Paths
+### 8.9 ✅ [DONE] Cinematic Camera Paths
 
 - Define scripted camera trajectories for demo/showcase mode.
 - Orbital flyby, pole-to-equator sweep, zoom-in-to-horizon sequence.
 
-### 8.10 GPU Timing via EXT_disjoint_timer_query
+### 8.10 ✅ [DONE] GPU Timing via EXT_disjoint_timer_query
 
 - Use WebGL extension `EXT_disjoint_timer_query` to get actual GPU elapsed time.
 - Populate the currently no-op `recordGPUTime()` in PerformanceMonitor.
@@ -526,33 +526,33 @@ The user requested a **complete, critical audit** of the black hole simulation w
 
 ## 9. ARCHITECTURE & STRUCTURAL ISSUES
 
-### 9.1 [BUG] Circular Concern: ControlPanel Computes Physics
+### 9.1 ✅ [DONE] Circular Concern: ControlPanel Computes Physics
 
 - **File**: `src/components/ui/ControlPanel.tsx`
 - **Current**: Calls `calculateEventHorizon()`, `calculatePhotonSphere()`, `calculateISCO()` directly.
 - **Problem**: UI component should not contain physics logic. If physics formulas change, UI needs updating too.
 - **Fix**: Physics computations should be in a hook or utility, passed to UI as props.
 
-### 9.2 [BUG] Telemetry Also Computes Physics Independently
+### 9.2 ✅ [DONE] Telemetry Also Computes Physics Independently
 
 - **File**: `src/components/ui/Telemetry.tsx:27-33`
 - **Current**: independently calculates `normalizedSpin`, `eventHorizonRadius`, `timeDilation`, `redshift`.
 - **Problem**: Same physics computed in two places with potentially different normalization.
 - **Fix**: Centralize in a `usePhysicsState()` hook.
 
-### 9.3 [BUG] App Page Component is Too Large
+### 9.3 ✅ [DONE] App Page Component is Too Large
 
 - **File**: `src/app/page.tsx` (291 lines)
 - **Current**: Contains benchmark state, UI toggle state, camera integration, preset management, settings persistence.
-- **Fix**: Extract into custom hooks: `useBenchmark()`, `useSimulationState()`.
+- **Fix**: Extracted `useBenchmark()` hook and separated UI components (`IdentityHUD`, `BenchmarkResults`).
 
-### 9.4 [IMPROVEMENT] No Error Boundaries Around WebGL Components
+### 9.4 ✅ [DONE] No Error Boundaries Around WebGL Components
 
 - **File**: `src/app/page.tsx:134`
 - **Current**: `ErrorBoundary` wraps only `WebGLCanvas`. Good. But no error boundary around ControlPanel, Telemetry, SimulationInfo.
 - **Fix**: Add error boundary around the entire UI layer as well.
 
-### 9.5 [IMPROVEMENT] Debug Overlay Integration
+### 9.5 ✅ [DONE] Debug Overlay Integration
 
 - **File**: `src/components/ui/DebugOverlay.tsx`
 - **Current**: DebugOverlay exists but may not be wired into the main page.
@@ -564,29 +564,29 @@ The user requested a **complete, critical audit** of the black hole simulation w
 
 ### 10.1 Test File Inventory (21 files)
 
-| Test File                               | Status | Coverage Gap                                    |
-| --------------------------------------- | ------ | ----------------------------------------------- |
-| `kerr-metric.test.ts`                   | EXISTS | Needs verification against analytical solutions |
-| `useAnimation.test.ts`                  | EXISTS | May need `fast-check` dependency                |
-| `useCamera.test.ts`                     | EXISTS | OK                                              |
-| `useCamera-initial-positioning.test.ts` | EXISTS | OK                                              |
-| `usePresets.test.ts`                    | EXISTS | OK                                              |
-| `adaptive-systems.test.ts`              | EXISTS | Mobile detection mocking issues (known)         |
-| `controls-integration.test.ts`          | EXISTS | Unknown status                                  |
-| `feature-performance-impact.test.ts`    | EXISTS | Unknown status                                  |
-| `feature-uniform-updates.test.ts`       | EXISTS | Unknown status                                  |
-| `benchmark.test.ts`                     | EXISTS | Unknown status                                  |
-| `monitor.test.ts`                       | EXISTS | Unknown status                                  |
-| `validation.test.ts`                    | EXISTS | Unknown status                                  |
-| `adaptive-resolution.test.ts`           | EXISTS | Unknown status                                  |
-| `pipeline-e2e.test.ts`                  | EXISTS | WebGL mocking needed                            |
-| `manager.test.ts`                       | EXISTS | Unknown status                                  |
-| `settings.test.ts`                      | EXISTS | Corrupted data handling (known issue)           |
-| `features.test.ts`                      | EXISTS | OK                                              |
-| `mobile-features.test.ts`               | EXISTS | OK                                              |
-| `cpu-optimizations.test.ts`             | EXISTS | Unknown status                                  |
-| `device-detection.test.ts`              | EXISTS | OK                                              |
-| `ControlPanel.test.ts`                  | EXISTS | Unknown status                                  |
+| Test File                               | Status  | Coverage Gap                                    |
+| --------------------------------------- | ------- | ----------------------------------------------- |
+| `kerr-metric.test.ts`                   | EXISTS  | Needs verification against analytical solutions |
+| `useAnimation.test.ts`                  | EXISTS  | May need `fast-check` dependency                |
+| `useCamera.test.ts`                     | EXISTS  | OK                                              |
+| `useCamera-initial-positioning.test.ts` | EXISTS  | OK                                              |
+| `usePresets.test.ts`                    | EXISTS  | OK                                              |
+| `adaptive-systems.test.ts`              | PASSED  | Mobile detection mocking issues (known)         |
+| `controls-integration.test.ts`          | PASSED  | OK                                              |
+| `feature-performance-impact.test.ts`    | PASSED  | OK                                              |
+| `feature-uniform-updates.test.ts`       | PASSED  | OK                                              |
+| `benchmark.test.ts`                     | PASSED  | OK                                              |
+| `monitor.test.ts`                       | PASSED  | OK                                              |
+| `validation.test.ts`                    | PASSED  | OK                                              |
+| `adaptive-resolution.test.ts`           | PASSED  | OK                                              |
+| `pipeline-e2e.test.ts`                  | PASSED  | WebGL mocking needed                            |
+| `manager.test.ts`                       | PASSED  | OK                                              |
+| `settings.test.ts`                      | PASSED  | Corrupted data handling (known issue)           |
+| `features.test.ts`                      | PASSED  | OK                                              |
+| `mobile-features.test.ts`               | PASSED  | OK                                              |
+| `cpu-optimizations.test.ts`             | PASSED  | OK                                              |
+| `device-detection.test.ts`              | PASSED  | OK                                              |
+| `ControlPanel.test.ts`                  | UNKNOWN | Unknown status                                  |
 
 ### 10.2 Missing Tests
 
@@ -694,31 +694,31 @@ The user requested a **complete, critical audit** of the black hole simulation w
 
 ## 12. FILE-LEVEL CHANGE MANIFEST
 
-| File                                           | Phase | Changes                                                   |
-| ---------------------------------------------- | ----- | --------------------------------------------------------- |
-| `src/physics/kerr-metric.ts`                   | 1     | Fix rg formula, ISCO, standardize units                   |
-| `src/shaders/manager.ts`                       | 1     | Fix #ifdef preprocessor -- only emit for enabled features |
-| `src/rendering/reprojection.ts`                | 1,2   | Add FB check, cleanup(), cache uniforms/attribs           |
-| `src/hooks/useCamera.ts`                       | 1     | Eliminate per-frame object allocations                    |
-| `src/rendering/bloom.ts`                       | 2     | Cache all uniform + attribute locations                   |
-| `src/performance/monitor.ts`                   | 2     | Ring buffer, remove dead methods or implement them        |
-| `src/performance/benchmark.ts`                 | 2     | Incremental min/max/sum tracking                          |
-| `src/utils/cpu-optimizations.ts`               | 2,3   | Remove dead code, fix integer uniform detection           |
-| `src/types/features.ts`                        | 3     | Structural comparison for matchesPreset                   |
-| `src/types/simulation.ts`                      | 3     | Remove duplicate PerformanceMetrics                       |
-| `src/components/canvas/WebGLCanvas.tsx`        | 3     | Fix type assertions, add resize debounce                  |
-| `src/components/ui/SimulationInfo.tsx`         | 3     | Fix incorrect claims (RK4, ACES)                          |
-| `src/configs/simulation.config.ts`             | 3     | Remove ui_spin dual mapping                               |
-| `src/hooks/useAnimation.ts`                    | 4     | Re-enable TAA, fix spin normalization                     |
-| `src/shaders/blackhole/fragment.glsl.ts`       | 4,5,6 | Redshift, ISCO, ACES, Verlet, 3D noise                    |
-| `src/shaders/postprocess/bloom.glsl.ts`        | 5     | WebGL2 syntax upgrade                                     |
-| `src/shaders/postprocess/reprojection.glsl.ts` | 5     | WebGL2 syntax upgrade                                     |
-| `src/shaders/blackhole/vertex.glsl.ts`         | 5     | WebGL2 syntax upgrade                                     |
-| `src/hooks/useWebGL.ts`                        | 5     | WebGL2 context, context loss handlers                     |
-| `src/utils/webgl-utils.ts`                     | 5     | WebGL2 types, proper blue noise                           |
-| `src/components/ui/Telemetry.tsx`              | 3     | Move physics to hook                                      |
-| `src/components/ui/ControlPanel.tsx`           | 3     | Move physics to hook, fix assertions                      |
-| `src/app/page.tsx`                             | 7     | Extract hooks, add keyboard controls                      |
+| File                                           | Phase | Changes                                                          |
+| ---------------------------------------------- | ----- | ---------------------------------------------------------------- |
+| `src/physics/kerr-metric.ts`                   | 1     | [DONE] Fix rg formula, ISCO, standardize units                   |
+| `src/shaders/manager.ts`                       | 1     | [DONE] Fix #ifdef preprocessor -- only emit for enabled features |
+| `src/rendering/reprojection.ts`                | 1,2   | Add FB check, cleanup(), cache uniforms/attribs                  |
+| `src/hooks/useCamera.ts`                       | 1     | Eliminate per-frame object allocations                           |
+| `src/rendering/bloom.ts`                       | 2     | Cache all uniform + attribute locations                          |
+| `src/performance/monitor.ts`                   | 2     | Ring buffer, remove dead methods or implement them               |
+| `src/performance/benchmark.ts`                 | 2     | Incremental min/max/sum tracking                                 |
+| `src/utils/cpu-optimizations.ts`               | 2,3   | Remove dead code, fix integer uniform detection                  |
+| `src/types/features.ts`                        | 3     | Structural comparison for matchesPreset                          |
+| `src/types/simulation.ts`                      | 3     | [DONE] Remove duplicate PerformanceMetrics, Fix PresetName type  |
+| `src/components/canvas/WebGLCanvas.tsx`        | 3     | Fix type assertions, add resize debounce                         |
+| `src/components/ui/SimulationInfo.tsx`         | 3     | Fix incorrect claims (RK4, ACES)                                 |
+| `src/configs/simulation.config.ts`             | 3     | Remove ui_spin dual mapping                                      |
+| `src/hooks/useAnimation.ts`                    | 4     | Re-enable TAA, fix spin normalization                            |
+| `src/shaders/blackhole/fragment.glsl.ts`       | 4,5,6 | Redshift, ISCO, ACES, Verlet, 3D noise                           |
+| `src/shaders/postprocess/bloom.glsl.ts`        | 5     | WebGL2 syntax upgrade                                            |
+| `src/shaders/postprocess/reprojection.glsl.ts` | 5     | WebGL2 syntax upgrade                                            |
+| `src/shaders/blackhole/vertex.glsl.ts`         | 5     | WebGL2 syntax upgrade                                            |
+| `src/hooks/useWebGL.ts`                        | 5     | WebGL2 context, context loss handlers                            |
+| `src/utils/webgl-utils.ts`                     | 5     | WebGL2 types, proper blue noise                                  |
+| `src/components/ui/Telemetry.tsx`              | 3     | Move physics to hook                                             |
+| `src/components/ui/ControlPanel.tsx`           | 3     | Move physics to hook, fix assertions                             |
+| `src/app/page.tsx`                             | 7     | Extract hooks, add keyboard controls                             |
 
 ---
 

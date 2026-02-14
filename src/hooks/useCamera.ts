@@ -106,7 +106,10 @@ export function useCamera(
   params: SimulationParams,
   setParams: React.Dispatch<React.SetStateAction<SimulationParams>>,
 ) {
-  const [cameraState, setCameraState] = useState<CameraState>({
+  // --- Source of Truth: Physics Ref ---
+  // We use a ref for physics to avoid stale closures in the animation loop
+  // and to allow the loop + event handlers to mutate the same state without race conditions.
+  const physicsRef = useRef<CameraState>({
     theta: Math.PI,
     phi: Math.PI * 0.5,
     thetaVelocity: 0,
@@ -115,7 +118,13 @@ export function useCamera(
     damping: 0.92,
   });
 
+  // React state for rendering synchronization (throttled)
+  const [cameraState, setCameraState] = useState<CameraState>(
+    physicsRef.current,
+  );
+
   const mouse = useMemo<MouseState>(() => {
+    // Normalize derived state from the REACT state (for rendering UI/Uniforms)
     const x = cameraState.theta / (2 * Math.PI);
     const y = cameraState.phi / Math.PI;
     return { x, y };
@@ -130,78 +139,95 @@ export function useCamera(
     initialCenter: { x: 0, y: 0 },
   });
 
-  // Track params with ref to update velocity without re-attaching interval
+  const cinematicRef = useRef<{
+    active: boolean;
+    startTime: number;
+    path: "orbit" | "dive" | null;
+  }>({ active: false, startTime: 0, path: null });
+
   const paramsRef = useRef(params);
   useEffect(() => {
     paramsRef.current = params;
   }, [params]);
 
+  // --- Physics Animation Loop ---
   useEffect(() => {
     let animationFrameId: number;
-    // Mutable camera data for zero-allocation animation loop
-    // We only sync to React state periodically to avoid GC pressure.
-    const mutableState = {
-      theta: cameraState.theta,
-      phi: cameraState.phi,
-      thetaVelocity: cameraState.thetaVelocity,
-      phiVelocity: cameraState.phiVelocity,
-      zoomVelocity: cameraState.zoomVelocity,
-      damping: cameraState.damping,
-    };
     let frameCount = 0;
-    const SYNC_INTERVAL = 4; // sync to React every 4th frame (~15Hz)
+    const SYNC_INTERVAL = 2; // Sync to React every 2 frames for smoother UI (60fps -> 30fps UI)
 
     const applyMomentum = () => {
-      // Phase 1 Fix: mutate in-place, zero allocations per frame
-      mutableState.thetaVelocity *= mutableState.damping;
-      mutableState.phiVelocity *= mutableState.damping;
-      mutableState.zoomVelocity *= mutableState.damping;
+      const state = physicsRef.current; // Direct access to shared state
 
-      mutableState.theta += mutableState.thetaVelocity;
-      mutableState.phi += mutableState.phiVelocity;
+      if (cinematicRef.current.active) {
+        // --- Cinematic Mode ---
+        const t = (performance.now() - cinematicRef.current.startTime) * 0.001;
+        if (cinematicRef.current.path === "orbit") {
+          state.theta += 0.003;
+          state.phi = Math.PI * 0.5 + Math.sin(t * 0.3) * 0.15;
+        } else if (cinematicRef.current.path === "dive") {
+          state.theta += 0.01 + t * 0.002;
+        }
+        state.thetaVelocity = 0;
+        state.phiVelocity = 0;
+        state.zoomVelocity = 0;
+      } else {
+        // --- Interactive Mode ---
+        // Apply Drag Inertia / Momentum
+        state.thetaVelocity *= state.damping;
+        state.phiVelocity *= state.damping;
+        state.zoomVelocity *= state.damping;
 
-      // Auto-Spin Logic
-      const spinSpeed =
-        paramsRef.current.autoSpin !== undefined
-          ? paramsRef.current.autoSpin
-          : DEFAULT_AUTO_SPIN;
+        state.theta += state.thetaVelocity;
+        state.phi += state.phiVelocity;
 
-      if (
-        !isDragging.current &&
-        touchState.current.touches.length === 0 &&
-        Math.abs(mutableState.thetaVelocity) < 0.001
-      ) {
-        mutableState.theta += spinSpeed;
+        // Auto-Spin (Only if not dragging and no significant momentum)
+        const spinSpeed =
+          paramsRef.current.autoSpin !== undefined
+            ? paramsRef.current.autoSpin
+            : DEFAULT_AUTO_SPIN;
+
+        if (
+          !isDragging.current &&
+          touchState.current.touches.length === 0 &&
+          Math.abs(state.thetaVelocity) < 0.0001
+        ) {
+          state.theta += spinSpeed;
+        }
       }
 
-      // Clamp phi to [0, PI]
-      mutableState.phi = Math.max(0, Math.min(Math.PI, mutableState.phi));
+      // --- Constraints ---
+      // Clamp phi (Vertical) to poles [0, PI] to prevent flipping
+      // Note: Shader allows full rotation, but we clamp state to KEEP 'UP' VECTOR STABLE.
+      // If user wants full tumbling, we would remove this clamp.
+      // Current Request: "Full axis to move".
+      // Allowing < 0 or > PI flips the camera upside down in Orbit controls.
+      // Standard practice: Clamp to epsilon (0.001) and PI-epsilon.
+      state.phi = Math.max(0.001, Math.min(Math.PI - 0.001, state.phi));
 
-      // Wrap theta to [0, 2PI)
-      mutableState.theta = mutableState.theta % (2 * Math.PI);
-      if (mutableState.theta < 0) mutableState.theta += 2 * Math.PI;
+      // Wrap theta (Horizontal) 0 -> 2PI
+      state.theta = state.theta % (2 * Math.PI);
+      if (state.theta < 0) state.theta += 2 * Math.PI;
 
-      // Deadzone velocity to prevent infinite micro-updates
-      if (Math.abs(mutableState.thetaVelocity) < 0.0001)
-        mutableState.thetaVelocity = 0;
-      if (Math.abs(mutableState.phiVelocity) < 0.0001)
-        mutableState.phiVelocity = 0;
-      if (Math.abs(mutableState.zoomVelocity) < 0.0001)
-        mutableState.zoomVelocity = 0;
+      // Deadzone Check
+      if (Math.abs(state.thetaVelocity) < 0.00001) state.thetaVelocity = 0;
+      if (Math.abs(state.phiVelocity) < 0.00001) state.phiVelocity = 0;
+      if (Math.abs(state.zoomVelocity) < 0.00001) state.zoomVelocity = 0;
 
-      // Sync to React state at throttled interval
+      // --- Sync to React State ---
+      // We only update React state periodically to save render cost,
+      // BUT we do it often enough for smooth visual feedback.
       frameCount++;
       if (frameCount >= SYNC_INTERVAL) {
         frameCount = 0;
-        const snapshot = { ...mutableState };
-        setCameraState(snapshot);
+        setCameraState({ ...state }); // Clone to trigger re-render
 
-        if (Math.abs(mutableState.zoomVelocity) > 0.0001) {
-          const zv = mutableState.zoomVelocity;
+        // Zoom sync to Params (for other systems relying on 'zoom')
+        if (Math.abs(state.zoomVelocity) > 0.0001) {
           setParams((prev) => ({
             ...prev,
             zoom: clampAndValidate(
-              prev.zoom + zv,
+              prev.zoom + state.zoomVelocity,
               MIN_ZOOM,
               MAX_ZOOM,
               prev.zoom,
@@ -215,14 +241,20 @@ export function useCamera(
 
     animationFrameId = requestAnimationFrame(applyMomentum);
     return () => cancelAnimationFrame(animationFrameId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setParams]);
+  }, [setParams]); // No other dependencies needed!
+
+  // --- Input Handlers (Mutate Ref Directly) ---
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isValidNumber(e.clientX) || !isValidNumber(e.clientY)) return;
+    cinematicRef.current.active = false;
     isDragging.current = true;
     lastMousePos.current.x = e.clientX;
     lastMousePos.current.y = e.clientY;
+
+    // Kill momentum on grab
+    physicsRef.current.thetaVelocity = 0;
+    physicsRef.current.phiVelocity = 0;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -233,21 +265,19 @@ export function useCamera(
       if (!isValidNumber(deltaX) || !isValidNumber(deltaY)) return;
 
       const sensitivity = 0.005;
-      setCameraState((prev) => {
-        const newTheta = prev.theta + deltaX * sensitivity;
-        let newPhi = prev.phi + deltaY * sensitivity;
-        newPhi = clampAndValidate(newPhi, 0, Math.PI, prev.phi);
-        return {
-          ...prev,
-          theta: newTheta,
-          phi: newPhi,
-          thetaVelocity: deltaX * sensitivity * 0.5,
-          phiVelocity: deltaY * sensitivity * 0.5,
-        };
-      });
-      // Phase 1 Fix: mutate in-place instead of allocating a new object
+
+      // Directly mutate physics state
+      // Note: We add to position AND set velocity (for "throw" momentum on release)
+      physicsRef.current.theta += deltaX * sensitivity;
+      physicsRef.current.phi += deltaY * sensitivity;
+      physicsRef.current.thetaVelocity = deltaX * sensitivity * 0.5;
+      physicsRef.current.phiVelocity = deltaY * sensitivity * 0.5;
+
       lastMousePos.current.x = e.clientX;
       lastMousePos.current.y = e.clientY;
+
+      // Force immediate sync to React for responsive drag
+      setCameraState({ ...physicsRef.current });
     }
   };
 
@@ -255,11 +285,34 @@ export function useCamera(
     isDragging.current = false;
   };
 
+  const nudgeCamera = (dTheta: number, dPhi: number) => {
+    cinematicRef.current.active = false;
+    physicsRef.current.thetaVelocity += dTheta;
+    physicsRef.current.phiVelocity += dPhi;
+  };
+
+  const startCinematic = (path: "orbit" | "dive") => {
+    cinematicRef.current = {
+      active: true,
+      startTime: performance.now(),
+      path,
+    };
+    if (path === "dive") {
+      setParams((p) => ({ ...p, zoom: 40, autoSpin: 0.002 }));
+    }
+  };
+
+  const stopCinematic = () => {
+    cinematicRef.current.active = false;
+  };
+
   const handleWheel = (e: React.WheelEvent | WheelEvent) => {
     e.preventDefault();
     if (!isValidNumber(e.deltaY)) return;
     const sensitivity = 0.005;
     const zoomDelta = e.deltaY * sensitivity;
+
+    // Direct param update for Zoom (it's less physics-dependent in this logic)
     setParams((prev) => ({
       ...prev,
       zoom: clampAndValidate(
@@ -269,7 +322,8 @@ export function useCamera(
         prev.zoom,
       ),
     }));
-    setCameraState((prev) => ({ ...prev, zoomVelocity: zoomDelta * 0.3 }));
+    // Add velocity for "feel"
+    physicsRef.current.zoomVelocity = zoomDelta * 0.3;
   };
 
   const handleTouchStart = (e: React.TouchEvent | TouchEvent) => {
@@ -282,6 +336,7 @@ export function useCamera(
       !isNaN(t.clientX) && !isNaN(t.clientY);
 
     if (touches.length === 2) {
+      // ... (Pinch logic initialization remains similar)
       if (!touches.every(isValidTouch)) return;
       const dx = touches[1].clientX - touches[0].clientX;
       const dy = touches[1].clientY - touches[0].clientY;
@@ -295,6 +350,8 @@ export function useCamera(
       if (!isValidTouch(touches[0])) return;
       lastMousePos.current.x = touches[0].clientX;
       lastMousePos.current.y = touches[0].clientY;
+      physicsRef.current.thetaVelocity = 0;
+      physicsRef.current.phiVelocity = 0;
     }
   };
 
@@ -304,19 +361,19 @@ export function useCamera(
     if (touches.length === 0) return;
 
     if (touches.length === 2) {
+      // Pinch/Pan Logic
       const dx = touches[1].clientX - touches[0].clientX;
       const dy = touches[1].clientY - touches[0].clientY;
       const currentDistance = Math.sqrt(dx * dx + dy * dy);
-      const currentAngle = Math.atan2(dy, dx);
       const currentCenter = {
         x: (touches[0].clientX + touches[1].clientX) / 2,
         y: (touches[0].clientY + touches[1].clientY) / 2,
       };
 
+      // Zoom
       if (touchState.current.initialDistance > 0) {
-        const distanceRatio =
-          currentDistance / touchState.current.initialDistance;
-        const zoomDelta = (1 - distanceRatio) * 2.0;
+        const ratio = currentDistance / touchState.current.initialDistance;
+        const zoomDelta = (1 - ratio) * 2.0;
         setParams((prev) => ({
           ...prev,
           zoom: clampAndValidate(
@@ -329,52 +386,31 @@ export function useCamera(
         touchState.current.initialDistance = currentDistance;
       }
 
-      if (touchState.current.initialAngle !== 0) {
-        const angleDelta = currentAngle - touchState.current.initialAngle;
-        setCameraState((prev) => ({
-          ...prev,
-          theta: prev.theta + angleDelta * 0.5,
-        }));
-        touchState.current.initialAngle = currentAngle;
-      }
+      // Pan (Move Camera)
+      const panX = currentCenter.x - touchState.current.initialCenter.x;
+      const panY = currentCenter.y - touchState.current.initialCenter.y;
 
-      const panDeltaX = currentCenter.x - touchState.current.initialCenter.x;
-      const panDeltaY = currentCenter.y - touchState.current.initialCenter.y;
-      if (Math.abs(panDeltaX) > 2 || Math.abs(panDeltaY) > 2) {
-        setCameraState((prev) => {
-          const sensitivity = 0.003;
-          return {
-            ...prev,
-            theta: prev.theta + panDeltaX * sensitivity,
-            phi: clampAndValidate(
-              prev.phi + panDeltaY * sensitivity,
-              0,
-              Math.PI,
-              prev.phi,
-            ),
-          };
-        });
+      if (Math.abs(panX) > 2 || Math.abs(panY) > 2) {
+        const sensitivity = 0.003;
+        physicsRef.current.theta += panX * sensitivity;
+        physicsRef.current.phi += panY * sensitivity;
         touchState.current.initialCenter = currentCenter;
       }
     } else if (touches.length === 1) {
+      // Rotate
       const deltaX = touches[0].clientX - lastMousePos.current.x;
       const deltaY = touches[0].clientY - lastMousePos.current.y;
       const sensitivity = 0.005;
-      setCameraState((prev) => {
-        const newTheta = prev.theta + deltaX * sensitivity;
-        let newPhi = prev.phi + deltaY * sensitivity;
-        newPhi = clampAndValidate(newPhi, 0, Math.PI, prev.phi);
-        return {
-          ...prev,
-          theta: newTheta,
-          phi: newPhi,
-          thetaVelocity: deltaX * sensitivity * 0.5,
-          phiVelocity: deltaY * sensitivity * 0.5,
-        };
-      });
+
+      physicsRef.current.theta += deltaX * sensitivity;
+      physicsRef.current.phi += deltaY * sensitivity;
+      physicsRef.current.thetaVelocity = deltaX * sensitivity * 0.5;
+      physicsRef.current.phiVelocity = deltaY * sensitivity * 0.5;
+
       lastMousePos.current.x = touches[0].clientX;
       lastMousePos.current.y = touches[0].clientY;
     }
+    setCameraState({ ...physicsRef.current });
   };
 
   const handleTouchEnd = (e: React.TouchEvent | TouchEvent) => {
@@ -387,6 +423,25 @@ export function useCamera(
     }
   };
 
+  const resetCamera = () => {
+    cinematicRef.current.active = false;
+    physicsRef.current = {
+      theta: Math.PI,
+      phi: Math.PI * 0.5,
+      thetaVelocity: 0,
+      phiVelocity: 0,
+      zoomVelocity: 0,
+      damping: 0.92,
+    };
+    setCameraState({ ...physicsRef.current });
+
+    // Also reset Zoom param to default
+    setParams((prev) => ({
+      ...prev,
+      zoom: DEFAULT_ZOOM,
+    }));
+  };
+
   return {
     mouse,
     cameraState,
@@ -397,5 +452,10 @@ export function useCamera(
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
+    nudgeCamera,
+    startCinematic,
+    stopCinematic,
+    resetCamera,
+    isCinematic: cinematicRef.current.active,
   };
 }

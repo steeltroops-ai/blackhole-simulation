@@ -48,7 +48,7 @@ export const DEFAULT_BLOOM_CONFIG: BloomConfig = {
  * - 8.4: Reduce frame time by at least 20% when disabled
  */
 export class BloomManager {
-  private gl: WebGLRenderingContext;
+  private gl: WebGL2RenderingContext;
   private config: BloomConfig;
 
   // Framebuffers
@@ -107,7 +107,7 @@ export class BloomManager {
   };
 
   constructor(
-    gl: WebGLRenderingContext,
+    gl: WebGL2RenderingContext,
     config: BloomConfig = DEFAULT_BLOOM_CONFIG,
   ) {
     this.gl = gl;
@@ -179,12 +179,15 @@ export class BloomManager {
     if (!this.brightTexture) throw new Error("Failed to create bright texture");
     this.brightFramebuffer = this.createFramebuffer(this.brightTexture);
 
-    // Blur framebuffers (half resolution)
-    this.blurTexture1 = this.createTexture(halfWidth, halfHeight);
+    // Blur framebuffers (quarter resolution for wider bloom and performance)
+    const blurWidth = Math.max(1, Math.floor(this.width / 4));
+    const blurHeight = Math.max(1, Math.floor(this.height / 4));
+
+    this.blurTexture1 = this.createTexture(blurWidth, blurHeight);
     if (!this.blurTexture1) throw new Error("Failed to create blur texture 1");
     this.blurFramebuffer1 = this.createFramebuffer(this.blurTexture1);
 
-    this.blurTexture2 = this.createTexture(halfWidth, halfHeight);
+    this.blurTexture2 = this.createTexture(blurWidth, blurHeight);
     if (!this.blurTexture2) throw new Error("Failed to create blur texture 2");
     this.blurFramebuffer2 = this.createFramebuffer(this.blurTexture2);
   }
@@ -202,12 +205,12 @@ export class BloomManager {
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGBA,
+      gl.RGBA16F, // Internal format: 16-bit floating point per channel (HDR)
       width,
       height,
       0,
       gl.RGBA,
-      gl.UNSIGNED_BYTE,
+      gl.HALF_FLOAT, // Type: Half float is sufficient for HDR and faster
       null,
     );
 
@@ -384,6 +387,8 @@ export class BloomManager {
     // Safety: Unbind potential feedback textures
     this.gl.activeTexture(this.gl.TEXTURE0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    this.gl.activeTexture(this.gl.TEXTURE1);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
 
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.sceneFramebuffer);
     return this.sceneFramebuffer;
@@ -475,7 +480,12 @@ export class BloomManager {
       gl.vertexAttribPointer(this.locs.blur_position, 2, gl.FLOAT, false, 0, 0);
     }
 
-    gl.uniform2f(this.locs.blur_resolution, halfWidth, halfHeight);
+    // Set viewport to quarter resolution for blur passes
+    const blurWidth = Math.max(1, Math.floor(this.width / 4));
+    const blurHeight = Math.max(1, Math.floor(this.height / 4));
+    gl.viewport(0, 0, blurWidth, blurHeight);
+
+    gl.uniform2f(this.locs.blur_resolution, blurWidth, blurHeight);
 
     let sourceTexture = this.brightTexture;
     let targetFramebuffer = this.blurFramebuffer1;
