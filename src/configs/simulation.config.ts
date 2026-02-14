@@ -47,8 +47,8 @@ const PERFORMANCE_PRESETS = {
     photonSphereGlow: true,
     bloom: true,
     relativisticJets: true,
-    gravitationalRedshift: true,
-    kerrShadow: true,
+    gravitationalRedshift: false,
+    kerrShadow: false,
   },
   "ultra-quality": {
     gravitationalLensing: true,
@@ -59,8 +59,8 @@ const PERFORMANCE_PRESETS = {
     photonSphereGlow: true,
     bloom: true,
     relativisticJets: true,
-    gravitationalRedshift: true,
-    kerrShadow: true,
+    gravitationalRedshift: false,
+    kerrShadow: false,
   },
 } as const;
 
