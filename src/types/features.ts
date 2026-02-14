@@ -1,6 +1,8 @@
 /**
  * Feature toggle definitions for performance optimization.
  */
+import { SIMULATION_CONFIG } from "@/configs/simulation.config";
+import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
 
 /**
  * Lensing quality levels:
@@ -38,31 +40,18 @@ export interface FeaturePerformanceCost {
   actualFrameTimeMs?: number;
 }
 
-export const DEFAULT_FEATURES: FeatureToggles = {
-  gravitationalLensing: true,
-  rayTracingQuality: "high",
-  accretionDisk: true,
-  dopplerBeaming: true,
-  backgroundStars: true,
-  photonSphereGlow: true,
-  bloom: true,
-};
+export const DEFAULT_FEATURES: FeatureToggles =
+  SIMULATION_CONFIG.features.default;
 
-export function getMaxRaySteps(quality: RayTracingQuality): number {
-  switch (quality) {
-    case "off":
-      return 0;
-    case "low":
-      return 50;
-    case "medium":
-      return 100;
-    case "high":
-      return 250;
-    case "ultra":
-      return 500;
-    default:
-      return 250;
+export function getMaxRaySteps(
+  quality: RayTracingQuality,
+  isMobile: boolean = false,
+): number {
+  const steps = SIMULATION_CONFIG.rayTracingSteps[quality] ?? 250;
+  if (isMobile) {
+    return Math.min(steps, PERFORMANCE_CONFIG.compute.maxStepsMobile);
   }
+  return steps;
 }
 
 export function validateFeatureToggles(
@@ -102,42 +91,7 @@ export function validateFeatureToggles(
 }
 
 export const PERFORMANCE_PRESETS: Record<PresetName, FeatureToggles> = {
-  "maximum-performance": {
-    gravitationalLensing: false,
-    rayTracingQuality: "off",
-    accretionDisk: false,
-    dopplerBeaming: false,
-    backgroundStars: false,
-    photonSphereGlow: false,
-    bloom: false,
-  },
-  balanced: {
-    gravitationalLensing: true,
-    rayTracingQuality: "medium",
-    accretionDisk: true,
-    dopplerBeaming: false,
-    backgroundStars: true,
-    photonSphereGlow: false,
-    bloom: false,
-  },
-  "high-quality": {
-    gravitationalLensing: true,
-    rayTracingQuality: "high",
-    accretionDisk: true,
-    dopplerBeaming: true,
-    backgroundStars: true,
-    photonSphereGlow: true,
-    bloom: false,
-  },
-  "ultra-quality": {
-    gravitationalLensing: true,
-    rayTracingQuality: "ultra",
-    accretionDisk: true,
-    dopplerBeaming: true,
-    backgroundStars: true,
-    photonSphereGlow: true,
-    bloom: true,
-  },
+  ...SIMULATION_CONFIG.presets,
   custom: DEFAULT_FEATURES,
 };
 
@@ -169,6 +123,11 @@ export function matchesPreset(features: FeatureToggles): PresetName {
 }
 
 export function getMobilePreset(): FeatureToggles {
-  const balanced = getPreset("balanced");
-  return { ...balanced, bloom: false };
+  const base = { ...DEFAULT_FEATURES }; // Respect global default target
+  return {
+    ...base,
+    bloom: false, // Force disable post-processing on mobile
+    rayTracingQuality:
+      base.rayTracingQuality === "ultra" ? "high" : base.rayTracingQuality, // Cap ultra to high for mobile
+  };
 }

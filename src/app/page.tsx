@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronUp, Bug } from "lucide-react";
 import { WebGLCanvas } from "@/components/canvas/WebGLCanvas";
 import { ControlPanel } from "@/components/ui/ControlPanel";
+import { UserProfile } from "@/components/ui/UserProfile";
 import { Telemetry } from "@/components/ui/Telemetry";
 import { DebugOverlay } from "@/components/ui/DebugOverlay";
 import { useCamera } from "@/hooks/useCamera";
 import { useAdaptiveResolution } from "@/hooks/useAdaptiveResolution";
 import { useMobileOptimization } from "@/hooks/useMobileOptimization";
 import { usePresets } from "@/hooks/usePresets";
-import type { SimulationParams } from "@/types/simulation";
+import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
 import type { PerformanceMetrics, DebugMetrics } from "@/performance/monitor";
 import { PerformanceMonitor } from "@/performance/monitor";
 import { DEFAULT_FEATURES } from "@/types/features";
@@ -23,8 +24,9 @@ const App = () => {
   const { applyPreset, detectPreset } = usePresets();
 
   const [params, setParams] = useState<SimulationParams>(() => {
-    const savedFeatures = settingsStorage.loadFeatures();
-    const savedPreset = settingsStorage.loadPreset();
+    // Forced Config Authority: Ignore local storage to respect simulation.config.ts defaults
+    // const savedFeatures = settingsStorage.loadFeatures();
+    // const savedPreset = settingsStorage.loadPreset();
 
     let initialFeatures = DEFAULT_FEATURES;
     let initialPreset = "ultra-quality";
@@ -32,25 +34,18 @@ const App = () => {
     if (isMobile) {
       initialFeatures = getMobileFeatures();
       initialPreset = "balanced";
-    } else if (savedFeatures) {
-      initialFeatures = savedFeatures;
-      initialPreset = savedPreset || detectPreset(savedFeatures);
     }
+    // else if (savedFeatures) {
+    //   initialFeatures = savedFeatures;
+    //   initialPreset = savedPreset || detectPreset(savedFeatures);
+    // }
 
     return {
-      mass: 0.5,
-      spin: 0.8,
-      diskDensity: 3.5,
-      diskTemp: 1.3,
-      lensing: 1.0,
-      paused: false,
-      zoom: 50.0,
-      autoSpin: 0.005,
+      ...DEFAULT_PARAMS,
       quality: initialFeatures.rayTracingQuality,
       features: initialFeatures,
       performancePreset: initialPreset,
       adaptiveResolution: false,
-      renderScale: 1.0,
     };
   });
 
@@ -156,16 +151,17 @@ const App = () => {
 
       <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
 
-      <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-20 pointer-events-none">
-        <div>
-          <h1 className="text-xl md:text-2xl font-extralight tracking-tight text-white/90">
-            SINGULARITY <span className="font-bold">OS</span>
+      <div className="absolute top-0 left-0 w-full p-4 md:p-8 flex justify-between items-start z-30 pointer-events-none">
+        {/* SLEEK IDENTITY HUD */}
+        <div className="flex flex-col">
+          <h1 className="text-lg md:text-xl font-extralight tracking-[0.4em] text-white uppercase leading-none">
+            Black Hole
           </h1>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] font-mono text-gray-400 tracking-widest">
-              SYSTEM NOMINAL
+          <div className="flex items-center gap-2.5 mt-2">
+            <span className="text-[8px] md:text-[10px] font-mono text-white/70 tracking-[0.2em] uppercase">
+              Event Horizon v5.1
             </span>
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
           </div>
         </div>
 
@@ -182,26 +178,6 @@ const App = () => {
         isBenchmarkRunning={benchmarkController.current.isRunning()}
       />
 
-      {debugMetrics && (
-        <DebugOverlay
-          enabled={debugEnabled}
-          onToggle={setDebugEnabled}
-          metrics={debugMetrics}
-        />
-      )}
-
-      <div className="absolute bottom-8 left-8 z-30">
-        <button
-          onClick={() => setDebugEnabled(!debugEnabled)}
-          className={`bg-black/40 backdrop-blur-md border ${debugEnabled ? "border-red-500/50 bg-red-500/10" : "border-white/10"} rounded-full p-3 hover:bg-white/10 transition-all active:scale-95 shadow-lg group pointer-events-auto`}
-          title="Toggle debug overlay"
-        >
-          <Bug
-            className={`w-5 h-5 ${debugEnabled ? "text-red-400" : "text-white/80"} group-hover:text-white transition-colors`}
-          />
-        </button>
-      </div>
-
       {!showUI && (
         <div className="absolute bottom-8 right-8 z-30 animate-fade-in">
           <button
@@ -212,10 +188,6 @@ const App = () => {
           </button>
         </div>
       )}
-
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-[10px] tracking-[0.3em] pointer-events-none opacity-100 animate-fade-out">
-        INTERACTIVE SYSTEM READY
-      </div>
 
       {benchmarkController.current.isRunning() && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
@@ -236,22 +208,22 @@ const App = () => {
 
       {showBenchmarkResults && benchmarkReport && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="max-w-2xl mx-4 p-6 bg-black/95 border border-cyan-500/30 rounded-xl shadow-2xl">
-            <h2 className="text-xl font-bold text-cyan-400 mb-4">
+          <div className="max-w-2xl mx-4 p-6 bg-black/95 border border-white/20 rounded-xl shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-4">
               Benchmark Results
             </h2>
             <div className="space-y-2 mb-4">
               {benchmarkReport.results.map((result) => (
                 <div
                   key={result.presetName}
-                  className={`p-3 rounded border ${result.presetName === benchmarkReport.recommendedPreset ? "bg-cyan-500/10 border-cyan-500/50" : "bg-white/5 border-white/10"}`}
+                  className={`p-3 rounded border ${result.presetName === benchmarkReport.recommendedPreset ? "bg-white/10 border-white/30" : "bg-white/5 border-white/10"}`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium text-white">
                       {result.presetName}
                       {result.presetName ===
                         benchmarkReport.recommendedPreset && (
-                        <span className="ml-2 text-xs text-cyan-400">
+                        <span className="ml-2 text-xs text-green-400">
                           ✓ RECOMMENDED
                         </span>
                       )}
@@ -279,7 +251,7 @@ const App = () => {
               </button>
               <button
                 onClick={applyRecommendedPreset}
-                className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-black rounded text-sm font-medium"
+                className="px-4 py-2 bg-white hover:bg-white/90 text-black rounded text-sm font-medium"
               >
                 Apply Recommended
               </button>

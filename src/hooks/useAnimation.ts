@@ -9,6 +9,8 @@ import { PerformanceMonitor } from "@/performance/monitor";
 import type { PerformanceMetrics } from "@/performance/monitor";
 import { UniformBatcher, IdleDetector } from "@/utils/cpu-optimizations";
 import type { BloomManager } from "@/rendering/bloom";
+import { SIMULATION_CONFIG } from "@/configs/simulation.config";
+import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
 
 export function useAnimation(
   glRef: React.RefObject<WebGLRenderingContext | null>,
@@ -16,6 +18,7 @@ export function useAnimation(
   bloomManagerRef: React.RefObject<BloomManager | null>,
   params: SimulationParams,
   mouse: MouseState,
+  setResolutionScale?: (scale: number) => void,
 ) {
   const requestRef = useRef<number | null>(null);
   const timeRef = useRef(0);
@@ -24,8 +27,8 @@ export function useAnimation(
   const performanceMonitor = useRef(new PerformanceMonitor());
 
   const [metrics, setMetrics] = useState<PerformanceMetrics>({
-    currentFPS: 60,
-    frameTimeMs: 16.6,
+    currentFPS: PERFORMANCE_CONFIG.scheduler.targetFPS,
+    frameTimeMs: PERFORMANCE_CONFIG.scheduler.frameBudgetMs,
     rollingAverageFPS: 60,
     quality: params.quality || "high",
     renderResolution: params.renderScale || 1.0,
@@ -34,8 +37,10 @@ export function useAnimation(
   const lastFrameTime = useRef(performance.now());
   const isVisible = useRef(true);
   const uniformBatcher = useRef(new UniformBatcher());
-  const idleDetector = useRef(new IdleDetector(5000));
-  const targetFrameTime = useRef(16.6);
+  const idleDetector = useRef(
+    new IdleDetector(PERFORMANCE_CONFIG.scheduler.idleTimeoutMs),
+  );
+  const targetFrameTime = useRef(PERFORMANCE_CONFIG.scheduler.frameBudgetMs);
 
   useEffect(() => {
     paramsRef.current = params;
@@ -93,22 +98,38 @@ export function useAnimation(
       lastFrameTime.current = currentTime;
 
       if (idleDetector.current.isIdle()) {
-        targetFrameTime.current = 33.3;
+        targetFrameTime.current =
+          1000 / PERFORMANCE_CONFIG.scheduler.idleThrottleFPS;
       } else {
-        targetFrameTime.current = 16.6;
+        targetFrameTime.current = PERFORMANCE_CONFIG.scheduler.frameBudgetMs;
       }
 
-      if (
-        deltaTime < targetFrameTime.current &&
-        idleDetector.current.isIdle()
-      ) {
+      if (deltaTime < targetFrameTime.current) {
         requestRef.current = requestAnimationFrame(animate);
         return;
       }
 
       const updatedMetrics =
         performanceMonitor.current.updateMetrics(deltaTime);
-      if (!currentParams.paused) timeRef.current += 0.01;
+
+      // PAUSE LOGIC: Only increment simulation time if not paused
+      if (!currentParams.paused) {
+        timeRef.current += 0.01;
+      }
+
+      // OPTIMIZATION: If paused and no interaction, skip heavy rendering to save GPU/CPU
+      // But keep loop running for responsiveness
+      const isInteractionActive =
+        Math.abs(currentMouse.x - mouseRef.current.x) > 0.0001 ||
+        Math.abs(currentMouse.y - mouseRef.current.y) > 0.0001 ||
+        paramsRef.current !== currentParams; // Check if params changed
+
+      const shouldRender = !currentParams.paused || isInteractionActive;
+
+      if (!shouldRender) {
+        requestRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
       if (gl && program) {
         const features = currentParams.features || DEFAULT_FEATURES;
@@ -119,7 +140,45 @@ export function useAnimation(
         );
         const maxRaySteps = getMaxRaySteps(features.rayTracingQuality);
 
-        setMetrics({ ...updatedMetrics, quality: newQuality });
+        const dynamicScale = (() => {
+          if (
+            !PERFORMANCE_CONFIG.resolution.enableDynamicScaling ||
+            !setResolutionScale
+          )
+            return 1.0;
+
+          if (
+            updatedMetrics.currentFPS <
+            PERFORMANCE_CONFIG.resolution.adaptiveThreshold
+          ) {
+            return Math.max(
+              PERFORMANCE_CONFIG.resolution.minScale,
+              metrics.renderResolution * 0.9,
+            );
+          } else if (
+            updatedMetrics.currentFPS >
+            PERFORMANCE_CONFIG.resolution.recoveryThreshold
+          ) {
+            return Math.min(
+              PERFORMANCE_CONFIG.resolution.maxScale,
+              metrics.renderResolution * 1.05,
+            );
+          }
+          return metrics.renderResolution;
+        })();
+
+        if (
+          setResolutionScale &&
+          Math.abs(dynamicScale - metrics.renderResolution) > 0.05
+        ) {
+          setResolutionScale(dynamicScale);
+        }
+
+        setMetrics({
+          ...updatedMetrics,
+          quality: newQuality,
+          renderResolution: dynamicScale,
+        });
 
         const bloomManager = bloomManagerRef.current;
         if (bloomManager) {
@@ -151,6 +210,10 @@ export function useAnimation(
         uniformBatcher.current.set("u_spin", currentParams.spin);
         uniformBatcher.current.set("u_lensing_strength", currentParams.lensing);
         uniformBatcher.current.set("u_zoom", currentParams.zoom);
+        uniformBatcher.current.set(
+          "u_disk_size",
+          currentParams.diskSize ?? SIMULATION_CONFIG.diskSize.default,
+        );
         uniformBatcher.current.set("u_maxRaySteps", maxRaySteps);
 
         uniformBatcher.current.flush(gl, program);

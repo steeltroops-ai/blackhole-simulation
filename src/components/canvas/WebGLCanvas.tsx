@@ -31,14 +31,21 @@ export const WebGLCanvas = ({
   onMetricsUpdate,
 }: WebGLCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { glRef, programRef, bloomManagerRef, error, resolutionScale } =
-    useWebGL(canvasRef);
+  const {
+    glRef,
+    programRef,
+    bloomManagerRef,
+    error,
+    resolutionScale,
+    setResolutionScale,
+  } = useWebGL(canvasRef);
   const { metrics } = useAnimation(
     glRef,
     programRef,
     bloomManagerRef,
     params,
     mouse,
+    setResolutionScale,
   );
 
   useEffect(() => {

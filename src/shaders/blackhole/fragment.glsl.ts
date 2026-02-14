@@ -1,3 +1,5 @@
+import { PHYSICS_CONSTANTS } from "@/configs/physics.config";
+
 /**
  * Realistic Black Hole Fragment Shader
  * Features: Starfield, Realistic Accretion Disk, Photon Sphere, Gravitational Lensing
@@ -15,13 +17,14 @@ export const fragmentShaderSource = `
   uniform vec2 u_mouse;
   uniform float u_zoom;
   uniform float u_lensing_strength;
+  uniform float u_disk_size;
   uniform int u_maxRaySteps;
 
   // === CONSTANTS ===
 #define PI 3.14159265359
-#define MAX_DIST 200.0
-#define MIN_STEP 0.01
-#define MAX_STEP 1.2
+#define MAX_DIST ${PHYSICS_CONSTANTS.rayMarching.maxDistance.toFixed(1)}
+#define MIN_STEP ${PHYSICS_CONSTANTS.rayMarching.minStep.toFixed(2)}
+#define MAX_STEP ${PHYSICS_CONSTANTS.rayMarching.maxStep.toFixed(1)}
 
   // === HELPER FUNCTIONS ===
   mat2 rot(float a) {
@@ -61,32 +64,32 @@ export const fragmentShaderSource = `
 
   // Realistic blackbody radiation color
   vec3 blackbody(float temp) {
-    temp = clamp(temp, 1000.0, 40000.0);
+    temp = clamp(temp, 1000.0, 50000.0);
     vec3 col;
     
     float t = temp / 100.0;
     
     // Red channel
-    if(t <= 66.0) {
+    if(t <= ${PHYSICS_CONSTANTS.blackbody.redChannel.threshold.toFixed(1)}) {
       col.r = 1.0;
     } else {
-      col.r = clamp(1.292936186 * pow(t - 60.0, -0.1332047592), 0.0, 1.0);
+      col.r = clamp(${PHYSICS_CONSTANTS.blackbody.redChannel.scale.toFixed(9)} * pow(t - ${PHYSICS_CONSTANTS.blackbody.redChannel.offset.toFixed(1)}, ${PHYSICS_CONSTANTS.blackbody.redChannel.exponent.toFixed(10)}), 0.0, 1.0);
     }
     
     // Green channel
-    if(t <= 66.0) {
-      col.g = clamp(0.39008157 * log(t) - 0.631841444, 0.0, 1.0);
+    if(t <= ${PHYSICS_CONSTANTS.blackbody.redChannel.threshold.toFixed(1)}) {
+      col.g = clamp(${PHYSICS_CONSTANTS.blackbody.greenChannel.logScale.toFixed(8)} * log(t) - ${Math.abs(PHYSICS_CONSTANTS.blackbody.greenChannel.logOffset).toFixed(9)}, 0.0, 1.0);
     } else {
-      col.g = clamp(1.129890861 * pow(t - 60.0, -0.0755148492), 0.0, 1.0);
+      col.g = clamp(${PHYSICS_CONSTANTS.blackbody.greenChannel.powScale.toFixed(9)} * pow(t - ${PHYSICS_CONSTANTS.blackbody.redChannel.offset.toFixed(1)}, ${PHYSICS_CONSTANTS.blackbody.greenChannel.powExponent.toFixed(10)}), 0.0, 1.0);
     }
     
     // Blue channel
-    if(t >= 66.0) {
+    if(t >= ${PHYSICS_CONSTANTS.blackbody.redChannel.threshold.toFixed(1)}) {
       col.b = 1.0;
-    } else if(t <= 19.0) {
+    } else if(t <= ${PHYSICS_CONSTANTS.blackbody.blueChannel.threshold.toFixed(1)}) {
       col.b = 0.0;
     } else {
-      col.b = clamp(0.543206789 * log(t - 10.0) - 1.196254089, 0.0, 1.0);
+      col.b = clamp(${PHYSICS_CONSTANTS.blackbody.blueChannel.logScale.toFixed(9)} * log(t - ${PHYSICS_CONSTANTS.blackbody.blueChannel.offset.toFixed(1)}) - ${Math.abs(PHYSICS_CONSTANTS.blackbody.blueChannel.logOffset).toFixed(9)}, 0.0, 1.0);
     }
     
     return col;
@@ -129,136 +132,140 @@ export const fragmentShaderSource = `
     ro.yz *= rx; rd.yz *= rx;
     ro.xz *= ry; rd.xz *= ry;
 
-    // Black hole parameters
-    float rs = u_mass * 2.0; // Schwarzschild radius
-    float rh = rs * 0.5 + sqrt(max(0.0, rs * rs * 0.25 * (1.0 - u_spin * u_spin)));
-    float rph = rs * (1.0 + cos(0.666 * acos(-u_spin)));
-    float isco = rs * 3.0; // Innermost stable circular orbit
+    // Black hole parameters (Cinematic Scaling)
+    float M = u_mass;
+    float rs = M * 2.0; 
+    float a = u_spin * M;
+    float a2 = a * a;
+    
+    // ISCO and Horizon logic for Cinematic Proportion
+    float rh = M + sqrt(max(0.0, M*M - a2));
+    float rph = rs * 1.5; // Photon sphere at 3M
+    float isco = rs * 3.0; // Aesthetic ISCO cutoff
 
     // === LOW QUALITY MODE ===
 #if defined(RAY_QUALITY_LOW) || defined(RAY_QUALITY_OFF)
     vec3 bg = starfield(rd);
     float d = length(cross(ro, rd));
-    
-    // Event horizon shadow
-    float shadow = smoothstep(rh * 1.5, rh * 0.8, d);
-    
-    // Photon sphere glow
-    float photonGlow = exp(-abs(d - rph) * 8.0) * 0.8;
-    vec3 glowCol = vec3(0.3, 0.6, 1.0) * photonGlow;
-    
-    // Simple disk
-    float diskMask = smoothstep(isco * 3.0, isco * 1.2, d) * (1.0 - smoothstep(isco * 1.2, isco * 0.9, d));
-    vec3 diskCol = vec3(1.0, 0.7, 0.3) * diskMask * 0.6;
-    
-    vec3 col = bg * (1.0 - shadow) + glowCol + diskCol;
+    float shadow = smoothstep(rh * 1.2, rh * 0.9, d);
+    float photonGlowIndicator = exp(-abs(d - rph) * 12.0) * 0.8;
+    vec3 glowCol = vec3(0.3, 0.6, 1.0) * photonGlowIndicator;
+    float diskMask = smoothstep(isco * 2.0, isco * 1.0, d) * (1.0 - smoothstep(isco * 1.0, isco * 0.8, d));
+    vec3 diskColIndicator = vec3(1.0, 0.7, 0.3) * diskMask * 0.6;
+    vec3 col = bg * (1.0 - shadow) + glowCol + diskColIndicator;
     gl_FragColor = vec4(pow(col, vec3(0.4545)), 1.0);
     return;
 #endif
 
-    // === HIGH QUALITY RAYMARCHING ===
+    // === PRO-PHYSICS ADAPTIVE RAYMARCHING ===
     vec3 p = ro;
     vec3 v = rd;
+    
+    // Kamikaze Protection: Ensure ro is always outside the shadow boundary
+    float camDist = length(ro);
+    if(camDist < rh * 1.5) {
+       ro = normalize(ro) * rh * 1.5;
+       p = ro;
+    }
+
     vec3 accumulatedColor = vec3(0.0);
     float accumulatedAlpha = 0.0;
     bool hitHorizon = false;
     
-    // Optimization: limit max steps based on quality uniform, hard cap at 200 for stability
-    int maxSteps = int(min(float(u_maxRaySteps), 200.0));
-    
-    // Optimization: Pre-calculate constants
-    float rs2 = rs * rs; 
-    float invRs = 1.0 / rs;
+    // Professional 500-step budget
+    int maxSteps = int(min(float(u_maxRaySteps), 500.0));
 
-    for(int i = 0; i < 200; i++) {
-      if(i >= maxSteps) break;
-      
-      float r = length(p);
-      
-      // Hit event horizon
-      if(r < rh * 1.05) {
-        hitHorizon = true;
-        break;
-      }
-      
-      // Escaped to infinity
-      if(r > MAX_DIST) break;
+    for(int i = 0; i < 500; i++) {
+        if(i >= maxSteps) break;
+        
+        float r = length(p);
+        
+        // Dynamic Event Horizon Threshold
+        if(r < rh * ${PHYSICS_CONSTANTS.rayMarching.horizonThreshold.toFixed(2)}) {
+            hitHorizon = true;
+            break;
+        }
+        if(r > MAX_DIST) break;
 
-      // Adaptive step size - more aggressive optimization
-      // Increase step size significantly when far from the black hole
-      float distanceToHole = abs(r - rph);
-      float dt = MIN_STEP + (MAX_STEP - MIN_STEP) * smoothstep(rph * 0.2, rph * 4.0, distanceToHole);
-      
-      // Geodesic equation (simplified Kerr metric)
-      vec3 L_vec = cross(p, v);
-      float L2 = dot(L_vec, L_vec);
-      float r2 = r * r;
-      float r3 = r2 * r; // reduced multiplications
-      
-      // Gravitational acceleration
-      // Optimization: removed redundant lensing strength mult inside loop if constant
-      vec3 accel = -normalize(p) * (u_mass * rs / r2 + 3.0 * u_mass * rs * L2 / (r2 * r3)) * u_lensing_strength;
-      
-      v += accel * dt;
-      v = normalize(v);
-      p += v * dt;
+        // Ray-Leap Stepper: Large in vacuum, infinitesimal near horizon
+        float dt = clamp((r - rh) * 0.1, MIN_STEP, MAX_STEP);
+        
+        // Boost precision near the critical photon ring
+        float sphereProx = abs(r - rph);
+        dt = min(dt, MIN_STEP + sphereProx * 0.15);
+        
+        // Cinematic LDE Acceleration
+        vec3 L_vec = cross(p, v);
+        float L2 = dot(L_vec, L_vec);
+        float r2 = r * r;
+        float r4 = r2 * r2;
+        
+        // F = M/r^2 + 2ML^2/r^4 (Newtonian + Centrifugal Shield)
+        vec3 accel = -normalize(p) * (M / r2 + 2.0 * M * L2 / r4) * u_lensing_strength;
+        
+        // Relativistic Banking (Frame Dragging Twist)
+        float omega = 2.0 * M * a / (r2 * r + a*a*r);
+        mat2 dragging = rot(omega * dt);
+        v.xz *= dragging;
+        p.xz *= dragging;
 
-      // Accretion disk rendering
+        v += accel * dt;
+        v = normalize(v);
+        p += v * dt;
+
+        // Accretion Disk Sample
 #ifdef ENABLE_DISK
-      // Optimization: tighter bounds for disk check
-      float diskHeight = r * 0.08;
-      float diskInner = isco;
-      float diskOuter = rs * 18.0; // Reduced from 25.0 to render less empty space
-      
-      if(abs(p.y) < diskHeight && r > diskInner && r < diskOuter) {
-        // Optimization: fewer FBM octaves (inlined for performance)
-        // Manual unroll of 3 FBM octaves
-        vec3 noiseP = p * 0.3 + vec3(u_time * 0.3, 0.0, 0.0);
-        float turbulence = noise(noiseP) * 0.5;
-        turbulence += noise(noiseP * 2.0) * 0.25;
-        turbulence += noise(noiseP * 4.0) * 0.125;
+        float diskHeight = r * ${PHYSICS_CONSTANTS.accretion.diskHeightMultiplier.toFixed(2)};
+        float diskInner = isco;
+        // User-controlled dynamic radius (proportional to M)
+        float diskOuter = M * u_disk_size;
         
-        float heightFalloff = exp(-abs(p.y) / diskHeight * 4.0);
-        float radialFalloff = smoothstep(diskOuter, diskInner, r); // Reused
-        
-        // Skip expensive lighting if density is negligible
-        float baseDensity = turbulence * heightFalloff * radialFalloff;
-        if (baseDensity < 0.01) continue;
-
-        float density = baseDensity * u_disk_density * 0.15;
-        
-        // Temperature gradient
-        float tempFactor = 1.0 - smoothstep(diskInner, diskOuter, r);
-        float baseTemp = mix(3000.0, 25000.0, tempFactor);
-        
-        // Doppler shift
-        float orbitalVel = sqrt(u_mass * rs / r);
-        vec3 diskVelocity = normalize(vec3(-p.z, 0.0, p.x)) * orbitalVel;
-        float dopplerShift = 1.0 + dot(diskVelocity, normalize(ro - p)) * 0.3;
-        
-        float temperature = baseTemp * u_disk_temp * dopplerShift;
-        vec3 diskColor = blackbody(temperature);
-        
-        accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
-        accumulatedAlpha += density;
-        
-        if(accumulatedAlpha > 0.98) break; // Early exit threshold increased
-      }
+        if(abs(p.y) < diskHeight && r > diskInner && r < diskOuter) {
+            vec3 noiseP = p * ${PHYSICS_CONSTANTS.accretion.turbulenceScale.toFixed(2)} + vec3(u_time * ${PHYSICS_CONSTANTS.accretion.timeScale.toFixed(2)}, 0.0, 0.0);
+            float turbulence = noise(noiseP) * 0.5 + noise(noiseP * ${PHYSICS_CONSTANTS.accretion.turbulenceDetail.toFixed(1)}) * 0.25;
+            
+            float heightFalloff = exp(-abs(p.y) / (diskHeight * ${PHYSICS_CONSTANTS.accretion.densityFalloff.toFixed(2)}));
+            float radialFalloff = smoothstep(diskOuter, diskInner, r);
+            float baseDensity = turbulence * heightFalloff * radialFalloff;
+            
+            if (baseDensity > 0.001) {
+                float orbitalVel = 1.0 / (sqrt(r) * (1.0 + a / (r*sqrt(r))));
+                orbitalVel = clamp(orbitalVel, 0.0, 0.99);
+                
+                vec3 diskVelVec = normalize(vec3(-p.z, 0.0, p.x)) * orbitalVel;
+                float cosTheta = dot(diskVelVec, normalize(ro - p));
+                
+                // Relativistic Doppler Factor
+                float beta = orbitalVel;
+                float gamma = 1.0 / sqrt(1.0 - beta*beta);
+                float delta = 1.0 / (gamma * (1.0 - beta * cosTheta));
+                
+                // Azure Spectral Shift logic
+                float beaming = pow(delta, 4.5);
+                float radialTempGradient = pow(isco / r, 0.75);
+                float temperature = u_disk_temp * radialTempGradient * delta;
+                
+                vec3 diskColor = blackbody(temperature) * beaming;
+                float density = baseDensity * u_disk_density * 0.12 * dt;
+                
+                accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
+                accumulatedAlpha += density;
+                
+                if(accumulatedAlpha > 0.99) break;
+            }
+        }
 #endif
     }
 
-    // Background starfield (lensed)
+    // Background Optics
     vec3 background = starfield(v);
     
-    // Photon sphere glow
-    float distToPhotonSphere = abs(length(p) - rph);
-    float photonGlow = 0.3 / (distToPhotonSphere * 2.0 + 0.1) * u_lensing_strength;
-    vec3 photonColor = vec3(0.4, 0.7, 1.0) * photonGlow;
+    // Neutral White Photon Ring (Multi-spectral starfield concentration)
+    float distToPhotonRing = abs(length(p) - rph);
+    float photonRing = exp(-distToPhotonRing * 40.0) * 1.8 * u_lensing_strength;
+    vec3 photonColor = vec3(1.0, 1.0, 1.0) * photonRing; 
     
-    // Combine all elements
-    vec3 finalColor = background * (1.0 - accumulatedAlpha);
-    finalColor += accumulatedColor;
-    finalColor += photonColor;
+    vec3 finalColor = background * (1.0 - accumulatedAlpha) + accumulatedColor + photonColor;
     
     // Event horizon is pure black
     if(hitHorizon) {

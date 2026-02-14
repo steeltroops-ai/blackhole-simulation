@@ -12,6 +12,7 @@ import {
   Power,
   RefreshCcw,
   ChevronDown,
+  ChevronUp,
   Settings,
   Eye,
   Atom,
@@ -22,12 +23,18 @@ import {
   Sun,
   Disc,
   RotateCw,
-  Focus,
+  Target,
+  Orbit,
+  Play,
+  Pause,
+  Eclipse,
   Sparkles,
   Monitor,
   SlidersHorizontal,
 } from "lucide-react";
-import type { SimulationParams } from "@/types/simulation";
+import { UserProfile } from "./UserProfile";
+import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
+import { SIMULATION_CONFIG } from "@/configs/simulation.config";
 import {
   calculateEventHorizon,
   calculatePhotonSphere,
@@ -51,18 +58,6 @@ interface ControlPanelProps {
   isBenchmarkRunning?: boolean;
 }
 
-const DEFAULT_PARAMS: SimulationParams = {
-  mass: 0.5,
-  spin: 0.8,
-  diskDensity: 3.5,
-  diskTemp: 1.3,
-  lensing: 1.0,
-  paused: false,
-  zoom: 50.0,
-  autoSpin: 0.005,
-  renderScale: 1.0,
-};
-
 const PRESETS: { id: PresetName; label: string }[] = [
   { id: "maximum-performance", label: "Max Perf" },
   { id: "balanced", label: "Balanced" },
@@ -85,11 +80,11 @@ export const ControlPanel = ({
 }: ControlPanelProps) => {
   const [isCompact, setIsCompact] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    "simulation" | "performance" | "features"
+  >("simulation");
 
   // 3-Panel State: Variables (Scrollable), Modules (Toggles), System (Performance)
-  const [activeTab, setActiveTab] = useState<
-    "variables" | "modules" | "system"
-  >("variables");
 
   const [calculatedRadii, setCalculatedRadii] = useState({
     eventHorizon: 0,
@@ -98,6 +93,10 @@ export const ControlPanel = ({
   });
 
   const { applyPreset } = usePresets();
+
+  const handleZoom = (val: number) => {
+    onParamsChange({ ...params, zoom: Math.max(val, params.mass * 5.0) });
+  };
 
   useEffect(() => {
     const normalizedSpin = Math.max(-1, Math.min(1, params.spin / 5.0));
@@ -117,32 +116,59 @@ export const ControlPanel = ({
   const handleParamChange = (newParams: SimulationParams) => {
     const validatedParams: SimulationParams = {
       ...newParams,
-      mass: clampAndValidate(newParams.mass, 0.1, 3.0, DEFAULT_PARAMS.mass),
-      spin: clampAndValidate(newParams.spin, -5.0, 5.0, DEFAULT_PARAMS.spin),
+      mass: clampAndValidate(
+        newParams.mass,
+        SIMULATION_CONFIG.mass.min,
+        SIMULATION_CONFIG.mass.max,
+        DEFAULT_PARAMS.mass,
+      ),
+      spin: clampAndValidate(
+        newParams.spin,
+        SIMULATION_CONFIG.ui_spin.min,
+        SIMULATION_CONFIG.ui_spin.max,
+        DEFAULT_PARAMS.spin,
+      ),
       diskDensity: clampAndValidate(
         newParams.diskDensity,
-        0.0,
-        5.0,
+        SIMULATION_CONFIG.diskDensity.min,
+        SIMULATION_CONFIG.diskDensity.max,
         DEFAULT_PARAMS.diskDensity,
       ),
       diskTemp: clampAndValidate(
         newParams.diskTemp,
-        0.5,
-        3.0,
+        SIMULATION_CONFIG.diskTemp.min,
+        SIMULATION_CONFIG.diskTemp.max,
         DEFAULT_PARAMS.diskTemp,
       ),
       lensing: clampAndValidate(
         newParams.lensing,
-        0.0,
-        3.0,
+        SIMULATION_CONFIG.lensing.min,
+        SIMULATION_CONFIG.lensing.max,
         DEFAULT_PARAMS.lensing,
       ),
-      zoom: clampAndValidate(newParams.zoom, 2.5, 50.0, DEFAULT_PARAMS.zoom),
+      zoom: clampAndValidate(
+        newParams.zoom,
+        SIMULATION_CONFIG.zoom.min,
+        SIMULATION_CONFIG.zoom.max,
+        DEFAULT_PARAMS.zoom,
+      ),
       autoSpin: clampAndValidate(
-        newParams.autoSpin ?? 0.005,
-        -0.05,
-        0.05,
+        newParams.autoSpin ?? SIMULATION_CONFIG.autoSpin.default,
+        SIMULATION_CONFIG.autoSpin.min,
+        SIMULATION_CONFIG.autoSpin.max,
         DEFAULT_PARAMS.autoSpin,
+      ),
+      diskSize: clampAndValidate(
+        newParams.diskSize ?? SIMULATION_CONFIG.diskSize.default,
+        SIMULATION_CONFIG.diskSize.min,
+        SIMULATION_CONFIG.diskSize.max,
+        DEFAULT_PARAMS.diskSize,
+      ),
+      renderScale: clampAndValidate(
+        newParams.renderScale ?? SIMULATION_CONFIG.renderScale.default,
+        SIMULATION_CONFIG.renderScale.min,
+        SIMULATION_CONFIG.renderScale.max,
+        DEFAULT_PARAMS.renderScale,
       ),
       paused: newParams.paused,
     };
@@ -171,7 +197,7 @@ export const ControlPanel = ({
     });
   };
 
-  // --- Premium Inline UI Primitives (Preserved) ---
+  // --- Premium Inline UI Primitives (Symmetric & Stable) ---
 
   const renderSlider = (
     label: string,
@@ -183,20 +209,22 @@ export const ControlPanel = ({
     unit: string,
     decimals: number = 1,
   ) => (
-    <div className="mb-3.5 group select-none">
+    <div className="mb-4 last:mb-0 group select-none">
       <div className="flex justify-between items-center mb-1.5 px-0.5">
-        <span className="text-[9px] uppercase tracking-[0.15em] text-white/60 font-bold group-hover:text-white/90 transition-colors">
+        <span className="text-[9px] uppercase tracking-[0.2em] text-white/50 font-black group-hover:text-white transition-colors">
           {label}
         </span>
-        <span className="font-mono text-[10px] text-white font-medium tabular-nums">
+        <span className="font-mono text-[10px] text-white font-bold tabular-nums">
           {value.toFixed(decimals)}
-          <span className="text-white/30 ml-0.5 text-[8px]">{unit}</span>
+          <span className="text-white/40 ml-1 text-[8px] uppercase">
+            {unit}
+          </span>
         </span>
       </div>
       <div className="relative h-4 w-full flex items-center">
-        <div className="absolute left-0 right-0 h-[2px] bg-white/5 rounded-full overflow-hidden">
+        <div className="absolute left-0 right-0 h-[2px] bg-white/[0.08] rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-white/20 to-white/60 rounded-full transition-all duration-300"
+            className="h-full bg-gradient-to-r from-white/20 to-white/90 rounded-full transition-all duration-300"
             style={{ width: `${((value - min) / (max - min)) * 100}%` }}
           />
         </div>
@@ -210,7 +238,7 @@ export const ControlPanel = ({
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
         />
         <div
-          className="absolute w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.8)] pointer-events-none transition-all z-10 border border-white/50 group-hover:scale-125 glow-white"
+          className="absolute w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.4)] pointer-events-none z-10 border border-white/50 group-hover:scale-125 transition-[transform,opacity,scale]"
           style={{
             left: `calc(${((value - min) / (max - min)) * 100}% - 5px)`,
           }}
@@ -234,17 +262,17 @@ export const ControlPanel = ({
           ${
             isActive
               ? "bg-white/15 backdrop-blur-2xl text-white border-white/50 shadow-[0_0_25px_rgba(255,255,255,0.08),inset_0_0_12px_rgba(255,255,255,0.08)]"
-              : "bg-white/[0.03] text-white/50 border-white/5 hover:bg-white/[0.07] hover:border-white/15 hover:text-white/80"
+              : "bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/[0.08] hover:border-white/20 hover:text-white"
           }
         `}
       >
         {Icon && (
           <Icon
-            className={`w-3 h-3 shrink-0 transition-all duration-500 ${isActive ? "text-white icon-glow" : "opacity-50 group-hover/btn:opacity-80"}`}
+            className={`w-3 h-3 shrink-0 transition-all duration-500 ${isActive ? "text-white icon-glow" : "text-white/80 group-hover/btn:text-white"}`}
           />
         )}
         <span
-          className={`text-[8px] uppercase font-bold tracking-[0.15em] truncate transition-colors duration-500 ${isActive ? "text-white" : "text-white/50"}`}
+          className={`text-[8px] uppercase font-bold tracking-[0.15em] truncate transition-colors duration-500 ${isActive ? "text-white" : "text-white/70"}`}
         >
           {label}
         </span>
@@ -279,7 +307,7 @@ export const ControlPanel = ({
         ${
           isActive
             ? "bg-white/15 backdrop-blur-2xl text-white border-white/50 shadow-[0_0_20px_rgba(255,255,255,0.08),inset_0_0_10px_rgba(255,255,255,0.06)] scale-[1.02]"
-            : "bg-white/[0.03] text-white/50 border-white/5 hover:bg-white/[0.07] hover:border-white/15 hover:text-white/80"
+            : "bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/[0.08] hover:border-white/20 hover:text-white"
         }
       `}
     >
@@ -294,23 +322,18 @@ export const ControlPanel = ({
     </button>
   );
 
-  const SectionHeader = ({
-    icon: Icon,
-    label,
-  }: {
-    icon: any;
-    label: string;
-  }) => (
-    <div className="flex items-center gap-2 text-white/30 mb-2.5 px-0.5">
-      <Icon className="w-3 h-3" />
-      <span className="text-[7px] font-black uppercase tracking-[0.25em]">
+  const SectionHeader = ({ label }: { label: string }) => (
+    <div className="flex items-center gap-2 text-white mb-4 px-0.5">
+      <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.5)]" />
+      <span className="text-[8px] font-black uppercase tracking-[0.3em] whitespace-nowrap">
         {label}
       </span>
+      <div className="h-[1px] flex-1 bg-gradient-to-r from-white/10 to-transparent ml-2" />
     </div>
   );
 
   const VerticalDivider = () => (
-    <div className="w-px bg-gradient-to-b from-transparent via-white/5 to-transparent self-stretch opacity-30" />
+    <div className="h-px w-full lg:w-px lg:h-auto bg-gradient-to-r lg:bg-gradient-to-b from-transparent via-white/5 to-transparent self-stretch lg:opacity-30 opacity-10" />
   );
 
   return (
@@ -320,328 +343,204 @@ export const ControlPanel = ({
           /* --- COMPACT MODE: FLOATING ACCESS NODE --- */
           <motion.div
             key="compact-node"
-            initial={{ x: 50, opacity: 0, scale: 0.9 }}
-            animate={{ x: 0, opacity: 1, scale: 1 }}
-            exit={{ x: 50, opacity: 0, scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="absolute bottom-8 right-8 z-50"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+            className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 p-2"
           >
-            <button
-              onClick={() => setIsCompact(false)}
-              className="relative p-5 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-3xl shadow-[0_0_50px_rgba(255,255,255,0.1),inset_0_0_20px_rgba(255,255,255,0.05)] hover:scale-110 active:scale-95 transition-all group liquid-glass-highlight overflow-hidden"
-              title="Expand System Controls"
-            >
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Focus className="w-7 h-7 text-white icon-glow animate-pulse" />
-              <div className="absolute top-2 right-2 flex gap-1">
-                <div className="w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_10px_white] animate-pulse" />
-              </div>
-
-              {/* Tooltip Label */}
-              <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 whitespace-nowrap px-4 py-2 rounded-xl bg-white/5 border border-white/10 backdrop-blur-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none translate-x-2 group-hover:translate-x-0">
-                <span className="text-[10px] font-black tracking-[0.3em] text-white uppercase">
-                  System Access
-                </span>
-              </div>
-            </button>
+            <div className="flex flex-col-reverse items-center justify-center">
+              <button
+                onClick={() => setIsCompact(false)}
+                className="text-white hover:text-white/80 transition-colors"
+                title="Open Settings"
+              >
+                <Settings className="w-6 h-6 sm:w-7 h-7 lg:w-8 h-8 animate-[spin_8s_linear_infinite] opacity-80 hover:opacity-100" />
+              </button>
+              <UserProfile />
+            </div>
           </motion.div>
         ) : (
-          /* --- FULL MODE: UNIFIED CONTROL CHASSIS (3-Panel Layout) --- */
-          <motion.div
-            key="full-system"
-            initial={{ y: 100, opacity: 0, scale: 0.98 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 100, opacity: 0, scale: 0.98 }}
-            transition={{
-              type: "spring",
-              stiffness: 120,
-              damping: 25,
-              mass: 1.1,
-            }}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-[94%] max-w-[1200px]"
-          >
-            <div className="relative group overflow-hidden rounded-2xl liquid-glass border border-white/10 shadow-2xl">
-              {/* Liquid Glass Infrastructure */}
-              <div className="absolute inset-0 liquid-glass-highlight z-1 pointer-events-none" />
-              <div className="absolute inset-x-0 top-0 liquid-glass-top-line z-30" />
+          /* --- FULL MODE: UNIFIED CONTROL CHASSIS (Adaptive Panels) --- */
+          <div className="fixed bottom-0 left-0 w-full h-full pointer-events-none z-30 flex flex-col items-center justify-end p-2 sm:p-4 pb-4">
+            <motion.div
+              key="full-system"
+              initial={{ y: 50, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 50, opacity: 0, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 150, damping: 25 }}
+              className="w-[98%] sm:w-[94%] lg:max-w-4xl xl:max-w-5xl pointer-events-auto"
+            >
+              <div className="relative group overflow-hidden rounded-3xl liquid-glass border border-white/10 shadow-2xl">
+                {/* Liquid Glass Infrastructure */}
+                <div className="absolute inset-0 liquid-glass-highlight z-1 pointer-events-none" />
+                <div className="absolute inset-x-0 top-0 liquid-glass-top-line z-30" />
 
-              {/* Dynamic Atmosphere */}
-              <div className="absolute -top-32 -left-32 w-80 h-80 bg-white/[0.03] blur-[120px] rounded-full pointer-events-none" />
-              <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-white/[0.03] blur-[120px] rounded-full pointer-events-none" />
-
-              {/* CONTENT LAYER */}
-              <div className="relative z-40 p-5 flex flex-col xl:flex-row items-stretch gap-5 h-full min-h-[210px]">
-                {/* ============================================= */}
-                {/* SECTION A: IDENTITY & TELEMETRY               */}
-                {/* ============================================= */}
-                <div className="flex flex-col justify-between min-w-[155px] shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div className="relative p-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl shadow-[0_0_15px_rgba(255,255,255,0.05)] ring-1 ring-cyan-500/20 group-hover:ring-cyan-500/40 transition-all">
-                      <Focus className="w-5 h-5 text-white icon-glow" />
-                      <div className="absolute top-0 right-0 w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_10px_cyan] animate-pulse" />
-                    </div>
-                    <div>
-                      <h2 className="text-white text-[12px] font-black tracking-[0.2em] uppercase leading-none mb-1 flex items-center gap-2">
-                        Horizon<span className="text-cyan-400">-V</span>
-                      </h2>
-                      <div className="flex items-center gap-2">
-                        <div className="w-1 h-1 rounded-full bg-green-500/80 animate-pulse" />
-                        <p className="text-white/30 text-[7px] font-mono tracking-[0.2em] font-bold">
-                          SYSTEM ACTIVE
+                {/* CONTENT LAYER: High-Density Active Manifold */}
+                <div className="relative z-40 p-5 md:p-8">
+                  {/* Header Anchor: Identity & Responsive Telemetry */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                      <Eclipse className="w-7 h-7 text-white icon-glow shrink-0" />
+                      <div>
+                        <h2 className="text-white text-[13px] font-extralight tracking-[0.3em] uppercase leading-none mb-1">
+                          Black Hole
+                        </h2>
+                        <p className="text-white/60 text-[7px] font-mono tracking-[0.15em] font-medium uppercase">
+                          by Mayank _@steeltroops_ai
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Unified Responsive Telemetry Rail */}
+                    <div className="flex flex-wrap items-center justify-around gap-4 sm:gap-6 px-4 py-2 bg-white/[0.03] rounded-2xl border border-white/5 w-full sm:w-auto">
+                      <div className="flex flex-col items-center sm:items-start min-w-[50px]">
+                        <span className="text-white/25 text-[7px] font-bold uppercase tracking-[0.1em]">
+                          Event Horizon
+                        </span>
+                        <span className="text-[10px] font-mono text-white/80 tabular-nums">
+                          {calculatedRadii.eventHorizon.toFixed(2)}Rs
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center sm:items-start min-w-[50px]">
+                        <span className="text-white/60 text-[7px] font-black uppercase tracking-[0.15em]">
+                          Photon Ring
+                        </span>
+                        <span className="text-[10px] font-mono text-white font-bold tabular-nums">
+                          {calculatedRadii.photonSphere.toFixed(2)}Rp
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center sm:items-start min-w-[50px]">
+                        <span className="text-white/60 text-[7px] font-black uppercase tracking-[0.15em]">
+                          Stable Orbit
+                        </span>
+                        <span className="text-[10px] font-mono text-white font-bold tabular-nums">
+                          {calculatedRadii.isco.toFixed(2)}Ri
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Live Telemetry Readouts */}
-                  <div className="flex flex-col gap-1.5 mt-3 px-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/25 text-[7px] font-bold uppercase tracking-[0.15em]">
-                        Event Horizon
-                      </span>
-                      <span className="text-[9px] font-mono text-white/80 tabular-nums">
-                        {calculatedRadii.eventHorizon.toFixed(2)}{" "}
-                        <span className="text-white/30 text-[7px]">Rs</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/25 text-[7px] font-bold uppercase tracking-[0.15em]">
-                        Photon Sphere
-                      </span>
-                      <span className="text-[9px] font-mono text-white/80 tabular-nums">
-                        {calculatedRadii.photonSphere.toFixed(2)}{" "}
-                        <span className="text-white/30 text-[7px]">Rp</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/25 text-[7px] font-bold uppercase tracking-[0.15em]">
-                        ISCO
-                      </span>
-                      <span className="text-[9px] font-mono text-white/80 tabular-nums">
-                        {calculatedRadii.isco.toFixed(2)}{" "}
-                        <span className="text-white/30 text-[7px]">Ri</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <VerticalDivider />
-
-                {/* ============================================= */}
-                {/* SECTION B: DYNAMIC CONTROL DECK (3 Panels)    */}
-                {/* ============================================= */}
-                <div className="flex-1 min-h-[160px]">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activeTab}
-                      initial={{ y: 8, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ y: -8, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: "easeOut" }}
-                      className="grid grid-cols-2 gap-7 h-full"
-                    >
-                      {/* ================================== */}
-                      {/* PANEL 1: VARIABLES (All Sliders)   */}
-                      {/* ================================== */}
-                      {activeTab === "variables" && (
+                  {/* Scrollable Instrumentation Manifold (Responsive Chassis) */}
+                  <div className="max-h-[55vh] sm:max-h-[60vh] overflow-y-auto overflow-x-hidden pr-1.5 custom-scrollbar pb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 items-start mb-6">
+                      {activeTab === "simulation" && (
                         <>
-                          <div className="flex flex-col">
-                            <SectionHeader
-                              icon={Atom}
-                              label="Physics Variables"
-                            />
-                            {renderSlider(
-                              "Black Hole Mass",
-                              params.mass,
-                              0.1,
-                              3.0,
-                              0.1,
-                              (v) => handleParamChange({ ...params, mass: v }),
-                              "M\u2609",
-                            )}
-                            {renderSlider(
-                              "Kerr Spin",
-                              params.spin,
-                              -5.0,
-                              5.0,
-                              0.1,
-                              (v) => handleParamChange({ ...params, spin: v }),
-                              "a*",
-                            )}
-                            {renderSlider(
-                              "Auto Rotation",
-                              params.autoSpin,
-                              -0.05,
-                              0.05,
-                              0.001,
-                              (v) =>
-                                handleParamChange({ ...params, autoSpin: v }),
-                              "rad/s",
-                              3,
-                            )}
-                            {renderSlider(
-                              "Matter Density",
-                              params.diskDensity,
-                              0.0,
-                              5.0,
-                              0.1,
-                              (v) =>
-                                handleParamChange({
-                                  ...params,
-                                  diskDensity: v,
-                                }),
-                              "g/cm\u00b3",
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <SectionHeader
-                              icon={Eye}
-                              label="Optical Variables"
-                            />
-                            {renderSlider(
-                              "Plasma Temp",
-                              params.diskTemp,
-                              0.5,
-                              3.0,
-                              0.1,
-                              (v) =>
-                                handleParamChange({ ...params, diskTemp: v }),
-                              "KeV",
-                            )}
-                            {renderSlider(
-                              "Lensing Strength",
-                              params.lensing,
-                              0.0,
-                              3.0,
-                              0.1,
-                              (v) =>
-                                handleParamChange({ ...params, lensing: v }),
-                              "\u03bb",
-                            )}
-                            {renderSlider(
-                              "Orbit Distance",
-                              params.zoom,
-                              2.5,
-                              50.0,
-                              0.5,
-                              (v) => handleParamChange({ ...params, zoom: v }),
-                              "AU",
-                            )}
-                          </div>
-                        </>
-                      )}
-
-                      {/* ================================== */}
-                      {/* PANEL 2: MODULES (All Toggles)     */}
-                      {/* ================================== */}
-                      {activeTab === "modules" && (
-                        <>
-                          <div className="flex flex-col">
-                            <SectionHeader icon={Cpu} label="Core Modules" />
-                            <div className="flex flex-col gap-2">
-                              {renderToggle(
-                                "Gravitational Lensing",
-                                params.features?.gravitationalLensing ?? false,
-                                () => toggleFeature("gravitationalLensing"),
-                                Star,
-                              )}
-                              {renderToggle(
-                                "Accretion Disk",
-                                params.features?.accretionDisk ?? false,
-                                () => toggleFeature("accretionDisk"),
-                                Disc,
-                              )}
-                              {renderToggle(
-                                "Doppler Beaming",
-                                params.features?.dopplerBeaming ?? false,
-                                () => toggleFeature("dopplerBeaming"),
-                                Zap,
-                              )}
+                          <div className="space-y-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Black Hole Parameters" />
+                              <div className="space-y-4">
+                                {renderSlider(
+                                  SIMULATION_CONFIG.mass.label,
+                                  params.mass,
+                                  SIMULATION_CONFIG.mass.min,
+                                  SIMULATION_CONFIG.mass.max,
+                                  SIMULATION_CONFIG.mass.step,
+                                  (v) =>
+                                    handleParamChange({ ...params, mass: v }),
+                                  SIMULATION_CONFIG.mass.unit,
+                                  SIMULATION_CONFIG.mass.decimals,
+                                )}
+                                {renderSlider(
+                                  SIMULATION_CONFIG.zoom.label,
+                                  params.zoom,
+                                  SIMULATION_CONFIG.zoom.min,
+                                  SIMULATION_CONFIG.zoom.max,
+                                  SIMULATION_CONFIG.zoom.step,
+                                  (v) =>
+                                    handleParamChange({ ...params, zoom: v }),
+                                  SIMULATION_CONFIG.zoom.unit,
+                                  SIMULATION_CONFIG.zoom.decimals,
+                                )}
+                                {renderSlider(
+                                  SIMULATION_CONFIG.ui_spin.label,
+                                  params.spin,
+                                  SIMULATION_CONFIG.ui_spin.min,
+                                  SIMULATION_CONFIG.ui_spin.max,
+                                  SIMULATION_CONFIG.ui_spin.step,
+                                  (v) =>
+                                    handleParamChange({ ...params, spin: v }),
+                                  SIMULATION_CONFIG.ui_spin.unit,
+                                  SIMULATION_CONFIG.ui_spin.decimals,
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex flex-col">
-                            <SectionHeader
-                              icon={Sparkles}
-                              label="Post-Processing"
-                            />
-                            <div className="flex flex-col gap-2">
-                              {renderToggle(
-                                "Photon Ring",
-                                params.features?.photonSphereGlow ?? false,
-                                () => toggleFeature("photonSphereGlow"),
-                                Sun,
-                              )}
-                              {renderToggle(
-                                "Background Stars",
-                                params.features?.backgroundStars ?? false,
-                                () => toggleFeature("backgroundStars"),
-                                Star,
-                              )}
-                              {renderToggle(
-                                "Bloom / Post FX",
-                                params.features?.bloom ?? false,
-                                () => toggleFeature("bloom"),
-                                Sparkles,
-                              )}
+                          <div className="space-y-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Accretion Dynamics" />
+                              <div className="space-y-4">
+                                {renderSlider(
+                                  SIMULATION_CONFIG.autoSpin.label,
+                                  params.autoSpin,
+                                  SIMULATION_CONFIG.autoSpin.min,
+                                  SIMULATION_CONFIG.autoSpin.max,
+                                  SIMULATION_CONFIG.autoSpin.step,
+                                  (v) =>
+                                    handleParamChange({
+                                      ...params,
+                                      autoSpin: v,
+                                    }),
+                                  SIMULATION_CONFIG.autoSpin.unit,
+                                  SIMULATION_CONFIG.autoSpin.decimals,
+                                )}
+                                {renderSlider(
+                                  SIMULATION_CONFIG.diskSize.label,
+                                  params.diskSize ??
+                                    SIMULATION_CONFIG.diskSize.default,
+                                  SIMULATION_CONFIG.diskSize.min,
+                                  SIMULATION_CONFIG.diskSize.max,
+                                  SIMULATION_CONFIG.diskSize.step,
+                                  (v) =>
+                                    handleParamChange({
+                                      ...params,
+                                      diskSize: v,
+                                    }),
+                                  SIMULATION_CONFIG.diskSize.unit,
+                                  SIMULATION_CONFIG.diskSize.decimals,
+                                )}
+                              </div>
                             </div>
                           </div>
                         </>
                       )}
 
-                      {/* ================================== */}
-                      {/* PANEL 3: PERF / SYSTEM (Features)  */}
-                      {/* ================================== */}
-                      {activeTab === "system" && (
+                      {activeTab === "performance" && (
                         <>
-                          <div className="flex flex-col">
-                            <SectionHeader
-                              icon={Activity}
-                              label="Global Presets"
-                            />
-                            <div className="grid grid-cols-2 gap-1.5 mb-4">
-                              {PRESETS.map((p) =>
-                                renderPresetButton(
-                                  p.label,
-                                  params.performancePreset === p.id,
-                                  () =>
-                                    onParamsChange(applyPreset(p.id, params)),
-                                ),
-                              )}
-                            </div>
-                            <SectionHeader icon={Monitor} label="Viewport" />
-                            <div className="flex flex-col gap-2">
+                          <div className="space-y-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Performance Presets" />
+                              <div className="grid grid-cols-2 gap-3 mb-4">
+                                {PRESETS.map((p) =>
+                                  renderPresetButton(
+                                    p.label,
+                                    params.performancePreset === p.id,
+                                    () =>
+                                      onParamsChange(applyPreset(p.id, params)),
+                                  ),
+                                )}
+                              </div>
                               {renderSlider(
-                                "Render Scale",
-                                params.renderScale ?? 1.0,
-                                0.25,
-                                2.0,
-                                0.25,
+                                SIMULATION_CONFIG.renderScale.label,
+                                params.renderScale ??
+                                  SIMULATION_CONFIG.renderScale.default,
+                                SIMULATION_CONFIG.renderScale.min,
+                                SIMULATION_CONFIG.renderScale.max,
+                                SIMULATION_CONFIG.renderScale.step,
                                 (v) =>
-                                  onParamsChange({ ...params, renderScale: v }),
-                                "x",
-                                2,
-                              )}
-                              {renderToggle(
-                                "Adaptive Resolution",
-                                params.adaptiveResolution ?? false,
-                                () =>
-                                  onParamsChange({
+                                  handleParamChange({
                                     ...params,
-                                    adaptiveResolution:
-                                      !params.adaptiveResolution,
+                                    renderScale: v,
                                   }),
-                                Monitor,
+                                SIMULATION_CONFIG.renderScale.unit,
+                                SIMULATION_CONFIG.renderScale.decimals,
                               )}
                             </div>
                           </div>
-                          <div className="flex flex-col col-span-1">
-                            <SectionHeader
-                              icon={Layers}
-                              label="Ray Tracing Quality"
-                            />
-                            <div className="flex flex-col gap-1.5 h-full">
-                              <div className="grid grid-cols-2 gap-1.5">
-                                {QUALITY_LEVELS.slice(0, 4).map((q) =>
+                          <div className="space-y-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Ray Tracing Fidelity" />
+                              <div className="grid grid-cols-2 gap-3 mb-4">
+                                {QUALITY_LEVELS.map((q) =>
                                   renderPresetButton(
                                     q.label,
                                     params.features?.rayTracingQuality === q.id,
@@ -649,128 +548,220 @@ export const ControlPanel = ({
                                   ),
                                 )}
                               </div>
-                              {renderPresetButton(
-                                "Ultra Quality",
-                                params.features?.rayTracingQuality === "ultra",
-                                () => setQuality("ultra"),
-                              )}
+                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                                <p className="text-[7.5px] text-white/30 uppercase tracking-widest leading-relaxed">
+                                  Spectral precision and volumetric scattering
+                                  density limit.
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </>
                       )}
-                    </motion.div>
-                  </AnimatePresence>
+
+                      {activeTab === "features" && (
+                        <>
+                          <div className="space-y-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Physics Modules" />
+                              <div className="grid grid-cols-1 gap-2">
+                                {[
+                                  {
+                                    label: "Gravitational Lensing",
+                                    key: "gravitationalLensing",
+                                    icon: Star,
+                                  },
+                                  {
+                                    label: "Accretion Disk",
+                                    key: "accretionDisk",
+                                    icon: Disc,
+                                  },
+                                  {
+                                    label: "Doppler Beaming",
+                                    key: "dopplerBeaming",
+                                    icon: Zap,
+                                  },
+                                  {
+                                    label: "Photon Sphere",
+                                    key: "photonSphereGlow",
+                                    icon: Sun,
+                                  },
+                                  {
+                                    label: "Ambient Stars",
+                                    key: "backgroundStars",
+                                    icon: Star,
+                                  },
+                                  {
+                                    label: "Volumetric Bloom",
+                                    key: "bloom",
+                                    icon: Sparkles,
+                                  },
+                                ].map((f) =>
+                                  renderToggle(
+                                    f.label,
+                                    (params.features as any)[f.key] ?? false,
+                                    () => toggleFeature(f.key as any),
+                                    f.icon,
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-6">
+                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                              <SectionHeader label="Spectral Properties" />
+                              <div className="space-y-4">
+                                {renderSlider(
+                                  SIMULATION_CONFIG.diskTemp.label,
+                                  params.diskTemp,
+                                  SIMULATION_CONFIG.diskTemp.min,
+                                  SIMULATION_CONFIG.diskTemp.max,
+                                  SIMULATION_CONFIG.diskTemp.step,
+                                  (v) =>
+                                    handleParamChange({
+                                      ...params,
+                                      diskTemp: v,
+                                    }),
+                                  SIMULATION_CONFIG.diskTemp.unit,
+                                  SIMULATION_CONFIG.diskTemp.decimals,
+                                )}
+                                {renderSlider(
+                                  SIMULATION_CONFIG.lensing.label,
+                                  params.lensing,
+                                  SIMULATION_CONFIG.lensing.min,
+                                  SIMULATION_CONFIG.lensing.max,
+                                  SIMULATION_CONFIG.lensing.step,
+                                  (v) =>
+                                    handleParamChange({
+                                      ...params,
+                                      lensing: v,
+                                    }),
+                                  SIMULATION_CONFIG.lensing.unit,
+                                  SIMULATION_CONFIG.lensing.decimals,
+                                )}
+                                {renderSlider(
+                                  SIMULATION_CONFIG.diskDensity.label,
+                                  params.diskDensity,
+                                  SIMULATION_CONFIG.diskDensity.min,
+                                  SIMULATION_CONFIG.diskDensity.max,
+                                  SIMULATION_CONFIG.diskDensity.step,
+                                  (v) =>
+                                    handleParamChange({
+                                      ...params,
+                                      diskDensity: v,
+                                    }),
+                                  SIMULATION_CONFIG.diskDensity.unit,
+                                  SIMULATION_CONFIG.diskDensity.decimals,
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <VerticalDivider />
-
-                {/* ============================================= */}
-                {/* SECTION C: ACTION DECK                        */}
-                {/* ============================================= */}
-                <div className="xl:w-[145px] shrink-0 flex flex-col justify-between gap-3">
-                  {/* Status Indicator */}
-                  <div className="flex items-center justify-between p-2.5 px-3 bg-white/[0.02] rounded-xl border border-white/5 shadow-inner">
-                    <div className="flex flex-col">
-                      <span className="text-[6px] font-bold text-white/20 tracking-[0.2em] uppercase mb-0.5">
-                        Status
+                {/* --- DOCKED NAVIGATION RAIL: Sleek Glass Footer --- */}
+                <div className="relative z-50 px-6 pb-3 pt-0 pointer-events-auto">
+                  {/* Command Triad: Global Action Hub */}
+                  <div className="flex gap-2 max-w-lg mx-auto mb-2">
+                    <button
+                      onClick={handleReset}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-[8px] tracking-[0.1em] uppercase transition-all duration-300 border bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-red-500/20 hover:border-red-500/40 group/reset
+                      `}
+                    >
+                      <RefreshCcw
+                        className={`w-3.5 h-3.5 group-hover/reset:text-red-400 transition-colors ${isResetting ? "animate-spin text-red-400" : ""}`}
+                      />
+                      <span className="hidden sm:inline group-hover/reset:text-red-200 transition-colors">
+                        Reset
                       </span>
-                      <span className="text-[8px] font-bold text-white tracking-widest uppercase">
-                        {params.paused ? "Paused" : "Active"}
-                      </span>
-                    </div>
-                    <div
-                      className={`w-1.5 h-1.5 rounded-full transition-all duration-700 ${
-                        params.paused
-                          ? "bg-white/40 shadow-[0_0_8px_rgba(255,255,255,0.3)]"
-                          : "bg-white shadow-[0_0_15px_rgba(255,255,255,0.8),0_0_25px_rgba(255,255,255,0.4)] animate-pulse"
-                      }`}
-                    />
-                  </div>
+                    </button>
 
-                  {/* Action Buttons */}
-                  <div className="flex flex-col gap-2 mt-auto">
                     <button
                       onClick={() =>
-                        handleParamChange({ ...params, paused: !params.paused })
+                        handleParamChange({
+                          ...params,
+                          paused: !params.paused,
+                        })
                       }
-                      className={`
-                        flex items-center justify-center gap-2 py-2.5 rounded-xl font-black text-[8px] tracking-[0.2em] uppercase transition-all duration-700 backdrop-blur-2xl border
-                        ${
-                          params.paused
-                            ? "bg-white/15 text-white border-white/40 shadow-[0_0_30px_rgba(255,255,255,0.08),inset_0_0_12px_rgba(255,255,255,0.04)] scale-[1.02]"
-                            : "bg-white/[0.04] text-white/80 border-white/10 hover:bg-white/[0.08] hover:border-white/25"
-                        }
-                      `}
+                      className={`flex-[3.5] flex items-center justify-center gap-2 py-2.5 rounded-xl font-black text-[8px] tracking-[0.2em] uppercase transition-all duration-300 border ${
+                        params.paused
+                          ? "bg-white/20 text-white border-white/40 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                          : "bg-white/[0.06] text-white border-white/10 hover:bg-white/[0.1] hover:border-white/20"
+                      }`}
                     >
-                      {params.paused ? (
-                        <Power className="w-3 h-3 animate-pulse" />
-                      ) : (
-                        <Activity className="w-3 h-3" />
-                      )}
-                      {params.paused ? "Resume" : "Running"}
+                      <Power
+                        className={`w-3.5 h-3.5 text-white ${!params.paused ? "animate-pulse" : ""}`}
+                      />
+                      {params.paused ? "Resume" : "Pause"}
                     </button>
 
-                    <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setIsCompact(true)}
+                      className="flex-1 flex items-center justify-center p-2 rounded-xl bg-white/[0.04] border border-white/10 text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
+                      title="Collapse System"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3 max-w-lg mx-auto bg-white/[0.02] p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
+                    {[
+                      {
+                        id: "simulation",
+                        label: "General",
+                        icon: SlidersHorizontal,
+                      },
+                      {
+                        id: "performance",
+                        label: "Performance",
+                        icon: Activity,
+                      },
+                      { id: "features", label: "Features", icon: Settings },
+                    ].map((tab) => (
                       <button
-                        onClick={handleReset}
-                        className="flex-1 flex items-center justify-center py-2 bg-white/[0.04] border border-white/10 rounded-xl hover:bg-white/[0.08] transition-all group/reset"
-                        title="Reset to Defaults"
+                        key={tab.id}
+                        onClick={() => {
+                          if (isCompact) setIsCompact(false);
+                          setActiveTab(tab.id as any);
+                        }}
+                        className={`
+                          flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all duration-500 relative group overflow-hidden border
+                          ${
+                            activeTab === tab.id
+                              ? "bg-white/15 backdrop-blur-3xl text-white border-white/40 shadow-[0_0_20px_rgba(255,255,255,0.06),inset_0_0_10px_rgba(255,255,255,0.06)]"
+                              : "bg-transparent text-white/70 border-transparent hover:text-white hover:bg-white/[0.05]"
+                          }
+                        `}
                       >
-                        <RefreshCcw
-                          className={`w-3 h-3 text-white/50 group-hover/reset:text-white transition-colors ${isResetting ? "animate-spin text-white" : ""}`}
+                        <tab.icon
+                          className={`w-3.5 h-3.5 transition-all duration-500 ${activeTab === tab.id ? "icon-glow scale-110" : "text-white/80 group-hover:text-white"}`}
                         />
+                        <span className="hidden sm:inline text-[9px] font-bold tracking-[0.2em] uppercase transition-all duration-500">
+                          {tab.label}
+                        </span>
+
+                        {/* Interactive Highlight */}
+                        {activeTab === tab.id && (
+                          <motion.div
+                            layoutId="nav-pill"
+                            className="absolute inset-0 bg-white/5 pointer-events-none"
+                            transition={{
+                              type: "spring",
+                              stiffness: 400,
+                              damping: 30,
+                            }}
+                          />
+                        )}
                       </button>
-                      <button
-                        onClick={() => setIsCompact(true)}
-                        className="flex-1 flex items-center justify-center py-2 bg-white/[0.04] border border-dashed border-white/15 rounded-xl hover:bg-white/[0.08] hover:border-white/30 transition-all group/close"
-                        title="Minimize Controls"
-                      >
-                        <ChevronDown className="w-3 h-3 text-white/50 group-hover/close:text-white transition-colors" />
-                      </button>
-                    </div>
+                    ))}
                   </div>
                 </div>
-
-                <VerticalDivider />
-
-                {/* ============================================= */}
-                {/* SECTION D: TAB NAVIGATION RAIL (Game Coins)   */}
-                {/* ============================================= */}
-                <div className="flex flex-col gap-3 p-1.5 bg-white/[0.02] border border-white/5 rounded-2xl h-full shrink-0 justify-center">
-                  {[
-                    {
-                      id: "variables",
-                      icon: SlidersHorizontal,
-                      label: "Variables",
-                    },
-                    { id: "modules", icon: Cpu, label: "Modules" },
-                    { id: "system", icon: Activity, label: "System" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                      className={`
-                        flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-500 group/tab relative
-                        border-2 shadow-[0_4px_20px_rgba(0,0,0,0.2)]
-                        ${
-                          activeTab === tab.id
-                            ? "bg-white/10 border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)] ring-1 ring-white/10 scale-105"
-                            : "bg-white/5 bg-gradient-to-b from-white/[0.08] to-transparent hover:bg-white/10 border-white/5 opacity-60 hover:opacity-100"
-                        }
-                      `}
-                    >
-                      <tab.icon
-                        className={`w-4 h-4 transition-all duration-500 ${activeTab === tab.id ? "text-white scale-110 icon-glow" : "text-white/40 group-hover/tab:text-white/80"}`}
-                      />
-                      {activeTab === tab.id && (
-                        <div className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/10 animate-pulse" />
-                      )}
-                    </button>
-                  ))}
-                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         ))}
     </AnimatePresence>
   );

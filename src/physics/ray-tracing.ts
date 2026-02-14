@@ -61,8 +61,10 @@ export function rayMarchStep(
   const Lz = px * vy - py * vx;
   const L2 = Lx * Lx + Ly * Ly + Lz * Lz;
 
-  // Effective acceleration: Newtonian + Schwarzschild correction
-  const accel = (mass / r2 + (3.0 * mass * L2) / (r2 * r2)) * lensing;
+  // Effective acceleration for null geodesics (light) in Schwarzschild 3D equivalent
+  // F = L^2/r^3 - 3ML^2/r^4
+  // This recovers the correct bending angle 4M/b and photon sphere at 3M
+  const accel = L2 / (r * r2) - (3.0 * mass * L2) / (r2 * r2);
 
   const nvx = vx - (px / r) * accel * dt;
   const nvy = vy - (py / r) * accel * dt;

@@ -4,6 +4,7 @@ import { fragmentShaderSource } from "@/shaders/blackhole/fragment.glsl";
 import { ShaderManager } from "@/shaders/manager";
 import { DEFAULT_FEATURES } from "@/types/features";
 import { BloomManager } from "@/rendering/bloom";
+import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
 
 /**
  * WebGL error information
@@ -76,11 +77,12 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     let gl: WebGLRenderingContext | null = null;
     try {
       gl = canvas.getContext("webgl", {
-        alpha: false,
-        antialias: true,
-        depth: false,
-        stencil: false,
-        preserveDrawingBuffer: false,
+        alpha: PERFORMANCE_CONFIG.context.alpha,
+        antialias: PERFORMANCE_CONFIG.context.antialias,
+        depth: PERFORMANCE_CONFIG.context.depth,
+        stencil: PERFORMANCE_CONFIG.context.stencil,
+        preserveDrawingBuffer: PERFORMANCE_CONFIG.context.preserveDrawingBuffer,
+        powerPreference: PERFORMANCE_CONFIG.context.powerPreference,
         failIfMajorPerformanceCaveat: false,
       });
 
@@ -241,5 +243,12 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     };
   }, [canvasRef, resolutionScale]);
 
-  return { glRef, programRef, bloomManagerRef, error, resolutionScale };
+  return {
+    glRef,
+    programRef,
+    bloomManagerRef,
+    error,
+    resolutionScale,
+    setResolutionScale,
+  };
 }
