@@ -19,3 +19,6 @@ num-traits = "0.2"
 gauss-quad = "0.1" # Corrected crate name from gauss_quad
 console_error_panic_hook = "0.1.7"
 num-complex = "0.4"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
