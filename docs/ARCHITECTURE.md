@@ -1,10 +1,10 @@
 # System Architecture & Engineering Specifications
 
-This document outlines the high-performance rendering pipeline, mathematical foundations, and software architecture of the relativistic black hole simulation. It reflects the **Hybrid Rust/WebGPU Architecture** with an added **Cognitive Intelligence Layer** for predictive rendering.
+This document outlines the high-performance rendering pipeline, mathematical foundations, and software architecture of the relativistic black hole simulation. It reflects the **Hybrid Rust/WebGL 2.0 Architecture** (with WebGPU support in Alpha) and the project's long-term roadmap for predictive rendering.
 
 ---
 
-## 1. End-to-End Execution Pipeline
+## 1. Execution Pipeline
 
 The rendering engine operates on a **Zero-Copy Reactive Data Pipeline**, utilizing a strict separation of concerns between the high-level orchestration (TypeScript), the physics kernel (Rust/WASM), the massively parallel rendering engine (WebGPU), and the intelligent supervisor (Cognitive Layer).
 
@@ -17,6 +17,8 @@ graph TD
     classDef compute fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px,color:#0d47a1
     classDef memory fill:#fbe9e7,stroke:#bf360c,stroke-width:2px,color:#bf360c
     classDef output fill:#f1f8e9,stroke:#33691e,stroke-width:3px,color:#1b5e20
+    classDef wip fill:#fffde7,stroke:#fbc02d,stroke-width:1px,stroke-dasharray: 5 5,color:#f57f17
+
 
     subgraph UserInteraction ["User Interaction Layer (React/Typescript)"]
         UI[("User Interface<br/>(Control Panel & Inputs)")]:::input
@@ -27,29 +29,32 @@ graph TD
         Orchestrator["Render Loop Orchestrator<br/>(TypeScript)"]:::orchestration
         SAB[("SharedArrayBuffer v2<br/>(Zero-Copy Protocol)")]:::memory
 
-        subgraph CognitiveLayer ["Cognitive Supervisor"]
-            Scheduler["Entropy Scheduler<br/>(Variance Analysis)"]:::kernel
-            Predictor["Saccade Predictor<br/>(Input Heuristics)"]:::kernel
+        subgraph CognitiveLayer ["Cognitive Supervisor (Experimental)"]
+            Scheduler["Entropy Scheduler<br/>(Variance Analysis)"]:::wip
+            Predictor["Saccade Predictor<br/>(Input Heuristics)"]:::wip
         end
+
 
         subgraph RustKernel ["Rust Physics Kernel (WASM)"]
             PhysicsTick["Physics Tick (120Hz)"]:::kernel
             EKF["Extended Kalman Filter<br/>(Camera Prediction)"]:::kernel
-            Integrator["Yoshida Integrator<br/>(Symplectic Geodesics)"]:::kernel
+            Integrator["Adaptive RKF45<br/>(Cash-Karp Geodesics)"]:::kernel
             Spectrum["Spectral Engine<br/>(SPD Basis Functions)"]:::kernel
         end
+
     end
 
-    subgraph GPULogic ["GPU Compute & Render (WebGPU)"]
-        subgraph Wavefront ["Wavefront Scheduler"]
-            Extension["Ray Extension Kernel"]:::compute
-            Shading["Material/Disk Shader"]:::compute
-            Comp["Compositor"]:::compute
+    subgraph GPULogic ["GPU Compute & Render (WebGPU Alpha)"]
+        subgraph Wavefront ["Wavefront Scheduler (Roadmap)"]
+            Extension["Ray Extension Kernel"]:::wip
+            Shading["Material/Disk Shader"]:::wip
+            Comp["Compositor"]:::wip
         end
-        NRS["Neural Radiance Surrogate<br/>(MLP Inference)"]:::compute
-        GRMHD["Fluid Dynamics<br/>(Curl-Noise Advection)"]:::compute
+        NRS["Neural Radiance Surrogate<br/>(MLP Inference)"]:::wip
+        GRMHD["Fluid Dynamics<br/>(Curl-Noise Advection)"]:::wip
         PostProcess["Post-Processing<br/>(Bloom / Tone Map)"]:::compute
     end
+
 
     Display(("Viewport Output<br/>(Canvas Element)")):::output
 
@@ -110,15 +115,19 @@ src/
 │   ├── usePhysicsEngine.ts               # Rust/WASM Bridge & SAB Management
 │   └── ...
 │
-├── rust/                                 # Rust Physics Kernel (New)
+├── physics-engine/                       # Rust Physics Kernel
 │   ├── Cargo.toml                        # Dependencies (wasm-bindgen, glam)
 │   └── src/
 │       ├── lib.rs                        # WASM Interface & SAB Protocol
 │       ├── kerr.rs                       # Kerr Metric Solvers (f64)
-│       ├── geodesic.rs                   # Symplectic Integrator (Yoshida)
+│       ├── integrator.rs                 # Adaptive RKF45 Stepper
+│       ├── geodesic.rs                   # Relativistic Geodesic Core
+│       ├── derivatives.rs                # Hamiltonian Equations of Motion
+│       ├── invariants.rs                 # Numerical Regularization
 │       ├── spectrum.rs                   # Spectral Rendering (Gauss-Laguerre)
 │       ├── camera.rs                     # EKF Camera Physics
 │       └── constants.rs                  # Physical Constants
+
 │
 ├── rendering/                            # Rendering Orchestration
 │   ├── webgpu-renderer.ts                # WebGPU Device & Pass Management
@@ -158,8 +167,9 @@ The system employs a multi-tiered architecture to balance precision, performance
 - **Role**: The Brain. Runs at a fixed high-frequency tick (e.g., 120Hz).
 - **Core Modules**:
   - **`kerr`**: Solves exact horizons and ISCO using `f64`.
-  - **`geodesic`**: Validates ray paths using a **Symplectic Integrator**.
+  - **`geodesic` / `integrator`**: Integrates ray paths using an **Adaptive RKF45** method.
   - **`spectrum`**: Generates LUTs for Doppler-shifted blackbody radiation.
+
   - **`camera`**: Uses an **Extended Kalman Filter (EKF)** to predict camera movement and eliminate latency.
 
 ### 3.3. Level 3: Compute & Render (WebGPU)
@@ -168,9 +178,9 @@ The system employs a multi-tiered architecture to balance precision, performance
 
 - **Role**: The Muscle. Executes billions of ray steps per second.
 - **Key Tech**:
-  - **Compute Shaders**: Replaces Fragment Shaders for general-purpose ray marching.
-  - **Tiled Rendering**: Skips empty space to focus compute power on the black hole.
-  - **Variable Rate Shading (VRS)**: Super-samples the photon ring while under-sampling the background.
+  - **Compute Shaders**: <span style="color:red">**[NOT IMPLEMENTED]**</span> - (WebGL 2.0 Fragment Shaders currently used for primary tracing).
+  - **Tiled Rendering**: <span style="color:red">**[NOT IMPLEMENTED]**</span> - (Global quad dispatch currently used).
+  - **Variable Rate Shading (VRS)**: <span style="color:red">**[NOT IMPLEMENTED]**</span>.
 
 ### 3.4. Level 4: Cognitive Supervisor (Heuristics)
 
@@ -178,8 +188,8 @@ The system employs a multi-tiered architecture to balance precision, performance
 
 - **Role**: The Tactician. Optimizes _where_ and _when_ to render.
 - **Modules**:
-  - **Entropy Scheduler**: Analyzes frame variance to direct compute shaders to "interesting" regions (Accretion Disk, Photon Ring) and starve "boring" regions (Starfield).
-  - **Saccade Predictor**: Detects rapid eye/camera movements and temporarily reduces resolution to maintain framerate fluidity ("Perceptual Tunneling").
+  - **Entropy Scheduler**: <span style="color:red">**[NOT IMPLEMENTED]**</span>. Analyzes frame variance to direct compute shaders to "interesting" regions.
+  - **Saccade Predictor**: <span style="color:red">**[NOT IMPLEMENTED]**</span>. Detects rapid eye/camera movements and temporarily reduces resolution.
 
 ---
 
@@ -201,7 +211,7 @@ To eliminate Garbage Collection (GC) pauses, the system uses a rigid binary prot
 
 ### 5.1. Symplectic Integration
 
-Geometric optics are validated using the **Yoshida 6th-Order Symplectic Integrator**, which conserves the Hamiltonian energy $H = \frac{1}{2} g^{\mu\nu} p_\mu p_\nu = 0$ to within $10^{-9}$ precision over long integration times, preventing orbital decay.
+Geometric optics are validated using an **Adaptive Runge-Kutta-Fehlberg 4(5)** integrator, which conserves the Hamiltonian energy $H = \frac{1}{2} g^{\mu\nu} p_\mu p_\nu = 0$ by adjusting step sizes to maintain local error bounds, preventing orbital decay near the horizon.
 
 ### 5.2. Radiative Transfer
 

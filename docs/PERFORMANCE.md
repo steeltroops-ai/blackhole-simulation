@@ -1,6 +1,6 @@
 # Performance Optimization Architecture
 
-This document details the "Elite-Tier" performance techniques used to achieve 60/120 FPS rendering of general relativistic physics on consumer hardware. The architecture has evolved from pure WebGL to a **Hybrid Rust/WebGPU Zero-Copy** system.
+This document details the performance techniques used to achieve 60/120 FPS rendering of general relativistic physics on consumer hardware. The architecture utilizes a **Hybrid Rust/WebGL 2.0 and WebGPU Alpha** system.
 
 ---
 
@@ -38,7 +38,7 @@ _"CPU for Logic, GPU for Pixels, Rust for Math."_
   - **Pre-Computation**: Generates 4096-entry lookup tables (LUTs) for Spectrum and Lensing, uploading them as textures. This moves complex integrals ($O(N)$) out of the pixel shader.
   - **Predictive EKF**: Runs an **Extended Kalman Filter** to predict camera motion, decoupling simulation tick rate from render frame rate.
 
-### 2.2 Wavefront Path Tracing
+### 2.2 Wavefront Path Tracing <span style="color:red">**[NOT IMPLEMENTED]**</span>
 
 **"No Thread Left Behind."**
 
@@ -50,7 +50,7 @@ Instead of a single "Megakernel", we split rendering into queues:
 
 **Benefit**: Maximizes GPU Warp Occupancy by grouping similar tasks together, eliminating thread divergence.
 
-### 2.3 Neural Radiance Surrogates (NRS)
+### 2.3 Neural Radiance Surrogates (NRS) <span style="color:red">**[NOT IMPLEMENTED]**</span>
 
 **"Guessing is faster than Solving."**
 
@@ -58,7 +58,7 @@ Instead of a single "Megakernel", we split rendering into queues:
 - The network learns the light field $L(o, d)$ from the physics engine in real-time.
 - **Benefit**: Replaces O(N) stepping with O(1) matrix multiplication for 80% of rays.
 
-### 2.4 Entropy-Guided Rendering (EGR)
+### 2.4 Entropy-Guided Rendering (EGR) <span style="color:red">**[NOT IMPLEMENTED]**</span>
 
 **"Render where it matters."**
 
@@ -67,7 +67,7 @@ Instead of a single "Megakernel", we split rendering into queues:
 - **Background Culling**: Low-variance regions (starfield) are rendered at 0.5x resolution and upscaled.
 - **Benefit**: Reallocates 50% of GPU compute from "boring" space to "interesting" singularities.
 
-### 2.5 Subgroup (Warp-Level) Optimizations
+### 2.5 Subgroup (Warp-Level) Optimizations <span style="color:red">**[NOT IMPLEMENTED]**</span>
 
 **"Register-Level Communication."**
 
@@ -119,21 +119,21 @@ The engine scales workload dynamically based on device capability tiers.
 
 ### Tier 1: Mobile / Low-Power
 
-- **Engine**: WebGL 2.0 Fallback.
-- **Physics**: Analytic approximation (no integration).
+- **Engine**: WebGL 2.0 Stable.
+- **Physics**: Static analytic approximations.
 - **Resolution**: 0.7x scale.
 
 ### Tier 2: Integrated Graphics (M1/Intel)
 
-- **Engine**: WebGPU (Basic).
-- **Physics**: RK4 Integrator.
+- **Engine**: WebGL 2.0 / WebGPU Alpha.
+- **Physics**: **Adaptive RKF45** (Moderate tolerance).
 - **Features**: TAA, 1x Resolution.
 
 ### Tier 3: Dedicated GPU (RTX/Radeon)
 
-- **Engine**: WebGPU (Compute).
-- **Physics**: Yoshida Symplectic Integrator.
-- **Features**: Full Radiative Transfer, Spectral Rendering, Tiled Compute, VRS.
+- **Engine**: WebGPU (Compute) Alpha.
+- **Physics**: **Adaptive RKF45** (High-precision + Hamiltonian Guard).
+- **Features**: Full Radiative Transfer, Spectral Rendering.
 
 ---
 

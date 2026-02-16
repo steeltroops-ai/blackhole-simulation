@@ -27,12 +27,13 @@ Where:
 
 To achieve scientific precision, we move beyond simple ray-marching to **Symplectic Integration**.
 
-### 2.1 Numerical Stability: Yoshida 6th-Order
+### 2.1 Numerical Stability: Adaptive RKF45 (Cash-Karp)
 
-Standard Runge-Kutta (RK4) methods suffer from energy drift over long orbits. We implement the **Yoshida 6th-Order Symplectic Integrator** in the Rust kernel:
+Instead of a fixed-step Runge-Kutta method, we implement an **Adaptive Runge-Kutta-Fehlberg 4(5)** integrator in the Rust kernel:
 
-- **Conservation**: Preserves Hamiltonian $H = \frac{1}{2}g^{\mu\nu}p_\mu p_\nu = 0$ to $10^{-9}$ accuracy.
-- **Stability**: Allows for stable long-term orbits (thousands of revolutions) without numerical decay.
+- **Precision-Gated**: Uses an embedded 5th-order error estimate to adjust step size $h$ dynamically, maintaining local truncation error below a user-defined tolerance.
+- **Horizon Stability**: Automatically shrinks the step size by orders of magnitude near the photon sphere to resolve extreme curvature without numerical breakdown.
+- **Conservation**: Integrated with a **Hamiltonian Regularizer** that renormalizes momentum at every step to satisfy $H=0$ for null geodesics.
 
 ### 2.2 Curvilinear Polar Sampling (Infinite Resolution)
 
@@ -86,7 +87,7 @@ The disk intensity is modulated by resonant frequencies derived from the metric 
 
 ---
 
-## 5. Relativistic Polarimetry (The "Hidden" Dimension)
+## 5. Relativistic Polarimetry <span style="color:red">**[EXPERIMENTAL]**</span>
 
 Light acts as a vector wave. We solve the transport of the **Stokes Parameters** $(I, Q, U, V)$.
 
@@ -94,12 +95,12 @@ Light acts as a vector wave. We solve the transport of the **Stokes Parameters**
 
 As light passes through the twisted spacetime (Frame Dragging), its polarization vector rotates.
 
-- **Walker-Penrose Constant**: We conserve the complex scalar $\kappa_{WP}$ along the geodesic to track the polarization angle $\chi$.
+- **Walker-Penrose Constant**: The kernel tracks the the complex scalar $\kappa_{WP}$ along the geodesic to maintain polarization consistency.
 - **Visual**: Effectively visualizes the magnetic field lines of the black hole.
 
 ---
 
-## 6. General Relativistic MHD (Approximation)
+## 6. General Relativistic MHD <span style="color:red">**[EXPERIMENTAL]**</span>
 
 We simulate the **turbulence** of the plasma, not just its density.
 
@@ -130,4 +131,4 @@ _References:_
 
 1.  **Shakura, N. I., & Sunyaev, R. A. (1973)** - Standard Accretion Disk Model.
 2.  **Luminet, J.-P. (1979)** - Image of a Spherical Black Hole with Thin Accretion Disk.
-3.  **Yoshida, H. (1990)** - Construction of higher order symplectic integrators.
+3.  **Fehlberg, E. (1969)** - Low-order classical Runge-Kutta formulas with stepsize control.
