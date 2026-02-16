@@ -121,6 +121,8 @@ export interface TouchState {
   initialCenter: { x: number; y: number };
 }
 
+import { physicsBridge } from "@/engine/physics-bridge";
+
 /**
  * Custom hook for enhanced camera control interactions
  * Now featuring "Cinematic Engineering" Grade Orbit & Infall
@@ -129,9 +131,12 @@ export function useCamera(
   params: SimulationParams,
   setParams: React.Dispatch<React.SetStateAction<SimulationParams>>,
 ) {
+  // Sync auto-spin state to physics bridge
+  useEffect(() => {
+    physicsBridge.setAutoSpin(!!params.autoSpin);
+  }, [params.autoSpin]);
+
   // --- Source of Truth: Physics Ref ---
-  // We use a ref for physics to avoid stale closures in the animation loop
-  // and to allow the loop + event handlers to mutate the same state without race conditions.
   const physicsRef = useRef<CameraState>({
     theta: Math.PI,
     phi: DEFAULT_VERTICAL_ANGLE,

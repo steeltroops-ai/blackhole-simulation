@@ -16,6 +16,7 @@ mod quantum; // Hawking & Planck Effects
 
 mod tiling; // Tiled Rendering
 mod structs; // WebGPU Data Layouts
+mod training; // NRS Training Core
 
 use wasm_bindgen::prelude::*;
 use js_sys::Float32Array;
@@ -93,10 +94,20 @@ impl PhysicsEngine {
         self.sab_buffer.as_ptr()
     }
 
+    pub fn set_camera_state(&mut self, px: f64, py: f64, pz: f64, lx: f64, ly: f64, lz: f64) {
+        self.camera.position = glam::DVec3::new(px, py, pz);
+        // orientation is derived from lookAt in JS and passed, but here we just update position for now
+        // A full conversion would use Quat::from_lookat
+    }
+
+    pub fn set_auto_spin(&mut self, enabled: bool) {
+        self.camera.auto_spin = enabled;
+    }
+
     // --- New Spectrum Functions ---
 
-    pub fn generate_spectrum_lut(&self, width: usize, max_temp: f64) -> Float32Array {
-        let data = spectrum::generate_blackbody_lut(width, max_temp);
+    pub fn generate_spectrum_lut(&self, width: usize, height: usize, max_temp: f64) -> Float32Array {
+        let data = spectrum::generate_blackbody_lut(width, height, max_temp);
         Float32Array::from(data.as_slice())
     }
 

@@ -4,6 +4,7 @@ pub struct CameraState {
     pub position: glam::DVec3, // Cartesian (x,y,z)
     pub velocity: glam::DVec3, // (vx, vy, vz)
     pub orientation: glam::DQuat, // Rotation from world to camera
+    pub auto_spin: bool, // Auto-orbiting enabled
 }
 
 // Input from JS (deltas)
@@ -21,6 +22,7 @@ impl CameraState {
             position: glam::DVec3::new(0.0, 0.0, -10.0), // Start at 10 radii back
             velocity: glam::DVec3::ZERO,
             orientation: glam::DQuat::IDENTITY,
+            auto_spin: false,
         }
     }
 
@@ -50,20 +52,22 @@ pub fn update_camera(input: &CameraInput, state: &mut CameraState) {
     
     // 2. Control Input (Mouse Force)
     // Apply mouse movement as instantaneous impulse to angular velocity
-    // (Simplified: mapping mouse delta directly to orbital rotation for now)
     
     let sensitivity = 2.0;
     let yaw = -input.mouse_dx * sensitivity * dt;
-    let pitch = -input.mouse_dy * sensitivity * dt;
+    // let pitch = -input.mouse_dy * sensitivity * dt; // Pitch disabled for stability in basic orbit
     
     // Orbital rotation logic
-    // Rotate position around origin
     let rot_y = glam::DQuat::from_rotation_y(yaw);
-    let _rot_x = glam::DQuat::from_rotation_x(pitch); // Should be local X
-    
-    // Apply rotations
     state.position = rot_y.mul_vec3(state.position);
-    // state.position = rot_x.mul_vec3(state.position); // Pitch is trickier to accumulate correctly without gimbal lock logic
+    
+    // 3. Auto-Spin Logic
+    if state.auto_spin {
+        let spin_rate = 0.15; // rad/s
+        let auto_yaw = spin_rate * dt;
+        let rot_auto = glam::DQuat::from_rotation_y(auto_yaw);
+        state.position = rot_auto.mul_vec3(state.position);
+    }
     
     // Zoom
     let zoom_factor = 1.0 + input.zoom_delta * dt;
