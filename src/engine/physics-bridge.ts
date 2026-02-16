@@ -201,14 +201,61 @@ export class PhysicsBridge {
     }
   }
 
+  public setCameraState(
+    pos: { x: number; y: number; z: number },
+    lookAt: { x: number; y: number; z: number },
+  ) {
+    if (this.worker) {
+      this.worker.postMessage({
+        type: "SET_CAMERA_STATE",
+        data: { pos, lookAt },
+      });
+    }
+    if (this.engine) {
+      this.engine.set_camera_state(
+        pos.x,
+        pos.y,
+        pos.z,
+        lookAt.x,
+        lookAt.y,
+        lookAt.z,
+      );
+    }
+  }
+
+  public setAutoSpin(enabled: boolean) {
+    if (this.worker) {
+      this.worker.postMessage({ type: "SET_AUTO_SPIN", data: enabled });
+    }
+    if (this.engine) {
+      this.engine.set_auto_spin(enabled);
+    }
+  }
+
+  public updateInputs(inputs: {
+    dt: number;
+    orbitX: number;
+    orbitY: number;
+    zoom: number;
+  }) {
+    if (this.worker) {
+      this.worker.postMessage({ type: "UPDATE_INPUTS", data: inputs });
+    }
+    // Shared memory handles the actual update if using SAB, but we still trigger logic
+  }
+
   public getDiskLUT(): Float32Array | null {
     if (!this.isReady()) return null;
     return this.engine.generate_disk_lut();
   }
 
-  public getSpectrumLUT(width: number, maxTemp: number): Float32Array | null {
+  public getSpectrumLUT(
+    width: number,
+    height: number,
+    maxTemp: number,
+  ): Float32Array | null {
     if (!this.isReady()) return null;
-    return this.engine.generate_spectrum_lut(width, maxTemp);
+    return this.engine.generate_spectrum_lut(width, height, maxTemp);
   }
 
   public computeHorizon(): number {
