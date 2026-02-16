@@ -5,7 +5,7 @@
  * Provides centralized control over simulation parameters, feature toggles, and performance settings.
  */
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -43,6 +43,7 @@ interface ControlPanelProps {
   onCompactChange: (compact: boolean) => void;
   onStartCinematic?: (path: "orbit" | "dive") => void;
   onResetCamera?: () => void;
+  isCinematic?: boolean;
 }
 
 const PRESETS: { id: PresetName; label: string }[] = [
@@ -137,6 +138,7 @@ export const ControlPanel = ({
   onCompactChange,
   onStartCinematic,
   onResetCamera,
+  isCinematic,
 }: ControlPanelProps) => {
   const [isResetting, setIsResetting] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -733,19 +735,19 @@ export const ControlPanel = ({
                               </div>
                             </div>
 
-                            {/* Cinematic Tools - Relocated to Right Column for Balance */}
+                            {/* Cinematic Tools - Always Active for Instant Switching */}
                             <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
                               <SectionHeader label="Cinematic Tools" />
                               <div className="grid grid-cols-2 gap-3">
                                 <button
                                   onClick={() => onStartCinematic?.("orbit")}
-                                  className="py-2 px-3 rounded-lg bg-white/5 border border-white/10 hover:bg-indigo-500/20 hover:border-indigo-500/40 text-[9px] uppercase tracking-wider text-white transition-colors"
+                                  className={`py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-[9px] uppercase tracking-wider text-white transition-all active:scale-95 hover:bg-indigo-500/20 hover:border-indigo-500/40 hover:text-indigo-200 shadow-sm`}
                                 >
-                                  Orbit Demo
+                                  Orbit Tour
                                 </button>
                                 <button
                                   onClick={() => onStartCinematic?.("dive")}
-                                  className="py-2 px-3 rounded-lg bg-white/5 border border-white/10 hover:bg-red-500/20 hover:border-red-500/40 text-[9px] uppercase tracking-wider text-white transition-colors"
+                                  className={`py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-[9px] uppercase tracking-wider text-white transition-all active:scale-95 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-200 shadow-sm`}
                                 >
                                   Infall Dive
                                 </button>
@@ -764,14 +766,18 @@ export const ControlPanel = ({
                   <div className="flex gap-2 max-w-lg mx-auto mb-2">
                     <button
                       onClick={handleReset}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-[8px] tracking-[0.1em] uppercase transition-all duration-300 border bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-red-500/20 hover:border-red-500/40 group/reset
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-[8px] tracking-[0.1em] uppercase transition-all duration-300 border ${
+                        isCinematic
+                          ? "bg-red-500/20 border-red-500/40 text-red-200 animate-pulse hover:bg-red-500/30"
+                          : "bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-red-500/20 hover:border-red-500/40"
+                      } group/reset
                       `}
                     >
                       <RefreshCcw
-                        className={`w-3.5 h-3.5 group-hover/reset:text-red-400 transition-colors ${isResetting ? "animate-spin text-red-400" : ""}`}
+                        className={`w-3.5 h-3.5 group-hover/reset:text-red-400 transition-colors ${isResetting || isCinematic ? "animate-spin text-red-400" : ""}`}
                       />
                       <span className="hidden sm:inline group-hover/reset:text-red-200 transition-colors">
-                        Reset
+                        {isCinematic ? "ABORT SEQ" : "Reset"}
                       </span>
                     </button>
 
@@ -810,22 +816,22 @@ export const ControlPanel = ({
                   </div>
 
                   {/* Tab Navigation (Bottom - Mobile Optimized) */}
-                  <div className="flex justify-center bg-black/40 p-1 rounded-xl backdrop-blur-md border border-white/5 max-w-lg mx-auto mt-2">
+                  <div className="flex justify-center bg-black/80 p-1.5 rounded-2xl backdrop-blur-xl border border-white/10 max-w-lg mx-auto mt-2 shadow-2xl">
                     <button
                       onClick={() => setActiveTab("simulation")}
-                      className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "simulation" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                      className={`flex-1 px-2 py-3 text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 font-bold ${activeTab === "simulation" ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]" : "text-white/50 hover:text-white hover:bg-white/5"}`}
                     >
                       Physics
                     </button>
                     <button
                       onClick={() => setActiveTab("features")}
-                      className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "features" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                      className={`flex-1 px-2 py-3 text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 font-bold ${activeTab === "features" ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]" : "text-white/50 hover:text-white hover:bg-white/5"}`}
                     >
                       Modules
                     </button>
                     <button
                       onClick={() => setActiveTab("performance")}
-                      className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "performance" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                      className={`flex-1 px-2 py-3 text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 font-bold ${activeTab === "performance" ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]" : "text-white/50 hover:text-white hover:bg-white/5"}`}
                     >
                       System
                     </button>

@@ -3,7 +3,10 @@
  */
 
 import type { FeatureToggles, RayTracingQuality } from "./features";
-import { SIMULATION_CONFIG } from "@/configs/simulation.config";
+import {
+  SIMULATION_CONFIG,
+  DEFAULT_PRESET_MODE,
+} from "@/configs/simulation.config";
 
 export type QualityLevel = RayTracingQuality;
 
@@ -21,6 +24,7 @@ export interface SimulationParams {
   renderScale: number;
   features?: FeatureToggles;
   performancePreset?: import("./features").PresetName;
+  verticalAngle?: number;
 }
 
 export const DEFAULT_PARAMS: SimulationParams = {
@@ -35,7 +39,8 @@ export const DEFAULT_PARAMS: SimulationParams = {
   diskSize: SIMULATION_CONFIG.diskSize.default,
   renderScale: SIMULATION_CONFIG.renderScale.default,
   features: SIMULATION_CONFIG.features.default,
-  performancePreset: "ultra-quality",
+  performancePreset: DEFAULT_PRESET_MODE,
+  verticalAngle: SIMULATION_CONFIG.verticalAngle.default,
 };
 
 export interface MouseState {

@@ -12,6 +12,7 @@ import { SimulationInfo } from "@/components/ui/SimulationInfo";
 import { IdentityHUD } from "@/components/ui/IdentityHUD";
 import { BenchmarkResults } from "@/components/ui/BenchmarkResults";
 import { DebugOverlay, type DebugMetrics } from "@/components/ui/DebugOverlay";
+import { CinematicOverlay } from "@/components/ui/CinematicOverlay";
 import { useCamera } from "@/hooks/useCamera";
 import { useBenchmark } from "@/hooks/useBenchmark";
 import { useKeyboard } from "@/hooks/useKeyboard";
@@ -96,6 +97,8 @@ const App = () => {
     nudgeCamera,
     startCinematic,
     resetCamera,
+    isCinematic,
+    cinematicMode,
   } = useCamera(params, setParams);
 
   // Phase 9.5: Debug Overlay
@@ -129,6 +132,7 @@ const App = () => {
     }
 
     // Trigger Physics Bridge Initialization
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { physicsBridge } = require("@/engine/physics-bridge");
     physicsBridge.ensureInitialized().catch((err: any) => {
       console.error("Critical Physics Initialization Failure:", err);
@@ -177,12 +181,17 @@ const App = () => {
               className="absolute top-0 left-0 w-full p-4 md:p-8 flex justify-between items-start z-50 pointer-events-none"
             >
               {/* SLEEK IDENTITY HUD */}
-              <IdentityHUD />
+              <IdentityHUD
+                isCinematic={isCinematic}
+                cinematicMode={cinematicMode}
+              />
 
               <Telemetry params={params} metrics={metrics} />
             </motion.div>
           )}
         </AnimatePresence>
+
+        <CinematicOverlay isCinematic={isCinematic} zoom={params.zoom} />
 
         <ControlPanel
           params={params}
@@ -196,6 +205,7 @@ const App = () => {
           isBenchmarkRunning={isBenchmarkRunning}
           onStartCinematic={startCinematic}
           onResetCamera={resetCamera}
+          isCinematic={isCinematic}
         />
 
         <SimulationInfo

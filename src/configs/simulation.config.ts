@@ -70,12 +70,13 @@ const PERFORMANCE_PRESETS = {
 } as const;
 
 // --- MASTER CONFIGURATION SWITCH ---
-const DEFAULT_PRESET_MODE: keyof typeof PERFORMANCE_PRESETS = "high-quality";
+export const DEFAULT_PRESET_MODE: keyof typeof PERFORMANCE_PRESETS =
+  "high-quality";
 
 export const SIMULATION_CONFIG = {
   // Singularity Dynamics
   mass: {
-    default: 1.0,
+    default: 1.5,
     min: 0.1, // 0.1 Solar Masses (Micro-BH)
     max: 10.0, // 10 Solar Masses (Stellar BH)
     step: 0.1,
@@ -97,11 +98,22 @@ export const SIMULATION_CONFIG = {
     label: "Spin Parameter",
   },
 
+  // Initial Camera Orientation
+  verticalAngle: {
+    default: 97.0, // Mild top-down view for better disk visibility
+    min: 0.1, // Near Pole (Top)
+    max: 179.9, // Near Pole (Bottom)
+    step: 5.0,
+    unit: "deg",
+    decimals: 1,
+    label: "Initial Vertical Axis",
+  },
+
   // NOTE: ui_spin removed as we now use direct physics values
 
   zoom: {
-    default: 20.0,
-    min: 2.5, // Close orbit
+    default: 30.0,
+    min: 1.5, // Close orbit (Deep Dive limit)
     max: 100.0, // Far observer
     step: 0.5,
     unit: "Rs", // Schwarzschild Radii
@@ -120,7 +132,7 @@ export const SIMULATION_CONFIG = {
     label: "Cam Auto-Pan",
   },
   diskSize: {
-    default: 12.0,
+    default: 25.0,
     min: 3.0, // Just outside ISCO
     max: 50.0, // Extended disk
     step: 0.5,

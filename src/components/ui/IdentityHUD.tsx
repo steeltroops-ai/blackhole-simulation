@@ -1,7 +1,28 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 
-export const IdentityHUD = () => {
+interface IdentityHUDProps {
+  isCinematic?: boolean;
+  cinematicMode?: "orbit" | "dive" | null;
+}
+
+export const IdentityHUD = ({
+  isCinematic,
+  cinematicMode,
+}: IdentityHUDProps) => {
+  // Determine status text and color based on mode
+  const isCinematicActive = isCinematic && cinematicMode !== null;
+  const statusDotColor = isCinematicActive
+    ? "bg-red-500 shadow-[0_0_5px_red]"
+    : "bg-accent-cyan shadow-[0_0_5px_#00f2ff]";
+
+  // Text remains cyan/white/original, just the content changes
+  let statusText = "Metric: Kerr Vacuum State";
+  if (isCinematicActive) {
+    if (cinematicMode === "orbit") statusText = "Metric: Cinematic Orbit";
+    if (cinematicMode === "dive") statusText = "Metric: Relativistic Infall";
+  }
+
   return (
     <div className="flex flex-col">
       <div className="flex items-center gap-3 lg:gap-4">
@@ -53,9 +74,11 @@ export const IdentityHUD = () => {
           </div>
         </div>
         <div className="flex items-center gap-2 px-1.5 py-0.5 bg-accent-cyan/5 border border-accent-cyan/10 rounded-sm w-fit self-start">
-          <div className="w-1 h-1 rounded-full bg-accent-cyan animate-flicker shadow-[0_0_5px_#00f2ff]" />
+          <div
+            className={`w-1 h-1 rounded-full animate-flicker ${statusDotColor}`}
+          />
           <span className="text-[7px] font-mono text-accent-cyan/90 uppercase tracking-[0.15em] leading-none">
-            Metric: Kerr Vacuum State
+            {statusText}
           </span>
         </div>
       </div>
