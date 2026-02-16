@@ -13,8 +13,11 @@ export const DISK_CHUNK = `
   //   accumulatedColor: (inout)
   //   accumulatedAlpha: (inout)
   
+  //   shear: optical shear magnitude for anisotropic blur (Phase 3.1)
+  //   polarization: magnetic polarization angle (Phase 3.2)
+  
   void sample_accretion_disk(
-      vec3 p, vec3 ro, float r, float isco, float M, float a, float dt, float rs,
+      vec3 p, vec3 ro, float r, float isco, float M, float a, float dt, float rs, float shear, float polarization,
       inout vec3 accumulatedColor, inout float accumulatedAlpha
   ) {
       if (u_show_redshift < 0.5) {
@@ -23,8 +26,24 @@ export const DISK_CHUNK = `
         float diskOuter = M * u_disk_size;
         
         if(abs(p.y) < diskHeight && r > diskInner && r < diskOuter) {
-            vec3 noiseP = p * ${PHYSICS_CONSTANTS.accretion.turbulenceScale.toFixed(2)} + vec3(u_time * ${PHYSICS_CONSTANTS.accretion.timeScale.toFixed(2)}, 0.0, 0.0);
+            // Anisotropic Blur (Phase 3.1) & Magnetic Polarization (Phase 3.2)
+            float blurLOD = 1.0 + shear * 5.0; 
+            
+            // Magnetic Field Lines (Striations)
+            // We rotate the noise coordinates by the polarization angle to simulate field twisting
+            float cP = cos(polarization);
+            float sP = sin(polarization);
+            mat2 rotP = mat2(cP, -sP, sP, cP);
+            
+            vec3 noiseConcept = vec3(p.x, p.y, p.z);
+            noiseConcept.xz *= rotP; // twist the noise domain
+            
+            vec3 noiseP = noiseConcept * (${PHYSICS_CONSTANTS.accretion.turbulenceScale.toFixed(2)} / blurLOD) + vec3(u_time * ${PHYSICS_CONSTANTS.accretion.timeScale.toFixed(2)}, 0.0, 0.0);
             float turbulence = noise(noiseP) * 0.5 + noise(noiseP * ${PHYSICS_CONSTANTS.accretion.turbulenceDetail.toFixed(1)}) * 0.25;
+             
+            // Add explicit magnetic striations
+            float fieldLines = sin(noiseConcept.x * 20.0 + noiseConcept.z * 20.0) * 0.5 + 0.5;
+            turbulence = mix(turbulence, turbulence * fieldLines, 0.3 * smoothstep(isco, isco*5.0, r)); // Stronger near horizon
             
             float heightFalloff = exp(-abs(p.y) / (diskHeight * ${PHYSICS_CONSTANTS.accretion.densityFalloff.toFixed(2)}));
             float radialFalloff = smoothstep(diskOuter, diskInner, r);
@@ -51,11 +70,15 @@ export const DISK_CHUNK = `
                 float gravRedshift = sqrt(max(0.0, 1.0 - rs / r));
                 float temperature = u_disk_temp * radialTempGradient * delta * gravRedshift;
                 
-                vec3 diskColor = blackbody(temperature) * beaming;
+                // phase 5.3: Physical Volume Integration
+                // Using exp(-density) prevents "mega-pixels" and numerical artifacts
+                // that cause white outs when step size (dt) is large.
                 float density = baseDensity * u_disk_density * 0.12 * dt;
+                float alphaStep = 1.0 - exp(-density);
+                vec3 diskColor = blackbody(clamp(temperature, 0.0, 1e6)) * beaming;
                 
-                accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
-                accumulatedAlpha += density;
+                accumulatedColor += diskColor * alphaStep * (1.0 - accumulatedAlpha);
+                accumulatedAlpha += alphaStep * (1.0 - accumulatedAlpha);
             }
         }
       }
@@ -93,10 +116,12 @@ export const DISK_CHUNK = `
                   float beamingJet = pow(deltaJet, 3.5);
                   
                   vec3 baseJetColor = vec3(0.4, 0.7, 1.0);
-                  vec3 jetEmission = baseJetColor * jetDensity * 0.05 * beamingJet * dt;
+                  float stepDensity = jetDensity * 0.05 * dt;
+                  float alphaStep = 1.0 - exp(-stepDensity);
+                  vec3 jetEmission = baseJetColor * beamingJet;
                   
-                  accumulatedColor += jetEmission * (1.0 - accumulatedAlpha);
-                  accumulatedAlpha += jetDensity * 0.05 * dt;
+                  accumulatedColor += jetEmission * alphaStep * (1.0 - accumulatedAlpha);
+                  accumulatedAlpha += alphaStep * (1.0 - accumulatedAlpha);
               }
           }
       }

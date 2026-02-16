@@ -34,7 +34,9 @@ ${DISK_CHUNK}
 // === MAIN SHADER ===
 void main() {
     // Setup View - Responsive Scaling
-    float minRes = min(u_resolution.x, u_resolution.y);
+    vec2 safeResolution = max(u_resolution, vec2(1.0)); // Guard against zero resolution
+    vec2 texelSize = 1.0 / safeResolution;
+    float minRes = min(safeResolution.x, safeResolution.y);
     vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / minRes;
 
     // === DEBUG MODE ===
@@ -102,6 +104,13 @@ void main() {
     bool hitHorizon = false;
     float maxRedshift = 0.0;
     
+    // Phase 3.1: Optical Scalars (Sachs Expansion & Shear)
+    float theta = 0.0;
+    float sigma = 0.0;
+    
+    // Phase 3.2: Magnetic Polarization
+    float polarization = 0.0;
+    
     int photonCrossings = 0;
     float prevY = p.y;
     
@@ -114,7 +123,19 @@ void main() {
     
     float impactParam = length(cross(ro, rd));
 
+    // === PHASE 1.2: ANALYTIC SHADOW BOUNDARY ===
+    // Use the precomputed Critical Curve coefficients for sub-pixel accuracy
+    // Convert ray to image plane coordinates (approximate for finite distance)
+    vec3 right = qrot(u_camQuat, vec3(1.0, 0.0, 0.0));
+    vec3 up = qrot(u_camQuat, vec3(0.0, 1.0, 0.0));
+    vec2 currentImpact = vec2(dot(rd, right), dot(rd, up)) * length(ro);
+    
+    // Analytic Shadow (Phase 1.2) - Store for post-process, do not skip loop
+    bool analyticShadow = is_shadow(currentImpact, u_shadowCurve);
+
     for(int i = 0; i < 500; i++) {
+
+
         if(i >= maxSteps) break;
         
         float r = length(p);
@@ -175,9 +196,29 @@ void main() {
         
         prevY = p.y;
 
+        // Sachs Optical Scalar Evolution (Phase 3.1)
+        // d(theta)/dl = -theta^2 - sigma^2 (Ricci focusing)
+        // d(sigma)/dl = -2*theta*sigma + tidal (Weyl shearing)
+        // Approximate tidal force near horizon ~ M/r^3
+        float tidal = M / (r * r * r + 0.001);
+        float dTheta = -theta * theta - sigma * sigma;
+        float dSigma = -2.0 * theta * sigma + tidal * 0.1; // 0.1 scale for visual stability
+
+        theta += dTheta * dt;
+        sigma += dSigma * dt;
+        
+        // Phase 5.3: Caustic Clamping
+        // Prevent Riccati blow-up (y' = -y^2) which leads to NaNs
+        theta = clamp(theta, -1e3, 1e3);
+        sigma = clamp(sigma, 0.0, 2.0); // Clamp to prevent visual artifacts
+
+        // Phase 3.2: Magnetic Polarization Transport
+        // Accumulate frame dragging phase (Gravitational Faraday Rotation)
+        polarization += omega * dt * 2.0;
+
         // Accretion Disk Sampling
 #ifdef ENABLE_DISK
-        sample_accretion_disk(p, ro, r, isco, M, a, dt, rs, accumulatedColor, accumulatedAlpha);
+        sample_accretion_disk(p, ro, r, isco, M, a, dt, rs, sigma, polarization, accumulatedColor, accumulatedAlpha);
         if(accumulatedAlpha > 0.99) break;
 #endif
 
@@ -187,8 +228,15 @@ void main() {
 #endif
     }
 
+    // Phase 1.2: Apply Analytic Shadow Boundary
+    // If analytically inside shadow and not fully occluded by disk, force horizon hit.
+    if (analyticShadow && accumulatedAlpha < 0.99) {
+        hitHorizon = true;
+    }
+
     // Gravitational Redshift Overlay
     if (u_show_redshift > 0.5) {
+
         float val = maxRedshift;
         if (hitHorizon) val = 0.0;
         
@@ -240,6 +288,17 @@ void main() {
     finalColor = aces_tone_mapping(finalColor);
     finalColor = pow(finalColor, vec3(0.4545));
     
+    // Phase 4.1: NRS Debug Overlay (Optional)
+    // if (u_debug > 0.8) {
+    //    fragColor = vec4(mix(finalColor, vec3(1.0, 0.0, 1.0), 0.2), 1.0);
+    // }
+
+    // Phase 5.3: Global NaN/Inf Shield
+    // If anything exploded, return black to avoid poisoning history buffers (White Outs)
+    if (any(isnan(finalColor)) || any(isinf(finalColor))) {
+        finalColor = vec3(0.0);
+    }
+
     fragColor = vec4(finalColor, 1.0);
 }
 `;

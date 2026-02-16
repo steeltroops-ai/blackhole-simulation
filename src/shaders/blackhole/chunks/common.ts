@@ -20,9 +20,13 @@ export const COMMON_CHUNK = `
   uniform int u_maxRaySteps;
   uniform sampler2D u_noiseTex;
   uniform sampler2D u_blueNoiseTex;
+  uniform sampler2D u_spectrumLUT;
   uniform float u_debug; // Debug mode toggle
+
   uniform float u_show_redshift; // Toggle for gravitational redshift overlay
   uniform float u_show_kerr_shadow; // Toggle for Kerr shadow guide
+  uniform vec2 u_shadowCurve; // Analytic Critical Curve (alpha, beta)
+
   
   // High-Precision Camera State (SAB Synced)
   uniform vec3 u_camPos;
@@ -49,6 +53,19 @@ export const COMMON_CHUNK = `
     float E = 0.14;
     return clamp((color * (A * color + B)) / (color * (C * color + D) + E), 0.0, 1.0);
   }
+
+
+    /**
+     * Analytic Shadow Boundary check.
+     * Uses the Critical Curve coefficients from Rust to determine if a ray
+     * hit the event horizon with infinite sub-pixel precision.
+     */
+    bool is_shadow(vec2 impactParams, vec2 criticalCurve) {
+        // Simple elliptical approximation for now, 
+        // will be upgraded to full parametric in Phase 3.
+        float dist = length(impactParams / criticalCurve);
+        return dist < 1.0;
+    }
 
   // Quaternion Rotation (Phase 5.2)
   vec3 qrot(vec4 q, vec3 v) {
