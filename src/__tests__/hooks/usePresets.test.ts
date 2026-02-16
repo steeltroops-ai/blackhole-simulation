@@ -24,7 +24,6 @@ describe("Preset Application Logic", () => {
     zoom: 14.0,
     autoSpin: 0.005,
     diskSize: 4.5,
-    quality: "high",
     features: PERFORMANCE_PRESETS["ultra-quality"],
     performancePreset: "ultra-quality",
     adaptiveResolution: false,
@@ -41,13 +40,6 @@ describe("Preset Application Logic", () => {
       ...params,
       features,
       performancePreset: preset,
-      quality:
-        features.rayTracingQuality === "off" ||
-        features.rayTracingQuality === "low"
-          ? "low"
-          : features.rayTracingQuality === "medium"
-            ? "medium"
-            : "high",
     };
   };
 
@@ -59,7 +51,6 @@ describe("Preset Application Logic", () => {
         PERFORMANCE_PRESETS["maximum-performance"],
       );
       expect(updatedParams.performancePreset).toBe("maximum-performance");
-      expect(updatedParams.quality).toBe("low");
     });
 
     it("should apply balanced preset correctly", () => {
@@ -67,7 +58,6 @@ describe("Preset Application Logic", () => {
 
       expect(updatedParams.features).toEqual(PERFORMANCE_PRESETS["balanced"]);
       expect(updatedParams.performancePreset).toBe("balanced");
-      expect(updatedParams.quality).toBe("medium");
     });
 
     it("should apply high-quality preset correctly", () => {
@@ -77,7 +67,6 @@ describe("Preset Application Logic", () => {
         PERFORMANCE_PRESETS["high-quality"],
       );
       expect(updatedParams.performancePreset).toBe("high-quality");
-      expect(updatedParams.quality).toBe("high");
     });
 
     it("should apply ultra-quality preset correctly", () => {
@@ -87,7 +76,6 @@ describe("Preset Application Logic", () => {
         PERFORMANCE_PRESETS["ultra-quality"],
       );
       expect(updatedParams.performancePreset).toBe("ultra-quality");
-      expect(updatedParams.quality).toBe("high");
     });
 
     it("should preserve other parameters when applying preset", () => {
@@ -108,7 +96,6 @@ describe("Preset Application Logic", () => {
       // Verify all fields are updated in the same object
       expect(updatedParams.features).toBeDefined();
       expect(updatedParams.performancePreset).toBeDefined();
-      expect(updatedParams.quality).toBeDefined();
 
       // Verify they match the preset
       expect(updatedParams.features).toEqual(

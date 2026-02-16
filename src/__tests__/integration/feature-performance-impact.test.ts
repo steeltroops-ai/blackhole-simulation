@@ -34,13 +34,6 @@ function applyPreset(
     ...currentParams,
     features,
     performancePreset: preset,
-    quality:
-      features.rayTracingQuality === "off" ||
-      features.rayTracingQuality === "low"
-        ? "low"
-        : features.rayTracingQuality === "medium"
-          ? "medium"
-          : "high",
   };
 }
 
@@ -456,7 +449,6 @@ describe("Feature Performance Impact - Integration Tests", () => {
         autoSpin: 0.005,
         diskSize: 4.5,
         renderScale: 1.0,
-        quality: "high",
         features: DEFAULT_FEATURES,
         performancePreset: "ultra-quality",
       };
@@ -475,8 +467,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
       // Verify preset name is updated
       expect(updatedParams.performancePreset).toBe("maximum-performance");
 
-      // Verify quality is updated
-      expect(updatedParams.quality).toBe("low");
+      expect(updatedParams.performancePreset).toBe("maximum-performance");
     });
 
     it("should update all systems when Balanced preset is applied", () => {
@@ -491,7 +482,6 @@ describe("Feature Performance Impact - Integration Tests", () => {
         autoSpin: 0.005,
         diskSize: 4.5,
         renderScale: 1.0,
-        quality: "low",
         features: getPreset("maximum-performance"),
         performancePreset: "maximum-performance",
       };
@@ -509,9 +499,6 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
       // Verify preset name is updated
       expect(updatedParams.performancePreset).toBe("balanced");
-
-      // Verify quality is updated
-      expect(updatedParams.quality).toBe("medium");
     });
 
     it("should apply all preset changes synchronously in one update", () => {
@@ -526,7 +513,6 @@ describe("Feature Performance Impact - Integration Tests", () => {
         autoSpin: 0.005,
         diskSize: 4.5,
         renderScale: 1.0,
-        quality: "low",
         features: getPreset("maximum-performance"),
         performancePreset: "maximum-performance",
       };
@@ -538,12 +524,10 @@ describe("Feature Performance Impact - Integration Tests", () => {
       const ultraFeatures = getPreset("ultra-quality");
       expect(updatedParams.features).toEqual(ultraFeatures);
       expect(updatedParams.performancePreset).toBe("ultra-quality");
-      expect(updatedParams.quality).toBe("high");
 
       // Verify no intermediate state exists (all changes are atomic)
       expect(Object.keys(updatedParams)).toContain("features");
       expect(Object.keys(updatedParams)).toContain("performancePreset");
-      expect(Object.keys(updatedParams)).toContain("quality");
     });
 
     it("should calculate correct frame time for each preset", () => {
