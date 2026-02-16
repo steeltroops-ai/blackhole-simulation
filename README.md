@@ -20,24 +20,25 @@ This project implements a high-performance General Relativity simulation in the 
 ### Core Engineering Features
 
 - **Relativistic Ray-Marching**: Solves curved spacetime paths using analytic Kerr metric distance fields.
-- **Temporal Anti-Aliasing (TAA)**: Custom reprojection pass with motion-adaptive blending for noise reduction.
+- **Temporal Anti-Aliasing (TAA)**: Custom reprojection pass with **Variance Clipping** and motion-adaptive blending.
 - **Physically-Based Bloom**: 9-tap Gaussian blur pyramid for realistic accretion disk glow.
-- **Adaptive Resolution**: Dynamic scaling system that adjusts internal resolution to maintain 60 FPS.
-- **Volumetric Accretion**: Fractal Brownian Motion (FBM) turbulence simulated on the GPU.
+- **Numerical Stability**: Real-time **NaN/Inf shielding** and Riccati-clamping to prevent rendering artifacts.
+- **Volumetric Accretion**: **Exponential transmittance** integration for stable, flickering-free ray sampling.
+- **NRS Surrogate (WIP)**: Integrated training bridge for Neural Radiance Surrogates to pre-calculate celestial backgrounds.
 
 ---
 
 ## Tech Stack
 
-| Domain         | Technology                             |
-| :------------- | :------------------------------------- |
-| **Framework**  | Next.js 14 (App Router)                |
-| **Physics**    | Rust (Physics Engine), WASM Binding    |
-| **Language**   | TypeScript, Rust, GLSL ES 3.0 / WGSL   |
-| **Rendering**  | WebGPU (Primary), WebGL 2.0 (Fallback) |
-| **Integrator** | Yoshida 6th-Order Symplectic           |
-| **Styling**    | TailwindCSS, Lucide Icons              |
-| **Tooling**    | Bun, Lefthook, GitHub Actions          |
+| Domain         | Technology                                    |
+| :------------- | :-------------------------------------------- |
+| **Framework**  | Next.js 14 (App Router)                       |
+| **Physics**    | Rust (Physics Engine), WASM Binding           |
+| **Language**   | TypeScript, Rust, GLSL ES 3.0 / WGSL          |
+| **Rendering**  | WebGPU (Primary), WebGL 2.0 (Fallback)        |
+| **Integrator** | Adaptive RKF45 (Rust) / Velocity Verlet (GPU) |
+| **Styling**    | Vanilla CSS (Premium Design System)           |
+| **Tooling**    | Bun, Lefthook, GitHub Actions                 |
 
 ---
 

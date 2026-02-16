@@ -95,7 +95,7 @@ The project is organized into strictly defined modules to separate concerns betw
 ```text
 src/
 ├── app/                                  # Next.js App Router (Entry Points)
-│   ├── globals.css                       # Global Tailwind resets & font faces
+│   ├── globals.css                       # Global Design System (Vanilla CSS Tokens)
 │   ├── layout.tsx                        # Root layout & SEO Metadata injection
 │   ├── page.tsx                          # Main simulation view controller
 │   └── ...
@@ -178,9 +178,9 @@ The system employs a multi-tiered architecture to balance precision, performance
 
 - **Role**: The Muscle. Executes billions of ray steps per second.
 - **Key Tech**:
-  - **Compute Shaders**: <span style="color:red">**[NOT IMPLEMENTED]**</span> - (WebGL 2.0 Fragment Shaders currently used for primary tracing).
-  - **Tiled Rendering**: <span style="color:red">**[NOT IMPLEMENTED]**</span> - (Global quad dispatch currently used).
-  - **Variable Rate Shading (VRS)**: <span style="color:red">**[NOT IMPLEMENTED]**</span>.
+  - **Compute Shaders**: **[NOT IMPLEMENTED]** - (WebGL 2.0 Fragment Shaders currently used for primary tracing).
+  - **Tiled Rendering**: **[NOT IMPLEMENTED]** - (Global quad dispatch currently used).
+  - **Variable Rate Shading (VRS)**: **[NOT IMPLEMENTED]**.
 
 ### 3.4. Level 4: Cognitive Supervisor (Heuristics)
 
@@ -188,8 +188,8 @@ The system employs a multi-tiered architecture to balance precision, performance
 
 - **Role**: The Tactician. Optimizes _where_ and _when_ to render.
 - **Modules**:
-  - **Entropy Scheduler**: <span style="color:red">**[NOT IMPLEMENTED]**</span>. Analyzes frame variance to direct compute shaders to "interesting" regions.
-  - **Saccade Predictor**: <span style="color:red">**[NOT IMPLEMENTED]**</span>. Detects rapid eye/camera movements and temporarily reduces resolution.
+  - **Entropy Scheduler**: **[NOT IMPLEMENTED]**. Analyzes frame variance to direct compute shaders to "interesting" regions.
+  - **Saccade Predictor**: **[NOT IMPLEMENTED]**. Detects rapid eye/camera movements and temporarily reduces resolution.
 
 ---
 
