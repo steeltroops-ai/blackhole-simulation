@@ -13,8 +13,14 @@ pub const SOLAR_MASS: f64 = 1.989e30;
 // Stefan-Boltzmann constant in W m^-2 K^-4
 pub const SIGMA_SB: f64 = 5.670374419e-8;
 
+// Reduced Planck Constant in J s
+pub const HBAR: f64 = 1.054571817e-34;
+
 // Planck Constant in J s
-pub const H_BAR: f64 = 1.0545718e-34;
+pub const H: f64 = 6.62607015e-34;
+
+// Boltzmann Constant in J/K
+pub const KB: f64 = 1.380649e-23;
 
 // Schwarzschild radius for 1 Solar Mass (normalized units used in simulation usually)
 // But for consistency:

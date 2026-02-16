@@ -9,6 +9,11 @@ mod invariants; // Conserved quantities
 mod integrator; // Adaptive Integrator
 mod camera; // Camera EKF
 
+// NEW: Decoupled Physics Kernel Architecture (PHD-Grade)
+mod metric; // Spacetime Fabric (Geodesics)
+mod matter; // Stress-Energy Fields (T_mu_nu)
+mod quantum; // Hawking & Planck Effects
+
 mod tiling; // Tiled Rendering
 mod structs; // WebGPU Data Layouts
 
