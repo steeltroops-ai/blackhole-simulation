@@ -112,31 +112,40 @@ pub fn xyz_to_linear_rgb(x: f64, y: f64, z: f64) -> [f32; 3] {
     [r.max(0.0) as f32, g.max(0.0) as f32, b.max(0.0) as f32]
 }
 
-/// Generate a 1D LUT for Blackbody colors
-/// Width: Number of samples (e.g. 1024)
-/// Max Temp: e.g. 100,000K
-pub fn generate_blackbody_lut(width: usize, max_temp: f64) -> Vec<f32> {
-    let mut data = Vec::with_capacity(width * 4);
+/// Generate a 2D LUT for Blackbody colors including Relativistic Redshift
+/// Width: Temperature samples (e.g. 1024)
+/// Height: Redshift samples (e.g. 256)
+/// Max Temp: e.g. 10,000,000K
+pub fn generate_blackbody_lut(width: usize, height: usize, max_temp: f64) -> Vec<f32> {
+    let mut data = Vec::with_capacity(width * height * 4);
     
-    for i in 0..width {
-        let t = (i as f64 / (width - 1) as f64).powf(2.0) * max_temp; // Quadratic distribution for more precision at low temps
+    // Redshift range (g): 0.05 to 5.0 (Extreme shifts near horizon)
+    let min_g = 0.05;
+    let max_g = 5.0;
+
+    for y in 0..height {
+        let g = min_g + (max_g - min_g) * (y as f64 / (height - 1).max(1) as f64);
         
-        let xyz = integrate_planck_xyz(t);
-        let rgb = xyz_to_linear_rgb(xyz[0], xyz[1], xyz[2]);
-        
-        // Find max channel to normalize intensity (store chromaticity + intensity separately if needed)
-        // For standard texture, we just store RGB. 
-        // We might want to compress dynamic range if using RGBA8, but RGBA32F is preferred.
-        
-        // Simple normalization to keep values manageable (scaling is arbitrary for blackbodies)
-        // We normalize so 6500K is approx (1,1,1) luminance
-        
-        let scale = 1.0e-14; // Arbitrary radiometric scaler
-        
-        data.push(rgb[0] * scale as f32);
-        data.push(rgb[1] * scale as f32);
-        data.push(rgb[2] * scale as f32);
-        data.push(1.0); // Alpha
+        for x in 0..width {
+            // Temperature distribution
+            let t = (x as f64 / (width - 1).max(1) as f64).powf(2.5) * max_temp;
+            
+            // Relativistic Shift: Effective Temperature T' = g * T
+            // This is equivalent to shifting the spectrum S'(lambda) = S(lambda / g)
+            let t_eff = t * g;
+
+            let xyz = integrate_planck_xyz(t_eff);
+            let rgb = xyz_to_linear_rgb(xyz[0], xyz[1], xyz[2]);
+            
+            // Radiometric Scaler (g^4 scaling factor for intensity due to beaming/redshift)
+            let g4 = g.powi(4);
+            let scale = 1.0e-14 * g4; 
+            
+            data.push(rgb[0] * scale as f32);
+            data.push(rgb[1] * scale as f32);
+            data.push(rgb[2] * scale as f32);
+            data.push(1.0); // Alpha
+        }
     }
     
     data
