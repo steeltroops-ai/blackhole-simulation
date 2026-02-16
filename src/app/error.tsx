@@ -14,10 +14,5 @@ export default function Error({
     console.error("Segment Level Failure:", error);
   }, [error]);
 
-  return (
-    <ErrorDisplay 
-      error={error} 
-      reset={reset} 
-    />
-  );
+  return <ErrorDisplay error={error} reset={reset} />;
 }

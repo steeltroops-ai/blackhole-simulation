@@ -10,7 +10,7 @@ const nextConfig = {
 
     // Fix for WASM in Next.js
     if (!isServer) {
-      config.output.webassemblyModuleFilename = 'static/wasm/[modulehash].wasm';
+      config.output.webassemblyModuleFilename = "static/wasm/[modulehash].wasm";
     }
 
     return config;

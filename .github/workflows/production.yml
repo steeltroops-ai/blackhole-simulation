@@ -1,4 +1,4 @@
-name: Production Pipeline (WASM + Next.js)
+name: Production Pipeline (Hybrid WASM/Web)
 
 on:
   push:
@@ -6,20 +6,26 @@ on:
   pull_request:
     branches: [main]
 
+# Avoid multiple runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  quality-assurance:
-    name: QA (Lint, Types, Rust)
+  pre-flight-check:
+    name: Core QA & Security Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
 
       - name: Install Frontend Dependencies
         run: bun install
+
+      - name: Frontend Audit
+        run: bun audit
 
       - name: Cache Rust
         uses: actions/cache@v4
@@ -35,17 +41,21 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Parallel QA Checks
+      - name: Build WASM Physics Engine
+        run: |
+          cd physics-engine
+          wasm-pack build --target web --release --out-dir ../public/wasm
+          echo "### WASM Engine Build Successful" >> $GITHUB_STEP_SUMMARY
+
+      - name: Parallel QA (Lint & Types)
         run: |
           bun run lint &
           bun run type-check &
-          cd physics-engine && cargo check &
           wait
 
-  build-and-deploy:
-    name: Build & Deploy to Vercel
-    needs: quality-assurance
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  deployment-engine:
+    name: Hybrid Deployment (Preview/Production)
+    needs: pre-flight-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,17 +63,38 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
 
-      - name: Install Frontend Dependencies
+      - name: Install Dependencies
         run: bun install
 
       - name: Install Vercel CLI
         run: bun add -g vercel
 
-      - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      # Pull environment settings (Development vs Production)
+      - name: Pull Vercel Env
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          fi
 
-      - name: Build Project Artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      # Build artifacts
+      - name: Build Project
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          fi
 
-      - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      # Deploy
+      - name: Deploy to Vercel
+        id: deploy
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            DEPLOY_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+            echo "URL=$DEPLOY_URL" >> $GITHUB_OUTPUT
+            echo "### Deployment Preview URL: $DEPLOY_URL" >> $GITHUB_STEP_SUMMARY
+          fi

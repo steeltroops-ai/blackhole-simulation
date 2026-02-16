@@ -1,13 +1,14 @@
 # Interactive Black Hole Simulation
 
-A scientifically accurate, real-time relativistic ray-marching engine for visualizing Kerr black holes. Built with **Next.js 15**, **WebGL 2.0**, and **TypeScript**.
+A scientifically accurate, real-time relativistic ray-marching engine for visualizing Kerr black holes. Built with **Next.js 14**, **WebGPU / WebGL 2.0**, and **Rust (WASM)**.
 
-![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat&logo=https://cdn.simpleicons.org/nextdotjs/white)
+![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat&logo=https://cdn.simpleicons.org/nextdotjs/white)
+![WebGPU](https://img.shields.io/badge/WebGPU-Enabled-00f2ff?style=flat&logo=webgpu)
+![Rust](https://img.shields.io/badge/Rust-WASM-DEA584?style=flat&logo=https://cdn.simpleicons.org/rust/white)
 ![WebGL 2.0](https://img.shields.io/badge/WebGL-2.0-990000?style=flat&logo=https://cdn.simpleicons.org/webgl/white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=https://cdn.simpleicons.org/typescript/white)
 ![Bun](https://img.shields.io/badge/Bun-v1.2-000000?style=flat&logo=https://cdn.simpleicons.org/bun/white)
-![Engine](https://img.shields.io/static/v1?style=flat&message=Ray--Marching&label=Engine&color=8A2BE2)
-![Platform](https://img.shields.io/static/v1?style=flat&message=Web&label=Platform&color=lightgrey)
+![CI/CD](https://github.com/steeltroops-ai/blackhole-simulation/actions/workflows/production.yml/badge.svg)
 ![License](https://img.shields.io/static/v1?style=flat&message=Proprietary&label=License&color=orange)
 
 ---
@@ -28,13 +29,15 @@ This project implements a high-performance General Relativity simulation in the 
 
 ## Tech Stack
 
-| Domain        | Technology                                           |
-| :------------ | :--------------------------------------------------- |
-| **Framework** | Next.js 15 (App Router)                              |
-| **Language**  | TypeScript, GLSL ES 3.0                              |
-| **Rendering** | WebGL 2.0 (Raw Context), React Hardware Acceleration |
-| **Styling**   | TailwindCSS, Lucide Icons                            |
-| **Tooling**   | Bun, PostCSS                                         |
+| Domain         | Technology                             |
+| :------------- | :------------------------------------- |
+| **Framework**  | Next.js 14 (App Router)                |
+| **Physics**    | Rust (Physics Engine), WASM Binding    |
+| **Language**   | TypeScript, Rust, GLSL ES 3.0 / WGSL   |
+| **Rendering**  | WebGPU (Primary), WebGL 2.0 (Fallback) |
+| **Integrator** | Yoshida 6th-Order Symplectic           |
+| **Styling**    | TailwindCSS, Lucide Icons              |
+| **Tooling**    | Bun, Lefthook, GitHub Actions          |
 
 ---
 
@@ -44,12 +47,24 @@ The system uses a **reactive pipeline architecture**. User inputs flow through a
 
 > For a complete breakdown of the rendering pipeline, shader passes, and file structure, see the [**System Architecture Documentation**](./docs/ARCHITECTURE.md).
 
-### Directory Map
+### Folder Structure
 
-- **`src/shaders/blackhole`**: Core ray-marching physics kernel.
-- **`src/physics`**: Riemannian geometry and tensor math modules.
-- **`src/rendering`**: Bloom, TAA, and Render Target orchestration.
-- **`src/performance`**: Closed-loop framerate monitoring and adaptive scaling.
+A high-level map of the project's hybrid architecture:
+
+```text
+.
+├── .github/workflows/      # Automated CI/CD Production Pipeline
+├── docs/                   # Scientific Specs & Architecture Reports
+├── physics-engine/         # Core Rust Source (Geodesics, Kerr Metrics)
+│   └── src/                # Numerical Integrators & Tensor Math
+├── public/wasm/            # Compiled WebAssembly Physics Kernel
+└── src/
+    ├── app/                # Next.js 14 App Router & Base Styles
+    ├── components/         # Premium UI Components (Framer Motion)
+    ├── hooks/              # Reactive Logic (WebGPU/WebGL State)
+    ├── rendering/          # Hybrid Render Pipeline (TAA, Bloom, G-Buffer)
+    └── shaders/            # GPU Kernels (GLSL/WGSL Ray-Marching)
+```
 
 ---
 
@@ -57,8 +72,10 @@ The system uses a **reactive pipeline architecture**. User inputs flow through a
 
 ### Prerequisites
 
-- **Bun** (v1.2+)
-- **WebGL 2.0** capable GPU (Discrete GPU recommended for Ultra settings)
+- **Bun** (v1.2+) - For frontend dependencies and orchestration.
+- **Rust Toolchain** (Latest stable) - For the high-performance physics kernel.
+- **wasm-pack** - For compiling Rust to WebAssembly.
+- **Modern Browser** - WebGPU support (Chrome 113+, Edge 113+) or WebGL 2.0.
 
 ### Installation
 
@@ -66,14 +83,18 @@ The system uses a **reactive pipeline architecture**. User inputs flow through a
 # 1. Clone the repository
 git clone https://github.com/steeltroops-ai/blackhole-simulation.git
 
-# 2. Install dependencies via Bun
+# 2. Install frontend dependencies
 bun install
 
-# 3. Start the high-performance dev server
+# 3. Build the Physics Engine (WASM)
+# This will compile the Rust logic into the public directory
+bun run build:wasm
+
+# 4. Start the high-performance dev server
 bun run dev
 ```
 
-Open `http://localhost:3000` to view the event horizon.
+Open `http://localhost:3000` to view the simulation.
 
 ---
 
@@ -103,5 +124,5 @@ Detailed engineering specifications are available in the **`docs/`** directory:
 
 ## License
 
-Proprietary Software. All rights reserved by **SteelTroops AI**.
+Proprietary Software. All rights reserved by **Mayank**.
 Unauthorized copying, modification, distribution, or use of this source code is strictly prohibited.

@@ -1,7 +1,6 @@
 /// Physical Constants for Black Hole Simulation
 ///
 /// Use standard MKS units unless otherwise specified (Dimensionless is common in GR).
-
 // Speed of light in m/s (exact)
 pub const C: f64 = 299_792_458.0;
 

@@ -38,8 +38,8 @@ impl TileManager {
     /// Future: Spiral pattern or Gaze-contingent
     fn generate_tiles(&mut self) {
         self.queue.clear();
-        let cols = (self.width + self.tile_size - 1) / self.tile_size;
-        let rows = (self.height + self.tile_size - 1) / self.tile_size;
+        let cols = self.width.div_ceil(self.tile_size);
+        let rows = self.height.div_ceil(self.tile_size);
 
         for y in 0..rows {
             for x in 0..cols {

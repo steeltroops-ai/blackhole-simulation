@@ -10,6 +10,7 @@ If you encounter `os error 32` (File used by another process) during `cargo buil
 This error is caused by the Rust Language Server locking build artifacts on Windows while the build process tries to write to them.
 
 ## Manual Build
+
 To build the WASM module manually:
 
 ```bash

@@ -29,7 +29,7 @@ pub fn calculate_derivatives(r: f64, theta: f64, p: [f64; 4], mass: f64, spin: f
     // Auxiliary functions
     let sigma = r2 + a2 * cos2;
     let delta = r2 - 2.0 * mass * r + a2;
-    let delta_sq = delta * delta;
+    let _delta_sq = delta * delta;
     let sigma_sq = sigma * sigma;
 
     // Derivatives of Sigma and Delta
@@ -131,7 +131,7 @@ pub fn calculate_derivatives(r: f64, theta: f64, p: [f64; 4], mass: f64, spin: f
     
     // dA/dtheta = -1/(Sigma * sin^2 theta)^2 * [ dSigma/dtheta * sin^2 theta + Sigma * 2 sin theta cos theta ]
     let d_denom_a_dtheta = dsigma_dtheta * sin2 + sigma * 2.0 * sin_theta * cos_theta;
-    let da_dtheta = -1.0 * d_denom_a_dtheta / (sigma_sq * sin2 * sin2);
+    let da_dtheta = -d_denom_a_dtheta / (sigma_sq * sin2 * sin2);
     
     // dB/dtheta = -a^2 / (Delta * Sigma)^2 * (Delta * dSigma/dtheta)
     let db_dtheta = -a2 * dden_tphi_dtheta / (den_tphi * den_tphi);

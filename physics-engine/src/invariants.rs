@@ -33,7 +33,7 @@ pub fn calculate_constants(state: &RayStateRelativistic, mass: f64, spin: f64) -
     let sin_theta = theta.sin();
     let sin2 = sin_theta * sin_theta;
     
-    let delta = r * r - 2.0 * mass * r + a * a;
+    let _delta = r * r - 2.0 * mass * r + a * a;
     
     // E = -p_t, Lz = p_phi
     let energy = -p_t;

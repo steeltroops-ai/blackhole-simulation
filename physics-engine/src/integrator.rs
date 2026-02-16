@@ -77,7 +77,7 @@ impl AdaptiveStepper {
                 // Step rejected - shrink h and retry
                 // h_next = h * safety * (error_ratio)^-0.25
                 let shrink_factor = self.safety_factor * error_ratio.powf(-0.25);
-                h = h * shrink_factor.max(0.1); // Don't shrink by more than 10x
+                h *= shrink_factor.max(0.1); // Don't shrink by more than 10x
                 
                 // Check against min step
                 if h.abs() < self.min_step {

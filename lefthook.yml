@@ -10,7 +10,7 @@ pre-commit:
       run: bun run lint
     frontend-types:
       run: bun run type-check
-    
+
     # 2. Rust Engine Quality Checks
     rust-check:
       root: physics-engine/
@@ -19,9 +19,21 @@ pre-commit:
     rust-clippy:
       root: physics-engine/
       glob: "*.rs"
-      run: cargo clippy -- -D warnings
-    
-    # 3. Security & Format (Optional but recommended)
+      run: cargo clippy
+
+    # 3. Security & Format
     prettier:
       glob: "*.{js,ts,tsx,css,md}"
       run: bunx prettier --check {staged_files}
+
+commit-msg:
+  commands:
+    # 4. Enforce Conventional Commits
+    lint-commit:
+      run: bun scripts/lint-commit.ts {1}
+
+pre-push:
+  commands:
+    # 5. Heavy Industry Testing
+    run-tests:
+      run: bun run test

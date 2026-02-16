@@ -48,3 +48,4 @@ next-env.d.ts
 # rust
 physics-engine/target
 physics-engine/pkg
+/public/wasm

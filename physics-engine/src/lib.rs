@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 mod constants;
 mod disk;
 mod geodesic;
@@ -123,7 +124,7 @@ impl PhysicsEngine {
             // 3. WRITE OUTPUTS (Camera Block)
             // Layout: [0..2: pos, 4..7: vel, 8..11: quat]
             // Position (x, y, z)
-            *sab_ptr.add(OFFSET_CAMERA + 0) = self.camera.position.x as f32;
+            *sab_ptr.add(OFFSET_CAMERA) = self.camera.position.x as f32;
             *sab_ptr.add(OFFSET_CAMERA + 1) = self.camera.position.y as f32;
             *sab_ptr.add(OFFSET_CAMERA + 2) = self.camera.position.z as f32;
 
@@ -140,7 +141,7 @@ impl PhysicsEngine {
 
             // 4. WRITE PHYSICS CONSTANTS (Physics Block)
             // Useful for shaders to read direct from SAB
-            *sab_ptr.add(OFFSET_PHYSICS + 0) = self.compute_horizon() as f32;
+            *sab_ptr.add(OFFSET_PHYSICS) = self.compute_horizon() as f32;
             *sab_ptr.add(OFFSET_PHYSICS + 1) = self.compute_isco() as f32;
             *sab_ptr.add(OFFSET_PHYSICS + 2) = self.mass as f32;
             *sab_ptr.add(OFFSET_PHYSICS + 3) = self.spin as f32;
