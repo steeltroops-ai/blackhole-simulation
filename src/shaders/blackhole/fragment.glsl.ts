@@ -42,14 +42,24 @@ void main() {
         fragColor = vec4(uv.x + 0.5, uv.y + 0.5, 0.0, 1.0);
         return;
     }
-    vec3 ro = vec3(0.0, 0.0, -u_zoom);
-    vec3 rd = normalize(vec3(uv, 1.5)); // 1.5 = FOV
 
-    // Mouse Rotation
-    mat2 rx = rot((u_mouse.y - 0.5) * PI);
-    mat2 ry = rot((u_mouse.x - 0.5) * PI * 2.0);
-    ro.yz *= rx; rd.yz *= rx;
-    ro.xz *= ry; rd.xz *= ry;
+    // === HIGH-PRECISION CAMERA SYNC (Phase 5.2) ===
+    vec3 ro, rd;
+    
+    // Check if camera is initialized (length > 0)
+    if (length(u_camPos) > 0.001) {
+        ro = u_camPos;
+        // u_camQuat is (x, y, z, w) from Rust
+        rd = qrot(u_camQuat, normalize(vec3(uv, 1.2))); // 1.2 = FOV
+    } else {
+        // Fallback: Mouse-driven legacy camera
+        ro = vec3(0.0, 0.0, -u_zoom);
+        rd = normalize(vec3(uv, 1.5));
+        mat2 rx = rot((u_mouse.y - 0.5) * PI);
+        mat2 ry = rot((u_mouse.x - 0.5) * PI * 2.0);
+        ro.yz *= rx; rd.yz *= rx;
+        ro.xz *= ry; rd.xz *= ry;
+    }
 
     // Black hole parameters
     float M = u_mass;

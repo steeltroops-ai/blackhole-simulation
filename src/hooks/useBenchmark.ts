@@ -30,13 +30,21 @@ export function useBenchmark(
   // Drive the benchmark each frame when running
   useEffect(() => {
     if (!benchmarkController.current.isRunning() || !metrics) return;
+
+    // We update the controller with the latest FPS
     const currentPreset = benchmarkController.current.update(
       metrics.currentFPS,
     );
-    if (currentPreset && currentPreset !== params.performancePreset) {
-      setParams((prev) => applyPreset(currentPreset, prev));
+
+    // Phase 7.1: DAMPENED STATE UPDATES
+    // Do NOT call setParams here during the run.
+    // Changing presets mid-benchmark causes React re-renders that pollute metrics.
+    // Instead, we just let the benchmark finish its suite.
+    // We only update the 'benchmarkPreset' string for the UI pill.
+    if (currentPreset) {
+      setBenchmarkPreset(currentPreset);
     }
-  }, [metrics, params.performancePreset, applyPreset, setParams]);
+  }, [metrics, applyPreset, setParams]);
 
   const startBenchmark = useCallback(() => {
     setIsBenchmarkRunning(true);

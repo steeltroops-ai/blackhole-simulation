@@ -15,10 +15,12 @@
  */
 export const bloomVertexShader = `#version 300 es
   in vec2 position;
+  uniform vec2 u_textureScale;
   out vec2 v_texCoord;
   
   void main() {
-    v_texCoord = position * 0.5 + 0.5;
+    // Standard quad UVs [0..1] scaled by virtual resolution
+    v_texCoord = (position * 0.5 + 0.5) * u_textureScale;
     gl_Position = vec4(position, 0.0, 1.0);
   }
 `;

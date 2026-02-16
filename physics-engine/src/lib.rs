@@ -36,8 +36,10 @@ pub struct PhysicsEngine {
     spin: f64,
     lut_width: usize,
     lut_buffer: Vec<f32>,
-    sab_buffer: Vec<f32>, // Shared memory block (owned by Rust)
-    camera: camera::CameraState, // Main camera state
+    sab_buffer: Vec<f32>, // Internal buffer (fallback)
+    external_sab_ptr: Option<*mut f32>, // Pointer to Worker-shared memory
+    camera: camera::CameraState,
+    last_good_camera: camera::CameraState, // Phase 5.3: NaN Guard
 }
 
 #[wasm_bindgen]
@@ -49,9 +51,15 @@ impl PhysicsEngine {
             spin,
             lut_width: 512,
             lut_buffer: Vec::new(),
-            sab_buffer: vec![0.0; 2048], // Pre-allocate 8KB (2048 f32s)
+            sab_buffer: vec![0.0; 2048],
+            external_sab_ptr: None,
             camera: camera::CameraState::new(),
+            last_good_camera: camera::CameraState::new(),
         }
+    }
+
+    pub fn attach_sab(&mut self, ptr: *mut f32) {
+        self.external_sab_ptr = Some(ptr);
     }
 
     pub fn update_params(&mut self, mass: f64, spin: f64) {
@@ -95,7 +103,11 @@ impl PhysicsEngine {
     // Zero-Copy, High-Performance loop designed for 120Hz ticks.
     // Uses internal SAB buffer (accessed via get_sab_ptr from JS)
     pub fn tick_sab(&mut self, dt_override: f64) {
-        let sab_ptr = self.sab_buffer.as_mut_ptr();
+        let sab_ptr = if let Some(ext_ptr) = self.external_sab_ptr {
+            ext_ptr
+        } else {
+            self.sab_buffer.as_mut_ptr()
+        };
         unsafe {
             // 1. READ INPUTS (Control Block)
             // Layout: [0: lock, 1: mouse_dx, 2: mouse_dy, 3: zoom_delta, 4: dt_js]
@@ -118,8 +130,16 @@ impl PhysicsEngine {
                 dt,
             };
             
-            // EKF Prediction Step
+            // EKF Prediction Step (Phase 5.3: Includes Soft-Landing Guard)
             camera::update_camera(&input, &mut self.camera);
+
+            if !self.camera.validate() {
+                // NaN/Inf Detected: Soft-Landing Recovery
+                self.camera = self.last_good_camera;
+            } else {
+                // Frame is stable, update backup
+                self.last_good_camera = self.camera;
+            }
 
             // 3. WRITE OUTPUTS (Camera Block)
             // Layout: [0..2: pos, 4..7: vel, 8..11: quat]
@@ -145,6 +165,9 @@ impl PhysicsEngine {
             *sab_ptr.add(OFFSET_PHYSICS + 1) = self.compute_isco() as f32;
             *sab_ptr.add(OFFSET_PHYSICS + 2) = self.mass as f32;
             *sab_ptr.add(OFFSET_PHYSICS + 3) = self.spin as f32;
+
+            // 5. UPDATE SEQUENCE (Consistency Guard)
+            *sab_ptr.add(OFFSET_TELEMETRY) += 1.0;
         }
     }
     

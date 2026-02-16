@@ -14,6 +14,8 @@ import {
 } from "@/utils/webgl-utils";
 import { GPUTimer } from "@/performance/gpu-timer";
 
+import { physicsBridge } from "@/engine/physics-bridge";
+
 interface AnimationRefs {
   glRef: React.RefObject<WebGL2RenderingContext | null>;
   programRef: React.RefObject<WebGLProgram | null>;
@@ -64,6 +66,7 @@ export function useAnimation(
   const [metrics, setMetrics] = useState<PerformanceMetrics>(initialMetrics);
 
   const lastFrameTime = useRef(0);
+  const smoothedDeltaTime = useRef(16.67); // 60 FPS default
   useEffect(() => {
     lastFrameTime.current = performance.now();
   }, []);
@@ -141,7 +144,7 @@ export function useAnimation(
 
       // Import dynamically to avoid circular dependencies if needed,
       // but here we use the global instance.
-      const { physicsBridge } = require("@/engine/physics-bridge");
+      // Using top-level imported physicsBridge
 
       if (physicsBridge && !diskLUTTextureRef.current) {
         const diskData = physicsBridge.getDiskLUT();
@@ -202,8 +205,16 @@ export function useAnimation(
       const currentMouse = mouseRef.current;
 
       const frameStartTime = performance.now();
-      const deltaTimeMs = frameStartTime - lastFrameTime.current;
+      const rawDeltaTime = frameStartTime - lastFrameTime.current;
       lastFrameTime.current = frameStartTime;
+
+      // Filter out huge spikes from tab switching
+      const cappedDelta = Math.min(rawDeltaTime, 100);
+
+      // Moving Average Smoothing (Exponential)
+      smoothedDeltaTime.current =
+        smoothedDeltaTime.current * 0.8 + cappedDelta * 0.2;
+      const deltaTimeMs = smoothedDeltaTime.current;
 
       // Unbind all textures to prevent feedback loops across frames
       if (gl) {
@@ -230,36 +241,22 @@ export function useAnimation(
         performanceMonitor.current.updateMetrics(deltaTimeMs);
 
       // --- Zero-Copy Physics Integration ---
-      // Import bridge locally to avoid circular deps during init if needed,
-      // or use the global instance if consistent.
-      const { physicsBridge } = require("@/engine/physics-bridge");
+      const physicsResult =
+        physicsBridge && physicsBridge.isReady()
+          ? physicsBridge.tick(deltaTimeMs / 1000.0)
+          : null;
 
-      if (physicsBridge && physicsBridge.isReady()) {
-        // 1. Write Inputs to Shared Memory (SAB)
-        // Layout: [0: lock, 1: mouse_dx, 2: mouse_dy, 3: zoom_delta, 4: dt_js]
-
-        const dx = (currentMouse.x - lastMousePos.current.x) * 5.0; // Scale sensitivity
-        const dy = (currentMouse.y - lastMousePos.current.y) * 5.0;
-        const processingZoom = 0.0; // Zoom delta if available from event
-
-        // Index 1: mouse_dx
-        physicsBridge.controlView[1] = dx;
-        // Index 2: mouse_dy
-        physicsBridge.controlView[2] = dy;
-        // Index 3: zoom_delta
-        physicsBridge.controlView[3] = processingZoom;
-        // Index 4: dt
-        // CLAMP DT to preventing spiral of death (max 50ms physics step)
-        const clampedDt = Math.min(deltaTimeMs / 1000.0, 0.05);
-        physicsBridge.controlView[4] = clampedDt;
-
-        // 2. Tick Physics Engine
-        // This processes the inputs and updates the Camera/Physics blocks in SAB
-        physicsBridge.tick(clampedDt);
-
-        // 3. Read Outputs (Optional Debug/Telemetry)
-        // const horizon = physicsBridge.physicsView[0];
-        // const isco = physicsBridge.physicsView[1];
+      if (physicsResult) {
+        // Layout: [0..2: pos, 8..11: orientation]
+        const cam = physicsResult.camera;
+        uniformBatcher.current.set3f("u_camPos", cam[0], cam[1], cam[2]);
+        uniformBatcher.current.set4f(
+          "u_camQuat",
+          cam[8],
+          cam[9],
+          cam[10],
+          cam[11],
+        );
       }
       // -------------------------------------
 
@@ -285,48 +282,27 @@ export function useAnimation(
         if (uniformBatcher.current.program !== program) {
           uniformBatcher.current.clear();
           uniformBatcher.current.upload(gl, program);
-          // Initialize GPU timer on first context usage
+
+          // Initializing hardware measurement
           if (!gpuTimer.current.available) {
             gpuTimer.current.initialize(gl);
+          }
+
+          // Phase 4.3: Shader Warmup
+          // Perform 1x1 dummy draw to prime the driver
+          const { warmupShader } = require("@/utils/webgl-utils");
+          const qb = getSharedQuadBuffer(gl);
+          if (qb) {
+            warmupShader(gl, program, qb);
           }
         }
 
         const features = currentParams.features || DEFAULT_FEATURES;
 
-        // Dynamic Quality Logic (using refs)
-        if (performanceMonitor.current.shouldReduceQuality()) {
-          const q = metricsRef.current.quality;
-          metricsRef.current.quality =
-            q === "ultra" ? "high" : q === "high" ? "medium" : "low";
-        } else if (performanceMonitor.current.shouldIncreaseQuality()) {
-          const q = metricsRef.current.quality;
-          metricsRef.current.quality =
-            q === "low" ? "medium" : q === "medium" ? "high" : "ultra";
-        }
-
-        // Resolution Logic (using refs)
-        if (
-          PERFORMANCE_CONFIG.resolution.enableDynamicScaling &&
-          setResolutionScale
-        ) {
-          if (
-            updatedMetrics.currentFPS <
-            PERFORMANCE_CONFIG.resolution.adaptiveThreshold
-          ) {
-            metricsRef.current.renderResolution = Math.max(
-              PERFORMANCE_CONFIG.resolution.minScale,
-              metricsRef.current.renderResolution * 0.9,
-            );
-          } else if (
-            updatedMetrics.currentFPS >
-            PERFORMANCE_CONFIG.resolution.recoveryThreshold
-          ) {
-            metricsRef.current.renderResolution = Math.min(
-              PERFORMANCE_CONFIG.resolution.maxScale,
-              metricsRef.current.renderResolution * 1.05,
-            );
-          }
-        }
+        // Phase 4.1: PID-Stabilized Metrics
+        // The PerformanceMonitor already updated these via applyPIDScaling
+        metricsRef.current.quality = updatedMetrics.quality;
+        metricsRef.current.renderResolution = updatedMetrics.renderResolution;
 
         const maxRaySteps = getMaxRaySteps(features.rayTracingQuality);
 
@@ -357,20 +333,10 @@ export function useAnimation(
           gpuTimer.current.lastResolutionChange = currentTime;
         }
 
-        if (
-          setResolutionScale &&
-          PERFORMANCE_CONFIG.resolution.enableDynamicScaling &&
-          currentTime - gpuTimer.current.lastResolutionChange > 2000
-        ) {
-          const currentScale = params.renderScale || 1.0;
-          const targetScale = metricsRef.current.renderResolution;
-
-          // Only update if difference is significant (> 10%) to justify a freeze/resize
-          if (Math.abs(targetScale - currentScale) > 0.1) {
-            setResolutionScale(targetScale);
-            gpuTimer.current.lastResolutionChange = currentTime;
-          }
-        }
+        // Resolution Logic: Phase 2.3 (Virtual Viewport)
+        // We no longer call setResolutionScale here.
+        // Instead, the renderResolution is used internally to set gl.viewport.
+        // This provides instantaneous scaling without canvas resize freezes.
 
         const bloomManager = bloomManagerRef.current;
         const repoManager = reprojectionManagerRef.current;
@@ -407,7 +373,17 @@ export function useAnimation(
           : null;
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+        // Phase 2.3: Virtual Viewport Scaling
+        // Render simulations at fractional resolution into full-size FBO
+        const renderScale = metricsRef.current.renderResolution;
+        gl.viewport(
+          0,
+          0,
+          gl.canvas.width * renderScale,
+          gl.canvas.height * renderScale,
+        );
+
         gl.useProgram(program);
 
         // ... Set Uniforms & Textures ...
@@ -433,10 +409,11 @@ export function useAnimation(
         }
 
         // Optimized Uniform Updates (Zero-Allocation)
+        // Shader needs scaled resolution for correct ray calculations
         uniformBatcher.current.set2f(
           "u_resolution",
-          gl.canvas.width,
-          gl.canvas.height,
+          gl.canvas.width * renderScale,
+          gl.canvas.height * renderScale,
         );
         uniformBatcher.current.set1f("u_time", timeRef.current);
         uniformBatcher.current.set1f("u_mass", currentParams.mass);
@@ -480,10 +457,9 @@ export function useAnimation(
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
         // Critical Fix: Explicitly bind the geometry buffer
-        // This ensures the attribute pointer is correct even if other managers changed it
         const quadBuffer = getSharedQuadBuffer(gl);
         if (quadBuffer) {
-          setupPositionAttribute(gl, program, "position", quadBuffer);
+          uniformBatcher.current.setupAttribute("position", quadBuffer);
         }
 
         // GPU Timing: begin measurement around draw calls
@@ -509,21 +485,26 @@ export function useAnimation(
           const sceneTexture = bloomManager.getSceneTexture();
           if (sceneTexture) {
             // TAA: blend raw scene with history
-            repoManager.resolve(sceneTexture, 0.7, isCameraMovingRef.current);
+            repoManager.resolve(
+              sceneTexture,
+              0.7,
+              isCameraMovingRef.current,
+              renderScale,
+            );
             // Get TAA-stabilized output and apply bloom to it
             const taaResult = repoManager.getResultTexture();
             if (taaResult) {
-              bloomManager.applyBloomToTexture(taaResult);
+              bloomManager.applyBloomToTexture(taaResult, renderScale);
             } else {
               // Fallback: apply bloom directly if TAA result failed
-              bloomManager.applyBloom();
+              bloomManager.applyBloom(renderScale);
             }
           } else {
-            bloomManager.applyBloom();
+            bloomManager.applyBloom(renderScale);
           }
         } else if (bloomManager) {
           // Bloom only (no TAA)
-          bloomManager.applyBloom();
+          bloomManager.applyBloom(renderScale);
         }
 
         // Safety: Unbind Framebuffer to ensure backbuffer is ready for next frame

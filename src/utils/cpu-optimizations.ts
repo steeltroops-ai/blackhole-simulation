@@ -140,28 +140,42 @@ export class IdleDetector {
  */
 export class UniformBatcher {
   private locations = new Map<string, WebGLUniformLocation>();
+  private attribLocations = new Map<string, number>();
   private valueCache = new Map<string, unknown>(); // For dirty checking
   private gl: WebGL2RenderingContext | null = null;
   public program: WebGLProgram | null = null;
 
   /**
-   * upload active uniforms from the program to the cache
+   * upload active uniforms and attributes from the program to the cache
    * Must be called whenever the program changes
    */
   upload(gl: WebGL2RenderingContext, program: WebGLProgram): void {
     this.gl = gl;
     this.program = program;
     this.locations.clear();
+    this.attribLocations.clear();
     this.valueCache.clear();
 
+    // 1. Cache Uniforms
     const numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
     for (let i = 0; i < numUniforms; i++) {
       const info = gl.getActiveUniform(program, i);
       if (info) {
-        // Handle arrays if necessary, though basic names usually suffice
         const loc = gl.getUniformLocation(program, info.name);
         if (loc) {
           this.locations.set(info.name, loc);
+        }
+      }
+    }
+
+    // 2. Cache Attributes
+    const numAttribs = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+    for (let i = 0; i < numAttribs; i++) {
+      const info = gl.getActiveAttrib(program, i);
+      if (info) {
+        const loc = gl.getAttribLocation(program, info.name);
+        if (loc !== -1) {
+          this.attribLocations.set(info.name, loc);
         }
       }
     }
@@ -245,11 +259,42 @@ export class UniformBatcher {
     this.gl.uniform3f(loc, x, y, z);
   }
 
+  // eslint-disable-next-line max-params
+  set4f(name: string, x: number, y: number, z: number, w: number): void {
+    if (!this.gl || !this.program) return;
+    const loc = this.locations.get(name);
+    if (!loc) return;
+    this.gl.uniform4f(loc, x, y, z, w);
+  }
+
+  /**
+   * Setup a vertex attribute pointer using the cached location.
+   */
+  setupAttribute(
+    name: string,
+    buffer: WebGLBuffer | null,
+    size: number = 2,
+    type: number = 5126, // gl.FLOAT
+    normalized: boolean = false,
+    stride: number = 0,
+    offset: number = 0,
+  ): void {
+    if (!this.gl || !buffer) return;
+
+    const loc = this.attribLocations.get(name);
+    if (loc === undefined || loc === -1) return;
+
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
+    this.gl.enableVertexAttribArray(loc);
+    this.gl.vertexAttribPointer(loc, size, type, normalized, stride, offset);
+  }
+
   /**
    * Clear context references
    */
   clear(): void {
     this.locations.clear();
+    this.attribLocations.clear();
     this.valueCache.clear();
     this.gl = null;
     this.program = null;

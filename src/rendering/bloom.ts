@@ -92,6 +92,10 @@ export class BloomManager {
     combine_bloomTexture: WebGLUniformLocation | null;
     combine_bloomIntensity: WebGLUniformLocation | null;
     combine_position: number;
+    // Virtual Viewport Scaling
+    bp_textureScale: WebGLUniformLocation | null;
+    combine_textureScale: WebGLUniformLocation | null;
+    draw_textureScale: WebGLUniformLocation | null;
   } = {
     bp_texture: null,
     bp_threshold: null,
@@ -104,6 +108,9 @@ export class BloomManager {
     combine_bloomTexture: null,
     combine_bloomIntensity: null,
     combine_position: -1,
+    bp_textureScale: null,
+    combine_textureScale: null,
+    draw_textureScale: null,
   };
 
   constructor(
@@ -324,6 +331,10 @@ export class BloomManager {
         this.brightPassProgram,
         "position",
       );
+      this.locs.bp_textureScale = gl.getUniformLocation(
+        this.brightPassProgram,
+        "u_textureScale",
+      );
     }
 
     if (this.blurProgram) {
@@ -361,6 +372,10 @@ export class BloomManager {
       this.locs.combine_position = gl.getAttribLocation(
         this.combineProgram,
         "position",
+      );
+      this.locs.combine_textureScale = gl.getUniformLocation(
+        this.combineProgram,
+        "u_textureScale",
       );
     }
   }
@@ -409,11 +424,11 @@ export class BloomManager {
    * Apply bloom post-processing to the internally rendered scene
    * Requirements: 8.3
    */
-  applyBloom(): void {
+  applyBloom(renderScale: number = 1.0): void {
     if (!this.config.enabled || !this.sceneTexture) {
       return;
     }
-    this.applyBloomToTexture(this.sceneTexture);
+    this.applyBloomToTexture(this.sceneTexture, renderScale);
   }
 
   /**
@@ -423,12 +438,15 @@ export class BloomManager {
    * This is used when the input comes from an external source (like Reprojection TAA)
    * rather than the internal sceneFramebuffer.
    */
-  applyBloomToTexture(inputTexture: WebGLTexture): void {
+  applyBloomToTexture(
+    inputTexture: WebGLTexture,
+    renderScale: number = 1.0,
+  ): void {
     // Requirement 8.1: Skip bloom when disabled
     if (!this.config.enabled) {
       // If bloom is disabled, we still need to draw the input texture to screen
       // because the input might be an offscreen TAA buffer.
-      this.drawTextureToScreen(inputTexture);
+      this.drawTextureToScreen(inputTexture, renderScale);
       return;
     }
 
@@ -448,8 +466,9 @@ export class BloomManager {
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.brightFramebuffer);
-    const halfWidth = Math.max(1, Math.floor(this.width / 2));
-    const halfHeight = Math.max(1, Math.floor(this.height / 2));
+    // Scale the bright pass viewport by the same renderScale
+    const halfWidth = Math.max(1, Math.floor((this.width * renderScale) / 2));
+    const halfHeight = Math.max(1, Math.floor((this.height * renderScale) / 2));
     gl.viewport(0, 0, halfWidth, halfHeight);
 
     gl.useProgram(this.brightPassProgram);
@@ -464,6 +483,10 @@ export class BloomManager {
     gl.bindTexture(gl.TEXTURE_2D, inputTexture);
     gl.uniform1i(this.locs.bp_texture, 0);
     gl.uniform1f(this.locs.bp_threshold, this.config.threshold);
+    // Set texture scale for sampling the active sub-region
+    if (this.locs.bp_textureScale) {
+      gl.uniform2f(this.locs.bp_textureScale, renderScale, renderScale);
+    }
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -480,9 +503,9 @@ export class BloomManager {
       gl.vertexAttribPointer(this.locs.blur_position, 2, gl.FLOAT, false, 0, 0);
     }
 
-    // Set viewport to quarter resolution for blur passes
-    const blurWidth = Math.max(1, Math.floor(this.width / 4));
-    const blurHeight = Math.max(1, Math.floor(this.height / 4));
+    // Set viewport to quarter resolution for blur passes (scaled by renderScale)
+    const blurWidth = Math.max(1, Math.floor((this.width * renderScale) / 4));
+    const blurHeight = Math.max(1, Math.floor((this.height * renderScale) / 4));
     gl.viewport(0, 0, blurWidth, blurHeight);
 
     gl.uniform2f(this.locs.blur_resolution, blurWidth, blurHeight);
@@ -547,6 +570,11 @@ export class BloomManager {
     // Set bloom intensity
     gl.uniform1f(this.locs.combine_bloomIntensity, this.config.intensity);
 
+    // Virtual Viewport: Scale original input coordinates
+    if (this.locs.combine_textureScale) {
+      gl.uniform2f(this.locs.combine_textureScale, renderScale, renderScale);
+    }
+
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     // Unbind all units used in combine
@@ -560,10 +588,11 @@ export class BloomManager {
   /**
    * Helper to simple draw a texture to screen (no bloom)
    */
-  private drawTextureToScreen(texture: WebGLTexture): void {
+  private drawTextureToScreen(
+    texture: WebGLTexture,
+    renderScale: number = 1.0,
+  ): void {
     // Re-use combine shader with 0 intensity? Or a simple passthrough?
-    // Combine shader is simplest reuse
-    // Combine shader is simplest reuse
     const gl = this.gl;
     if (!this.combineProgram) return;
 
@@ -583,6 +612,11 @@ export class BloomManager {
         0,
         0,
       );
+    }
+
+    // Virtual Viewport Scaling
+    if (this.locs.combine_textureScale) {
+      gl.uniform2f(this.locs.combine_textureScale, renderScale, renderScale);
     }
 
     gl.activeTexture(gl.TEXTURE0);

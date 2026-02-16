@@ -23,6 +23,10 @@ export const COMMON_CHUNK = `
   uniform float u_debug; // Debug mode toggle
   uniform float u_show_redshift; // Toggle for gravitational redshift overlay
   uniform float u_show_kerr_shadow; // Toggle for Kerr shadow guide
+  
+  // High-Precision Camera State (SAB Synced)
+  uniform vec3 u_camPos;
+  uniform vec4 u_camQuat;
 
   // === CONSTANTS ===
 #define PI 3.14159265359
@@ -44,5 +48,10 @@ export const COMMON_CHUNK = `
     float D = 0.59;
     float E = 0.14;
     return clamp((color * (A * color + B)) / (color * (C * color + D) + E), 0.0, 1.0);
+  }
+
+  // Quaternion Rotation (Phase 5.2)
+  vec3 qrot(vec4 q, vec3 v) {
+    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
   }
 `;

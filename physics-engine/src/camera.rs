@@ -23,6 +23,12 @@ impl CameraState {
             orientation: glam::DQuat::IDENTITY,
         }
     }
+
+    pub fn validate(&self) -> bool {
+        self.position.is_finite() && 
+        self.velocity.is_finite() && 
+        self.orientation.is_finite()
+    }
 }
 
 /// Extended Kalman Filter (EKF) for Camera Prediction

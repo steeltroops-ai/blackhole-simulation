@@ -262,17 +262,19 @@ export const ControlPanel = ({
     isActive: boolean,
     onClick: () => void,
     icon?: React.ComponentType<{ className?: string }>,
+    key?: string,
   ) => {
     const Icon = icon;
     return (
       <button
+        key={key}
         onClick={onClick}
         className={`
-          flex items-center gap-2.5 p-2 px-3 rounded-xl border transition-all duration-500 relative group/btn overflow-hidden w-full
+          flex items-center gap-2 p-1.5 px-2 rounded-lg border transition-all duration-300 relative group/btn overflow-hidden w-full
           ${
             isActive
-              ? "bg-white/15 backdrop-blur-2xl text-white border-white/50 shadow-[0_0_25px_rgba(255,255,255,0.08),inset_0_0_12px_rgba(255,255,255,0.08)]"
-              : "bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/[0.08] hover:border-white/20 hover:text-white"
+              ? "bg-white/10 text-white border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+              : "bg-white/[0.02] text-white/40 border-white/5 hover:bg-white/[0.05] hover:border-white/10 hover:text-white"
           }
         `}
       >
@@ -282,22 +284,22 @@ export const ControlPanel = ({
           />
         )}
         <span
-          className={`text-[8px] uppercase font-bold tracking-[0.15em] truncate transition-colors duration-500 ${isActive ? "text-white" : "text-white/70"}`}
+          className={`text-[7.5px] uppercase font-black tracking-[0.1em] truncate transition-colors duration-300 ${isActive ? "text-white" : "text-white/30"}`}
         >
           {label}
         </span>
         <div
-          className={`ml-auto w-6 h-3 rounded-full border transition-all duration-500 shrink-0 relative ${
+          className={`ml-auto w-4.5 h-2 rounded-full border transition-all duration-300 shrink-0 relative ${
             isActive
-              ? "bg-white/20 border-white/40"
+              ? "bg-white/20 border-white/30"
               : "bg-white/5 border-white/10"
           }`}
         >
           <div
-            className={`absolute top-0.5 w-2 h-2 rounded-full transition-all duration-500 ${
+            className={`absolute top-0.5 w-1 h-1 rounded-full transition-all duration-300 ${
               isActive
-                ? "left-3 bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                : "left-0.5 bg-white/30"
+                ? "left-2.5 bg-white shadow-[0_0_5px_rgba(255,255,255,0.8)]"
+                : "left-0.5 bg-white/20"
             }`}
           />
         </div>
@@ -309,26 +311,25 @@ export const ControlPanel = ({
     label: string,
     isActive: boolean,
     onClick: () => void,
+    key?: string,
   ) => (
     <button
+      key={key}
       onClick={onClick}
       className={`
-        flex items-center justify-center p-2 px-3 rounded-xl border transition-all duration-500 relative group/btn overflow-hidden
+        flex items-center justify-center p-1.5 px-2.5 rounded-lg border transition-all duration-300 relative group/btn overflow-hidden
         ${
           isActive
-            ? "bg-white/15 backdrop-blur-2xl text-white border-white/50 shadow-[0_0_20px_rgba(255,255,255,0.08),inset_0_0_10px_rgba(255,255,255,0.06)] scale-[1.02]"
-            : "bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/[0.08] hover:border-white/20 hover:text-white"
+            ? "bg-white/10 text-white border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.05)] scale-[1.01]"
+            : "bg-white/[0.02] text-white/40 border-white/5 hover:bg-white/[0.05] hover:border-white/10 hover:text-white"
         }
       `}
     >
       <span
-        className={`text-[8px] uppercase font-bold tracking-[0.15em] truncate transition-colors duration-500 ${isActive ? "text-white" : "text-white/50"}`}
+        className={`text-[7.5px] uppercase font-black tracking-[0.1em] truncate transition-colors duration-300 ${isActive ? "text-white" : "text-white/20"}`}
       >
         {label}
       </span>
-      {isActive && (
-        <div className="ml-1.5 w-1 h-1 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)] animate-pulse shrink-0" />
-      )}
     </button>
   );
 
@@ -530,6 +531,7 @@ export const ControlPanel = ({
                                   params.performancePreset === p.id,
                                   () =>
                                     onParamsChange(applyPreset(p.id, params)),
+                                  p.id,
                                 ),
                               )}
                             </div>
@@ -561,6 +563,7 @@ export const ControlPanel = ({
                                   q.label,
                                   params.features?.rayTracingQuality === q.id,
                                   () => setQuality(q.id),
+                                  q.id,
                                 ),
                               )}
                             </div>
@@ -669,6 +672,7 @@ export const ControlPanel = ({
                                       f.key as keyof FeatureToggles,
                                     ),
                                   f.icon,
+                                  f.key,
                                 ),
                               )}
                             </div>

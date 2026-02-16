@@ -24,12 +24,6 @@ export interface PerformanceWarning {
 
 /**
  * Fixed-size ring buffer backed by Float64Array for O(1) push and O(1) average.
- *
- * Previous implementation used Array.push() + Array.shift() + Array.reduce(),
- * costing O(n) per frame for shift and reduce, plus GC pressure from shift().
- *
- * Time complexity: push O(1), average O(1)
- * Space complexity: O(capacity) -- pre-allocated, zero GC pressure
  */
 class RingBuffer {
   private readonly buffer: Float64Array;
@@ -44,7 +38,6 @@ class RingBuffer {
   }
 
   push(value: number): void {
-    // Subtract the value being overwritten from running sum
     this.sum -= this.buffer[this.head];
     this.buffer[this.head] = value;
     this.sum += value;
@@ -56,10 +49,8 @@ class RingBuffer {
     return this.count > 0 ? this.sum / this.count : 0;
   }
 
-  /** Returns the most recently pushed value */
   last(): number {
     if (this.count === 0) return 0;
-    // head points to the NEXT write slot, so the last written is head - 1
     const idx = (this.head - 1 + this.capacity) % this.capacity;
     return this.buffer[idx];
   }
@@ -85,7 +76,39 @@ export class PerformanceMonitor {
   private currentQuality: RayTracingQuality = "high";
   private renderResolution: number = 1.0;
 
-  // Cache frequently computed values to avoid redundant recalculation
+  // Calibration State Machine (Phase 4)
+  private isCalibrating: boolean = true;
+  private calibrationStartTime: number = performance.now();
+  private maxAllowedQuality: RayTracingQuality = "ultra";
+  private isMobile: boolean = false;
+
+  // PID Controller State (Phase 4.1: Stabilization)
+  private errorIntegral: number = 0;
+  private prevError: number = 0;
+  private isStabilized: boolean = false;
+
+  // Pre-allocated metrics to avoid GC pressure in the render loop
+  private readonly _metrics: PerformanceMetrics = {
+    currentFPS: 0,
+    frameTimeMs: 0,
+    rollingAverageFPS: 0,
+    quality: "high",
+    renderResolution: 1.0,
+  };
+
+  private readonly _debugMetrics: DebugMetrics = {
+    currentFPS: 0,
+    frameTimeMs: 0,
+    rollingAverageFPS: 0,
+    quality: "high",
+    renderResolution: 1.0,
+    totalFrameTimeMs: 0,
+    gpuTimeMs: 0,
+    cpuTimeMs: 0,
+    idleTimeMs: 0,
+  };
+
+  // Cache frequently computed values
   private cachedAvgTime: number = 0;
   private cachedAvgFPS: number = 0;
   private cacheValid: boolean = false;
@@ -95,13 +118,75 @@ export class PerformanceMonitor {
     this.cpuTimes = new RingBuffer(this.WINDOW);
     this.gpuTimes = new RingBuffer(this.WINDOW);
     this.idleTimes = new RingBuffer(this.WINDOW);
+
+    // Initial hardware awareness
+    if (typeof window !== "undefined" && window.navigator) {
+      const ua = navigator.userAgent.toLowerCase();
+      this.isMobile =
+        /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(
+          ua,
+        );
+
+      if (this.isMobile) {
+        this.maxAllowedQuality = PERFORMANCE_CONFIG.calibration.mobileHardCap;
+        this.currentQuality = this.maxAllowedQuality;
+        // Skip stress-test for mobile, just start at cap
+        this.isCalibrating = false;
+      }
+    }
   }
 
   updateMetrics(deltaTime: number): PerformanceMetrics {
+    const now = performance.now();
     this.frameTimes.push(deltaTime);
     this.invalidateCache();
 
+    // Calibration Phase logic
+    if (this.isCalibrating) {
+      if (
+        now - this.calibrationStartTime >
+        PERFORMANCE_CONFIG.calibration.durationMs
+      ) {
+        this.isCalibrating = false;
+        this.finalizeCalibration();
+      }
+    } else if (PERFORMANCE_CONFIG.resolution.enableDynamicScaling) {
+      // Phase 4.1: PID-Based Adaptive Scaling
+      this.applyPIDScaling(deltaTime);
+    }
+
     return this.getMetrics(deltaTime);
+  }
+
+  private applyPIDScaling(dt: number): void {
+    const target = PERFORMANCE_CONFIG.scheduler.frameBudgetMs * 0.95; // 95% safety target
+    const error = target - dt;
+
+    const { kp, ki, kd } = PERFORMANCE_CONFIG.resolution.pid;
+
+    // 1. Proportional
+    const pOut = kp * error;
+
+    // 2. Integral (clamped to prevent wind-up)
+    this.errorIntegral = Math.min(
+      Math.max(this.errorIntegral + error, -20.0),
+      20.0,
+    );
+    const iOut = ki * this.errorIntegral;
+
+    // 3. Derivative
+    const dOut = kd * (error - this.prevError);
+    this.prevError = error;
+
+    // Total correction
+    const adjustment = pOut + iOut + dOut;
+
+    // Apply to resolution (damped)
+    const newRes = this.renderResolution + adjustment * 0.01;
+    this.setRenderResolution(newRes);
+
+    // If we are consistently within 5% of target, mark as stabilized
+    this.isStabilized = Math.abs(error) < target * 0.05;
   }
 
   private invalidateCache(): void {
@@ -117,26 +202,67 @@ export class PerformanceMonitor {
     }
   }
 
-  private getMetrics(currentDeltaTime?: number): PerformanceMetrics {
+  private finalizeCalibration(): void {
+    this.ensureCache();
+    const avgFps = this.cachedAvgFPS;
+
+    if (avgFps < PERFORMANCE_CONFIG.calibration.minStableFPS) {
+      if (this.currentQuality === "ultra") this.setQuality("high");
+      else if (this.currentQuality === "high") this.setQuality("medium");
+
+      this.maxAllowedQuality = this.currentQuality;
+    }
+  }
+
+  public shouldReduceQuality(): boolean {
+    if (this.isCalibrating) return false;
+
+    this.ensureCache();
+    return (
+      this.frameTimes.size() >= this.WINDOW &&
+      this.cachedAvgFPS < PERFORMANCE_CONFIG.resolution.adaptiveThreshold
+    );
+  }
+
+  public shouldIncreaseQuality(): boolean {
+    if (this.isCalibrating) return false;
+
+    this.ensureCache();
+    if (
+      this.currentQuality === "ultra" ||
+      (this.currentQuality === "high" && this.maxAllowedQuality === "high") ||
+      (this.currentQuality === "medium" && this.maxAllowedQuality === "medium")
+    ) {
+      return false;
+    }
+
+    return (
+      this.frameTimes.size() >= this.WINDOW &&
+      this.cachedAvgFPS > PERFORMANCE_CONFIG.resolution.recoveryThreshold
+    );
+  }
+
+  public getMetrics(currentDeltaTime?: number): PerformanceMetrics {
     this.ensureCache();
 
-    // Use provided deltaTime for instantaneous FPS, otherwise last frame
     const dt =
       currentDeltaTime ??
       (this.frameTimes.size() > 0 ? this.frameTimes.last() : 0);
     const fps = dt > 0 ? 1000 / dt : 0;
 
-    return {
-      currentFPS: Math.round(fps),
-      frameTimeMs: Math.round(this.cachedAvgTime * 100) / 100,
-      rollingAverageFPS: Math.round(this.cachedAvgFPS),
-      quality: this.currentQuality,
-      renderResolution: this.renderResolution,
-    };
+    this._metrics.currentFPS = Math.round(fps);
+    this._metrics.frameTimeMs = Math.round(this.cachedAvgTime * 100) / 100;
+    this._metrics.rollingAverageFPS = Math.round(this.cachedAvgFPS);
+    this._metrics.quality = this.currentQuality;
+    this._metrics.renderResolution = this.renderResolution;
+
+    return this._metrics;
   }
 
   setQuality(quality: RayTracingQuality) {
     this.currentQuality = quality;
+    this._metrics.quality = quality;
+    this._debugMetrics.quality = quality;
   }
 
   setRenderResolution(res: number) {
@@ -144,17 +270,26 @@ export class PerformanceMonitor {
       Math.max(res, PERFORMANCE_CONFIG.resolution.minScale),
       PERFORMANCE_CONFIG.resolution.maxScale,
     );
+    this._metrics.renderResolution = this.renderResolution;
+    this._debugMetrics.renderResolution = this.renderResolution;
   }
 
   getDebugMetrics(): DebugMetrics {
     const metrics = this.getMetrics();
-    return {
-      ...metrics,
-      totalFrameTimeMs: metrics.frameTimeMs,
-      cpuTimeMs: Math.round(this.cpuTimes.average() * 100) / 100,
-      gpuTimeMs: Math.round(this.gpuTimes.average() * 100) / 100,
-      idleTimeMs: Math.round(this.idleTimes.average() * 100) / 100,
-    };
+
+    this._debugMetrics.currentFPS = metrics.currentFPS;
+    this._debugMetrics.frameTimeMs = metrics.frameTimeMs;
+    this._debugMetrics.rollingAverageFPS = metrics.rollingAverageFPS;
+
+    this._debugMetrics.totalFrameTimeMs = metrics.frameTimeMs;
+    this._debugMetrics.cpuTimeMs =
+      Math.round(this.cpuTimes.average() * 100) / 100;
+    this._debugMetrics.gpuTimeMs =
+      Math.round(this.gpuTimes.average() * 100) / 100;
+    this._debugMetrics.idleTimeMs =
+      Math.round(this.idleTimes.average() * 100) / 100;
+
+    return this._debugMetrics;
   }
 
   recordCPUTime(ms: number): void {
@@ -176,7 +311,6 @@ export class PerformanceMonitor {
   }
 
   getWarnings(): PerformanceWarning[] {
-    // Uses cached values via ensureCache() inside getMetrics/getFrameTimeBudgetUsage
     const metrics = this.getMetrics();
     const budgetUsage = this.getFrameTimeBudgetUsage();
     const warnings: PerformanceWarning[] = [];
@@ -204,18 +338,6 @@ export class PerformanceMonitor {
     }
 
     return warnings;
-  }
-
-  shouldReduceQuality(): boolean {
-    this.ensureCache();
-    return this.cachedAvgFPS > 0 && Math.round(this.cachedAvgFPS) < 60;
-  }
-
-  shouldIncreaseQuality(): boolean {
-    this.ensureCache();
-    const targetTime = 1000 / PERFORMANCE_CONFIG.scheduler.targetFPS;
-    const budgetUsage = (this.cachedAvgTime / targetTime) * 100;
-    return Math.round(this.cachedAvgFPS) > 75 && budgetUsage < 80;
   }
 
   reset(): void {

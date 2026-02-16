@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, Activity } from "lucide-react";
 import { WebGLCanvas } from "@/components/canvas/WebGLCanvas";
 import { WebGPUCanvas } from "@/components/canvas/WebGPUCanvas";
 import ErrorBoundary from "@/components/debug/ErrorBoundary";
@@ -215,22 +215,35 @@ const App = () => {
           </div>
         )}
 
-        {isBenchmarkRunning && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
-            <div className="bg-black/90 border border-white/20 rounded-lg p-6 text-white min-w-[250px] text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-3" />
-              <p className="text-sm font-medium">{`Testing ${benchmarkPreset || "preset"}...`}</p>
-              <div className="w-full bg-gray-700 rounded-full h-1.5 mt-3">
-                <div
-                  className="bg-white h-1.5 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${benchmarkProgress * 100}%`,
-                  }}
-                />
-              </div>
+        <AnimatePresence>
+          {isBenchmarkRunning && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+              >
+                <div className="relative group overflow-hidden rounded-full liquid-glass border border-white/10 shadow-2xl p-2.5 px-6 flex items-center gap-4">
+                  {/* Liquid Glass Infrastructure */}
+                  <div className="absolute inset-0 liquid-glass-highlight z-1 pointer-events-none" />
+                  <div className="absolute inset-x-0 top-0 liquid-glass-top-line z-30" />
+
+                  <div className="relative z-40 flex items-center gap-4">
+                    <div className="w-2.5 h-2.5 rounded-full border border-white/20 border-t-white animate-spin shrink-0" />
+                    <span className="text-white text-[9.5px] font-black uppercase tracking-[0.2em] leading-none">
+                      Optimizing{" "}
+                      {benchmarkPreset?.replace("-", " ") ||
+                        "Global Parameters"}
+                    </span>
+                    <span className="text-white/40 text-[8px] font-mono font-black">
+                      {Math.round(benchmarkProgress * 100)}%
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
 
         {showBenchmarkResults && benchmarkReport && (
           <BenchmarkResults

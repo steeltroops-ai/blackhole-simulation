@@ -297,3 +297,31 @@ export function createBlueNoiseTexture(
     wrap: gl.REPEAT,
   });
 }
+/**
+ * Performs a minimal 1x1 render pass to "warm up" the shader and driver.
+ * Prevents stutters when new execution paths (branches) are first taken.
+ */
+export function warmupShader(
+  gl: WebGL2RenderingContext,
+  program: WebGLProgram,
+  quadBuffer: WebGLBuffer,
+): void {
+  const originalViewport = gl.getParameter(gl.VIEWPORT);
+
+  gl.useProgram(program);
+  gl.viewport(0, 0, 1, 1);
+
+  // Setup minimal attributes
+  setupPositionAttribute(gl, program, "position", quadBuffer);
+
+  // Draw - this triggers driver compilation/optimization
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  // Restore viewport
+  gl.viewport(
+    originalViewport[0],
+    originalViewport[1],
+    originalViewport[2],
+    originalViewport[3],
+  );
+}

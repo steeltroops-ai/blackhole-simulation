@@ -73,7 +73,7 @@ export class BenchmarkController {
   private fpsMin: number = Infinity;
   private fpsMax: number = -Infinity;
 
-  private readonly TEST_DURATION_MS = 10000; // 10 seconds per preset (Requirement 19.1)
+  private readonly TEST_DURATION_MS = 5000; // 5 seconds per preset (Faster feedback)
   private readonly PRESETS_TO_TEST: PresetName[] = [
     "maximum-performance",
     "balanced",
@@ -304,7 +304,8 @@ export class BenchmarkController {
       "maximum-performance",
     ];
 
-    // Find highest quality preset with average FPS >= 60
+    // Intelligence Pass 1: High Fidelity (60+ FPS)
+    // For users with powerful GPUs, give them the best possible experience.
     for (const presetName of qualityOrder) {
       const result = this.results.find((r) => r.presetName === presetName);
       if (result && result.averageFPS >= 60) {
@@ -312,7 +313,25 @@ export class BenchmarkController {
       }
     }
 
-    // If no preset achieves 60 FPS, recommend maximum-performance
+    // Intelligence Pass 2: Stable Standard (35+ FPS)
+    // Good balance of fluidity and fidelity.
+    for (const presetName of qualityOrder) {
+      const result = this.results.find((r) => r.presetName === presetName);
+      if (result && result.averageFPS >= 35) {
+        return presetName;
+      }
+    }
+
+    // Intelligence Pass 3: Cinematic Minimum (24+ FPS)
+    // Respect the user's hardware. If it can maintain 24 FPS, don't strip features.
+    for (const presetName of qualityOrder) {
+      const result = this.results.find((r) => r.presetName === presetName);
+      if (result && result.averageFPS >= 24) {
+        return presetName;
+      }
+    }
+
+    // Fallback: If everything is a slideshow, use the performance mode.
     return "maximum-performance";
   }
 

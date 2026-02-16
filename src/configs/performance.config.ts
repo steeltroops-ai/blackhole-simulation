@@ -14,9 +14,22 @@ export const PERFORMANCE_CONFIG = {
     minScale: 0.5, // Minimum allowed downscaling for potato mode
     maxScale: 2.0, // Maximum supersampling (Retina/4K)
     mobileCap: 1.0, // Hard cap for mobile devices to prevent thermal throttling
-    adaptiveThreshold: 45, // FPS threshold below which resolution drops
-    recoveryThreshold: 58, // FPS threshold above which resolution recovers
+    adaptiveThreshold: 24, // FPS threshold below which resolution drops (Cinematic floor)
+    recoveryThreshold: 40, // FPS threshold above which resolution recovers
     enableDynamicScaling: true, // Master toggle for DPI scaling
+    // PID Controller Coefficients for smooth stabilization
+    pid: {
+      kp: 0.05, // Proportional: Instant reaction to current frame budget
+      ki: 0.01, // Integral: Long-term compensation for thermal/CPU load
+      kd: 0.02, // Derivative: Resists sudden changes (jitter)
+    },
+  },
+
+  // Stress-Test Calibration (Hardware Awareness)
+  calibration: {
+    durationMs: 3000, // 3 seconds of stress-testing at startup
+    minStableFPS: 30, // FPS needed to maintain 'ultra/high' quality (Cinematic standard)
+    mobileHardCap: "medium", // Forced max quality for mobile devices
   },
 
   // Ray Marching Budget (The Engine's "Gas Pedal")

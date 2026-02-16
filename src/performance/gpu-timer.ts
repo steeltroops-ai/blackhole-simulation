@@ -32,6 +32,8 @@ export class GPUTimer {
   private _available: boolean = false;
   public lastResolutionChange: number = 0;
 
+  private queryPool: WebGLQuery[] = [];
+
   /**
    * Attempt to acquire the timer query extension.
    * Returns true if GPU timing is available.
@@ -47,9 +49,11 @@ export class GPUTimer {
     this._available = this.ext !== null;
 
     if (this._available) {
-      // Available
-    } else {
-      // Not available
+      // Pre-allocate a small pool of queries
+      for (let i = 0; i < 4; i++) {
+        const q = gl.createQuery();
+        if (q) this.queryPool.push(q);
+      }
     }
 
     return this._available;
@@ -68,17 +72,15 @@ export class GPUTimer {
     if (!this.ext || !this.gl) return;
 
     // Check for disjoint -- GPU was reset, discard all pending queries
-    // GPU_DISJOINT is from EXT extension in WebGL 2
     const disjoint = this.gl.getParameter(this.ext.GPU_DISJOINT_EXT);
     if (disjoint) {
       this.drainPending();
       return;
     }
 
-    // createQuery is core in WebGL 2
-    const query = this.gl.createQuery();
+    // Reuse from pool if available, otherwise create
+    let query = this.queryPool.pop() || this.gl.createQuery();
     if (query) {
-      // TIME_ELAPSED_EXT comes from extension
       this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, query);
       this.pendingQueries.push(query);
     }
@@ -90,7 +92,6 @@ export class GPUTimer {
    */
   endFrame(): void {
     if (!this.ext || !this.gl || this.pendingQueries.length === 0) return;
-    // endQuery is core in WebGL 2
     this.gl.endQuery(this.ext.TIME_ELAPSED_EXT);
     this.collectResults();
   }
@@ -114,7 +115,6 @@ export class GPUTimer {
     while (this.pendingQueries.length > 0) {
       const query = this.pendingQueries[0];
 
-      // getQueryParameter is core in WebGL 2
       const available = this.gl.getQueryParameter(
         query,
         this.gl.QUERY_RESULT_AVAILABLE,
@@ -129,7 +129,9 @@ export class GPUTimer {
       ) as number;
 
       this.lastGpuTimeMs = timeNanos / 1_000_000;
-      this.gl.deleteQuery(query);
+
+      // Return to pool instead of deleting
+      this.queryPool.push(query);
       this.pendingQueries.shift();
     }
 

@@ -41,6 +41,8 @@ export class ReprojectionManager {
   private loc_historyFrame: WebGLUniformLocation | null = null;
   private loc_blendFactor: WebGLUniformLocation | null = null;
   private loc_cameraMoving: WebGLUniformLocation | null = null;
+  private loc_textureScale: WebGLUniformLocation | null = null;
+  private loc_resolution: WebGLUniformLocation | null = null;
   private attrib_position: number = -1;
 
   constructor(gl: WebGL2RenderingContext) {
@@ -84,6 +86,11 @@ export class ReprojectionManager {
         this.program,
         "u_cameraMoving",
       );
+      this.loc_textureScale = gl.getUniformLocation(
+        this.program,
+        "u_textureScale",
+      );
+      this.loc_resolution = gl.getUniformLocation(this.program, "u_resolution");
       this.attrib_position = gl.getAttribLocation(this.program, "position");
     }
   }
@@ -182,6 +189,7 @@ export class ReprojectionManager {
     sourceTexture: WebGLTexture,
     blendFactor: number = 0.7, // Reduced from 0.9 for less ghosting
     cameraMoving: boolean = false,
+    renderScale: number = 1.0,
   ) {
     if (!this.program || !this.isInitialized) return;
 
@@ -202,21 +210,30 @@ export class ReprojectionManager {
     // 1. Bind Write Framebuffer (Destination)
     // We are rendering the "blended result" into this buffer
     gl.bindFramebuffer(gl.FRAMEBUFFER, writeFb);
-    gl.viewport(0, 0, this.width, this.height);
+
+    // Virtual Viewport Scaling
+    const scaledWidth = Math.floor(this.width * renderScale);
+    const scaledHeight = Math.floor(this.height * renderScale);
+    gl.viewport(0, 0, scaledWidth, scaledHeight);
+
     gl.useProgram(this.program);
 
     // 2. Bind Textures (using cached locations -- zero string lookups)
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-    gl.uniform1i(this.loc_currentFrame, 0);
+    gl.uniform1i(this.loc_currentFrame!, 0);
 
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, readTex);
-    gl.uniform1i(this.loc_historyFrame, 1);
+    gl.uniform1i(this.loc_historyFrame!, 1);
 
     // 3. Set Uniforms (cached locations)
-    gl.uniform1f(this.loc_blendFactor, blendFactor);
-    gl.uniform1i(this.loc_cameraMoving, cameraMoving ? 1 : 0);
+    gl.uniform1f(this.loc_blendFactor!, blendFactor);
+    gl.uniform1i(this.loc_cameraMoving!, cameraMoving ? 1 : 0);
+    if (this.loc_textureScale)
+      gl.uniform2f(this.loc_textureScale, renderScale, renderScale);
+    if (this.loc_resolution)
+      gl.uniform2f(this.loc_resolution, scaledWidth, scaledHeight);
 
     // 4. Draw Quad (using cached attribute location)
     if (this.quadBuffer) {
