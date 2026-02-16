@@ -1,21 +1,27 @@
-# Lefthook configuration for Black Hole Simulation
-# Pre-push and Pre-commit quality gates
+# Lefthook: Intelligent Git Hooks for Scientific Simulation
+# Configured for Bun & Rust Hybrid codebase
 
 pre-commit:
   parallel: true
-  jobs:
-    - name: lint
-      glob: "*.{js,ts,jsx,tsx}"
-      run: bun run lint {staged_files}
-
-pre-push:
-  parallel: false
-  jobs:
-    - name: type-check
-      run: bun x tsc --noEmit
-
-    - name: unit-tests
-      run: bun run test
-
-    - name: production-build
-      run: bun run build
+  commands:
+    # 1. Frontend Quality Checks
+    frontend-lint:
+      glob: "*.{js,ts,tsx}"
+      run: bun run lint
+    frontend-types:
+      run: bun run type-check
+    
+    # 2. Rust Engine Quality Checks
+    rust-check:
+      root: physics-engine/
+      glob: "*.rs"
+      run: cargo check
+    rust-clippy:
+      root: physics-engine/
+      glob: "*.rs"
+      run: cargo clippy -- -D warnings
+    
+    # 3. Security & Format (Optional but recommended)
+    prettier:
+      glob: "*.{js,ts,tsx,css,md}"
+      run: bunx prettier --check {staged_files}

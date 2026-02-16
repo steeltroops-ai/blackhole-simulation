@@ -1,0 +1,14 @@
+{
+  "github": {
+    "silent": true
+  },
+  "crons": [],
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "framework": "nextjs",
+  "build": {
+    "env": {
+      "CARGO_BUILD_JOBS": "1"
+    }
+  }
+}
