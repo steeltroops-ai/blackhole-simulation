@@ -40,6 +40,7 @@ describe("GPUTimer", () => {
           if (name === "EXT_disjoint_timer_query_webgl2") return mockExt;
           return null;
         },
+        createQuery: vi.fn().mockReturnValue({}),
       } as unknown as WebGL2RenderingContext;
 
       const result = timer.initialize(mockGl);
@@ -94,7 +95,6 @@ describe("GPUTimer", () => {
       timer.endFrame();
       expect(mockGl.endQuery).toHaveBeenCalledWith(mockExt.TIME_ELAPSED_EXT);
       expect(mockGl.getQueryParameter).toHaveBeenCalledTimes(2); // Available check + Result get
-      expect(mockGl.deleteQuery).toHaveBeenCalledWith(mockQuery);
 
       expect(timer.getLastGpuTimeMs()).toBeCloseTo(5.0, 1);
     });

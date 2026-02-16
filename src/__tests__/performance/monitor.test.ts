@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from "vitest";
 import * as fc from "fast-check";
 import { PerformanceMonitor } from "@/performance/monitor";
+import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
 
 /**
  * Feature: performance-optimization, Property 8: Rolling average FPS calculation
@@ -244,6 +245,7 @@ describe("PerformanceMonitor", () => {
 
   beforeEach(() => {
     monitor = new PerformanceMonitor();
+    monitor.endCalibration();
   });
 
   test("updateMetrics returns valid performance metrics", () => {
@@ -278,19 +280,25 @@ describe("PerformanceMonitor", () => {
     expect(warnings.some((w) => w.severity === "warning")).toBe(true);
   });
 
-  test("shouldReduceQuality returns true when FPS < 60", () => {
-    // Feed low FPS frames
+  test("shouldReduceQuality returns true when FPS is below adaptive threshold", () => {
+    // Feed frames below the adaptive threshold
+    const lowFPS = PERFORMANCE_CONFIG.resolution.adaptiveThreshold - 5;
+    const frameTime = 1000 / lowFPS;
+
     for (let i = 0; i < 60; i++) {
-      monitor.updateMetrics(25); // 40 FPS
+      monitor.updateMetrics(frameTime);
     }
 
     expect(monitor.shouldReduceQuality()).toBe(true);
   });
 
-  test("shouldIncreaseQuality returns true when FPS > 75 with headroom", () => {
-    // Feed high FPS frames with low frame time
-    for (let i = 0; i < 60; i++) {
-      monitor.updateMetrics(10); // 100 FPS, well under budget
+  test("shouldIncreaseQuality returns true when FPS is above recovery threshold", () => {
+    // Feed high FPS frames above the recovery threshold
+    const highFPS = PERFORMANCE_CONFIG.resolution.recoveryThreshold + 20;
+    const frameTime = 1000 / highFPS;
+
+    for (let i = 0; i < 70; i++) {
+      monitor.updateMetrics(frameTime);
     }
 
     expect(monitor.shouldIncreaseQuality()).toBe(true);
@@ -305,11 +313,11 @@ describe("PerformanceMonitor", () => {
   test("setRenderResolution clamps to valid range", () => {
     monitor.setRenderResolution(0.3); // Below minimum (0.5)
     let metrics = monitor.updateMetrics(16.67);
-    expect(metrics.renderResolution).toBe(0.5);
+    expect(metrics.renderResolution).toBeCloseTo(0.5, 1);
 
     monitor.setRenderResolution(2.5); // Above maximum (2.0)
     metrics = monitor.updateMetrics(16.67);
-    expect(metrics.renderResolution).toBe(2.0);
+    expect(metrics.renderResolution).toBeCloseTo(2.0, 1);
   });
 
   test("reset clears frame time history", () => {

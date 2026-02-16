@@ -14,8 +14,8 @@ export const PERFORMANCE_CONFIG = {
     minScale: 0.5, // Minimum allowed downscaling for potato mode
     maxScale: 2.0, // Maximum supersampling (Retina/4K)
     mobileCap: 1.0, // Hard cap for mobile devices to prevent thermal throttling
-    adaptiveThreshold: 24, // FPS threshold below which resolution drops (Cinematic floor)
-    recoveryThreshold: 40, // FPS threshold above which resolution recovers
+    adaptiveThreshold: 58, // FPS threshold below which resolution drops
+    recoveryThreshold: 72, // FPS threshold above which resolution recovers
     enableDynamicScaling: true, // Master toggle for DPI scaling
     // PID Controller Coefficients for smooth stabilization
     pid: {

@@ -306,14 +306,25 @@ describe("CPU Optimizations", () => {
             // Mock WebGL context
             const mockGl = {
               createProgram: vi.fn(),
-              getProgramParameter: vi.fn(() => 4), // 4 uniforms
+              getProgramParameter: vi.fn((_, pname) => {
+                if (pname === 0x8b89) return 4; // ACTIVE_UNIFORMS
+                if (pname === 0x8b81) return 0; // ACTIVE_ATTRIBUTES
+                return 0;
+              }),
               getActiveUniform: vi.fn((_, i) => ({
                 name: ["u_mass", "u_spin", "u_zoom", "u_time"][i],
                 type: 0,
               })),
-              getUniformLocation: vi.fn((_, name) => ({ name })), // Mock location object
+              getActiveAttrib: vi.fn(),
+              getUniformLocation: vi.fn((_, name) => ({ name })),
+              getAttribLocation: vi.fn(() => -1),
               uniform1f: vi.fn(),
               uniform1i: vi.fn(),
+              uniform2f: vi.fn(),
+              uniform3f: vi.fn(),
+              uniform4f: vi.fn(),
+              ACTIVE_UNIFORMS: 0x8b89,
+              ACTIVE_ATTRIBUTES: 0x8b81,
             } as unknown as WebGL2RenderingContext;
 
             const mockProgram = {} as WebGLProgram;

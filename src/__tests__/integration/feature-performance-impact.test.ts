@@ -110,6 +110,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
   beforeEach(() => {
     monitor = new PerformanceMonitor();
+    monitor.endCalibration();
   });
 
   describe("Individual Feature Performance Impact", () => {
@@ -668,7 +669,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
     it("should allow quality increase when performance is good", () => {
       // Simulate excellent performance (10ms = 100 FPS)
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 70; i++) {
         monitor.updateMetrics(10);
       }
 

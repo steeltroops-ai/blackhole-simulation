@@ -515,20 +515,20 @@ describe("Adaptive Systems - Integration Tests", () => {
       Date.now = originalDateNow;
     });
 
-    it("should test each preset for exactly 10 seconds", () => {
-      // Requirement 19.1: Test each preset for 10 seconds
+    it("should test each preset for exactly 5 seconds", () => {
+      // Requirement 19.1: Test each preset for 5 seconds
       const currentSettings = DEFAULT_FEATURES;
 
       benchmark.start(currentSettings);
 
-      // Simulate 10 seconds passing (10000ms)
-      // Update every 16ms (60 FPS) for 10 seconds = 625 frames
-      for (let i = 0; i < 625; i++) {
+      // Simulate 5 seconds passing (5000ms)
+      // Update every 16ms (60 FPS) for 5 seconds = 312.5 frames
+      for (let i = 0; i < 320; i++) {
         mockTime += 16;
         benchmark.update(60);
       }
 
-      // Should have moved to next preset after 10 seconds
+      // Should have moved to next preset after 5 seconds
       const currentPreset = benchmark.getCurrentPreset();
       expect(currentPreset).not.toBe("maximum-performance");
     });
@@ -542,15 +542,15 @@ describe("Adaptive Systems - Integration Tests", () => {
         report = r;
       });
 
-      // Simulate all 4 presets, each for 10 seconds
+      // Simulate all 4 presets, each for 5 seconds
       const presetFPS = [75, 65, 55, 45]; // Different FPS for each preset
 
       for (let preset = 0; preset < 4; preset++) {
         const fps = presetFPS[preset];
         const frameTime = 1000 / fps;
-        // Simulate 10 seconds - need to advance time by 10000ms total
+        // Simulate 5 seconds - need to advance time by 5000ms total
         // Add a bit extra to ensure we cross the threshold
-        const frames = Math.ceil(10100 / frameTime);
+        const frames = Math.ceil(5100 / frameTime);
         for (let i = 0; i < frames; i++) {
           mockTime += frameTime;
           benchmark.update(fps);
@@ -568,7 +568,7 @@ describe("Adaptive Systems - Integration Tests", () => {
         expect(result).toHaveProperty("maxFPS");
         expect(result).toHaveProperty("averageFrameTimeMs");
         expect(result).toHaveProperty("testDurationSeconds");
-        expect(result.testDurationSeconds).toBe(10);
+        expect(result.testDurationSeconds).toBe(5);
       });
     });
 
@@ -591,7 +591,7 @@ describe("Adaptive Systems - Integration Tests", () => {
       for (let preset = 0; preset < 4; preset++) {
         const fps = presetFPS[preset];
         const frameTime = 1000 / fps;
-        for (let i = 0; i < fps * 10; i++) {
+        for (let i = 0; i < fps * 5.1; i++) {
           mockTime += frameTime;
           benchmark.update(fps);
         }
@@ -610,15 +610,17 @@ describe("Adaptive Systems - Integration Tests", () => {
         report = r;
       });
 
-      // Simulate all presets with low FPS
-      const presetFPS = [55, 45, 35, 25];
+      // Simulate all presets with very low FPS
+      // Performance Monitor now has tiered minimums (24, 35)
+      // Feed values < 24 to reach the ultimate fallback
+      const presetFPS = [20, 15, 10, 5];
 
       for (let preset = 0; preset < 4; preset++) {
         const fps = presetFPS[preset];
         const frameTime = 1000 / fps;
-        // Simulate 10 seconds - need to advance time by 10000ms total
+        // Simulate 5 seconds - need to advance time by 5000ms total
         // Add a bit extra to ensure we cross the threshold
-        const frames = Math.ceil(10100 / frameTime);
+        const frames = Math.ceil(5100 / frameTime);
         for (let i = 0; i < frames; i++) {
           mockTime += frameTime;
           benchmark.update(fps);
@@ -811,9 +813,9 @@ describe("Adaptive Systems - Integration Tests", () => {
         const cappedSteps = getMobileRayStepCap(300, true);
         expect(cappedSteps).toBe(100);
 
-        // Simulate 10 seconds - need to advance time by 10000ms total
+        // Simulate 5 seconds - need to advance time by 5000ms total
         // Add a bit extra to ensure we cross the threshold
-        const frames = Math.ceil(10100 / frameTime);
+        const frames = Math.ceil(5100 / frameTime);
         for (let i = 0; i < frames; i++) {
           mobileTime += frameTime;
           mobileBenchmark.update(fps);
@@ -849,9 +851,9 @@ describe("Adaptive Systems - Integration Tests", () => {
         recommendedPreset = report.recommendedPreset;
       });
 
-      // Complete benchmark - 4 presets, 10 seconds each
+      // Complete benchmark - 4 presets, 5 seconds each
       for (let preset = 0; preset < 4; preset++) {
-        for (let i = 0; i < 600; i++) {
+        for (let i = 0; i < 305; i++) {
           persistTime += 16.67; // ~60 FPS
           persistBenchmark.update(60);
         }

@@ -35,7 +35,7 @@ describe("BenchmarkController Properties", () => {
    * Feature: performance-optimization, Property 29: Benchmark duration
    * Validates: Requirements 19.1
    */
-  it("Property 29: each preset tested for 10 seconds", () => {
+  it("Property 29: each preset tested for 5 seconds", () => {
     fc.assert(
       fc.property(
         fc.array(
@@ -50,13 +50,13 @@ describe("BenchmarkController Properties", () => {
             minFPS: fc.float({ min: 15, max: 100 }),
             maxFPS: fc.float({ min: 30, max: 144 }),
             averageFrameTimeMs: fc.float({ min: 5, max: 50 }),
-            testDurationSeconds: fc.constant(10),
+            testDurationSeconds: fc.constant(5),
           }),
           { minLength: 4, maxLength: 4 },
         ),
         (results) => {
           for (const result of results) {
-            expect(result.testDurationSeconds).toBe(10);
+            expect(result.testDurationSeconds).toBe(5);
           }
         },
       ),
@@ -85,7 +85,7 @@ describe("BenchmarkController Properties", () => {
               minFPS: fpsValues.maxPerf * 0.8,
               maxFPS: fpsValues.maxPerf * 1.2,
               averageFrameTimeMs: 1000 / fpsValues.maxPerf,
-              testDurationSeconds: 10,
+              testDurationSeconds: 5,
             },
             {
               presetName: "balanced",
@@ -93,7 +93,7 @@ describe("BenchmarkController Properties", () => {
               minFPS: fpsValues.balanced * 0.8,
               maxFPS: fpsValues.balanced * 1.2,
               averageFrameTimeMs: 1000 / fpsValues.balanced,
-              testDurationSeconds: 10,
+              testDurationSeconds: 5,
             },
             {
               presetName: "high-quality",
@@ -101,7 +101,7 @@ describe("BenchmarkController Properties", () => {
               minFPS: fpsValues.highQuality * 0.8,
               maxFPS: fpsValues.highQuality * 1.2,
               averageFrameTimeMs: 1000 / fpsValues.highQuality,
-              testDurationSeconds: 10,
+              testDurationSeconds: 5,
             },
             {
               presetName: "ultra-quality",
@@ -109,7 +109,7 @@ describe("BenchmarkController Properties", () => {
               minFPS: fpsValues.ultraQuality * 0.8,
               maxFPS: fpsValues.ultraQuality * 1.2,
               averageFrameTimeMs: 1000 / fpsValues.ultraQuality,
-              testDurationSeconds: 10,
+              testDurationSeconds: 5,
             },
           ];
 

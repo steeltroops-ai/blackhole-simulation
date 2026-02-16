@@ -202,7 +202,13 @@ export class PerformanceMonitor {
     }
   }
 
+  public endCalibration(): void {
+    this.isCalibrating = false;
+    this.finalizeCalibration();
+  }
+
   private finalizeCalibration(): void {
+    if (this.frameTimes.size() === 0) return;
     this.ensureCache();
     const avgFps = this.cachedAvgFPS;
 

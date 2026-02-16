@@ -249,6 +249,14 @@ export class UniformBatcher {
     if (!this.gl || !this.program) return;
     const loc = this.locations.get(name);
     if (!loc) return;
+
+    const cacheKey = `${name}_2f`;
+    const cached = this.valueCache.get(cacheKey) as
+      | [number, number]
+      | undefined;
+    if (cached && cached[0] === x && cached[1] === y) return;
+
+    this.valueCache.set(cacheKey, [x, y]);
     this.gl.uniform2f(loc, x, y);
   }
 
@@ -256,6 +264,14 @@ export class UniformBatcher {
     if (!this.gl || !this.program) return;
     const loc = this.locations.get(name);
     if (!loc) return;
+
+    const cacheKey = `${name}_3f`;
+    const cached = this.valueCache.get(cacheKey) as
+      | [number, number, number]
+      | undefined;
+    if (cached && cached[0] === x && cached[1] === y && cached[2] === z) return;
+
+    this.valueCache.set(cacheKey, [x, y, z]);
     this.gl.uniform3f(loc, x, y, z);
   }
 
@@ -264,6 +280,21 @@ export class UniformBatcher {
     if (!this.gl || !this.program) return;
     const loc = this.locations.get(name);
     if (!loc) return;
+
+    const cacheKey = `${name}_4f`;
+    const cached = this.valueCache.get(cacheKey) as
+      | [number, number, number, number]
+      | undefined;
+    if (
+      cached &&
+      cached[0] === x &&
+      cached[1] === y &&
+      cached[2] === z &&
+      cached[3] === w
+    )
+      return;
+
+    this.valueCache.set(cacheKey, [x, y, z, w]);
     this.gl.uniform4f(loc, x, y, z, w);
   }
 
