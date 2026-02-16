@@ -78,7 +78,8 @@
 }
 
 @layer base {
-  html, body {
+  html,
+  body {
     @apply bg-background text-foreground;
     font-family: Arial, Helvetica, sans-serif;
     overflow: hidden;

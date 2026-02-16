@@ -31,10 +31,10 @@ export function usePhysicsState(params: SimulationParams): PhysicsState {
     // Calculate core metric properties using the bridge
     // Note: computeHorizon and computeISCO handle the checks internally
     const eventHorizonRadius = physicsBridge.computeHorizon();
-    
+
     // Photon capture radius (approximation for UI until exposed from Rust)
     // r_ph roughly lies between 2M and 4M depending on spin
-    const photonSphereRadius = 3.0 * params.mass; 
+    const photonSphereRadius = 3.0 * params.mass;
 
     // ISCO for prograde accretion disk
     const iscoRadius = physicsBridge.computeISCO();
@@ -44,7 +44,7 @@ export function usePhysicsState(params: SimulationParams): PhysicsState {
     const absoluteZoom = params.zoom * 2.0 * params.mass;
     const r = Math.max(absoluteZoom, eventHorizonRadius * 1.01);
     const rs = 2.0 * params.mass;
-    
+
     // Schwarzschild approximation for UI display of Time Dilation
     // T_obs = T_proper / sqrt(1 - rs/r)
     const timeDilation = 1.0 / Math.sqrt(Math.max(0.001, 1.0 - rs / r));

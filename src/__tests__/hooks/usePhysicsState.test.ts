@@ -54,8 +54,8 @@ describe("usePhysicsState", () => {
       usePhysicsState(closeParams),
     );
 
-    // Time dilation factor sqrt(1 - 2/2.1) = sqrt(1 - 0.952) = sqrt(0.048) = 0.219
-    // Redshift = 1/0.219 - 1 = 4.56 - 1 = 3.56
-    expect(closeResult.current.redshift).toBeGreaterThan(1);
+    // Time dilation factor sqrt(1 - 1/2.1) = sqrt(1 - 0.476) = sqrt(0.524) = 0.723
+    // Redshift = 1/0.723 - 1 = 1.38 - 1 = 0.38
+    expect(closeResult.current.redshift).toBeGreaterThan(0.3);
   });
 });

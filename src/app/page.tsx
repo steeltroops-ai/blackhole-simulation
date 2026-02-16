@@ -116,7 +116,7 @@ const App = () => {
 
   // Phase 6: WebGPU Support Hook
   const [useWebGPU, setUseWebGPU] = useState(false);
-  
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
@@ -125,9 +125,9 @@ const App = () => {
       // Let's allow force if supported is unknown/true, but fallback if explicitly false?
       // For now: require explicit URL param + browser support
       if (requested && isWebGPUSupported !== false) {
-           setUseWebGPU(true);
+        setUseWebGPU(true);
       } else {
-           setUseWebGPU(false);
+        setUseWebGPU(false);
       }
     }
   }, [isWebGPUSupported]);

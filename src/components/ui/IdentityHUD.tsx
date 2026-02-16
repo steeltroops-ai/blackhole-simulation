@@ -34,15 +34,15 @@ export const IdentityHUD = () => {
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <div className="h-[2px] w-16 bg-white/5 rounded-full overflow-hidden">
-                <motion.div 
+                <motion.div
                   className="h-full bg-accent-cyan/40"
-                  animate={{ 
+                  animate={{
                     width: ["40%", "95%", "85%", "100%", "92%"],
                   }}
-                  transition={{ 
-                    duration: 4, 
-                    repeat: Infinity, 
-                    ease: "linear" 
+                  transition={{
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "linear",
                   }}
                 />
               </div>

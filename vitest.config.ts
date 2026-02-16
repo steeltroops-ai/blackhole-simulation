@@ -1,15 +1,19 @@
-import { defineConfig } from 'vitest/config';
-import path from 'path';
+import { defineConfig } from "vitest/config";
+import path from "path";
 
 export default defineConfig({
-    test: {
-        globals: true,
-        environment: 'jsdom',
-        include: ['src/**/*.test.ts', 'src/__tests__/**/*.test.ts'],
+  test: {
+    globals: true,
+    environment: "jsdom",
+    include: ["src/**/*.test.ts", "src/__tests__/**/*.test.ts"],
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "blackhole-physics": path.resolve(
+        __dirname,
+        "./public/wasm/blackhole_physics.js",
+      ),
     },
-    resolve: {
-        alias: {
-            '@': path.resolve(__dirname, './src'),
-        },
-    },
+  },
 });

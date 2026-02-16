@@ -17,10 +17,7 @@ export default function GlobalError({
   return (
     <html lang="en">
       <body className="bg-black overflow-hidden m-0 p-0">
-        <ErrorDisplay 
-          error={error} 
-          reset={reset} 
-        />
+        <ErrorDisplay error={error} reset={reset} />
       </body>
     </html>
   );

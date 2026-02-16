@@ -136,56 +136,56 @@ export function useAnimation(
     // Poll for physics engine readiness
     // In a real app, use a proper loading state context
     const initTextures = () => {
-        if (!glRef.current) return;
-        const gl = glRef.current;
-        
-        // Import dynamically to avoid circular dependencies if needed, 
-        // but here we use the global instance.
-        const { physicsBridge } = require("@/engine/physics-bridge");
+      if (!glRef.current) return;
+      const gl = glRef.current;
 
-        if (physicsBridge && !diskLUTTextureRef.current) {
-             const diskData = physicsBridge.getDiskLUT();
-             if (diskData) {
-                 // Disk LUT is 1D array of temperatures. 512x1
-                 // We use R32F format
-                 const { createTextureFromData } = require("@/utils/webgl-utils");
-                 diskLUTTextureRef.current = createTextureFromData(gl, {
-                     width: 512,
-                     height: 1,
-                     data: diskData,
-                     minFilter: gl.LINEAR,
-                     magFilter: gl.LINEAR,
-                     wrap: gl.CLAMP_TO_EDGE,
-                     internalFormat: gl.R32F,
-                     format: gl.RED,
-                     type: gl.FLOAT
-                 });
-             }
-        }
+      // Import dynamically to avoid circular dependencies if needed,
+      // but here we use the global instance.
+      const { physicsBridge } = require("@/engine/physics-bridge");
 
-        if (physicsBridge && !spectrumLUTTextureRef.current) {
-            const spectrumData = physicsBridge.getSpectrumLUT(512, 100000.0);
-             if (spectrumData) {
-                 // Spectrum LUT is RGBA (r,g,b,a)
-                 const { createTextureFromData } = require("@/utils/webgl-utils");
-                 spectrumLUTTextureRef.current = createTextureFromData(gl, {
-                     width: 512,
-                     height: 1,
-                     data: spectrumData,
-                     minFilter: gl.LINEAR,
-                     magFilter: gl.LINEAR,
-                     wrap: gl.CLAMP_TO_EDGE,
-                     internalFormat: gl.RGBA32F,
-                     format: gl.RGBA,
-                     type: gl.FLOAT
-                 });
-             }
+      if (physicsBridge && !diskLUTTextureRef.current) {
+        const diskData = physicsBridge.getDiskLUT();
+        if (diskData) {
+          // Disk LUT is 1D array of temperatures. 512x1
+          // We use R32F format
+          const { createTextureFromData } = require("@/utils/webgl-utils");
+          diskLUTTextureRef.current = createTextureFromData(gl, {
+            width: 512,
+            height: 1,
+            data: diskData,
+            minFilter: gl.LINEAR,
+            magFilter: gl.LINEAR,
+            wrap: gl.CLAMP_TO_EDGE,
+            internalFormat: gl.R32F,
+            format: gl.RED,
+            type: gl.FLOAT,
+          });
         }
+      }
+
+      if (physicsBridge && !spectrumLUTTextureRef.current) {
+        const spectrumData = physicsBridge.getSpectrumLUT(512, 100000.0);
+        if (spectrumData) {
+          // Spectrum LUT is RGBA (r,g,b,a)
+          const { createTextureFromData } = require("@/utils/webgl-utils");
+          spectrumLUTTextureRef.current = createTextureFromData(gl, {
+            width: 512,
+            height: 1,
+            data: spectrumData,
+            minFilter: gl.LINEAR,
+            magFilter: gl.LINEAR,
+            wrap: gl.CLAMP_TO_EDGE,
+            internalFormat: gl.RGBA32F,
+            format: gl.RGBA,
+            type: gl.FLOAT,
+          });
+        }
+      }
     };
 
     // Try immediately and then on a short delay to catch WASM load
     initTextures();
-    const timer = setTimeout(initTextures, 1000); 
+    const timer = setTimeout(initTextures, 1000);
     return () => clearTimeout(timer);
   }, [glRef]);
 
@@ -230,36 +230,36 @@ export function useAnimation(
         performanceMonitor.current.updateMetrics(deltaTimeMs);
 
       // --- Zero-Copy Physics Integration ---
-      // Import bridge locally to avoid circular deps during init if needed, 
+      // Import bridge locally to avoid circular deps during init if needed,
       // or use the global instance if consistent.
       const { physicsBridge } = require("@/engine/physics-bridge");
-      
+
       if (physicsBridge && physicsBridge.isReady()) {
-          // 1. Write Inputs to Shared Memory (SAB)
-          // Layout: [0: lock, 1: mouse_dx, 2: mouse_dy, 3: zoom_delta, 4: dt_js]
-          
-          const dx = (currentMouse.x - lastMousePos.current.x) * 5.0; // Scale sensitivity
-          const dy = (currentMouse.y - lastMousePos.current.y) * 5.0;
-          const processingZoom = 0.0; // Zoom delta if available from event
-          
-          // Index 1: mouse_dx
-          physicsBridge.controlView[1] = dx;
-          // Index 2: mouse_dy
-          physicsBridge.controlView[2] = dy;
-          // Index 3: zoom_delta
-          physicsBridge.controlView[3] = processingZoom;
-          // Index 4: dt
-          // CLAMP DT to preventing spiral of death (max 50ms physics step)
-          const clampedDt = Math.min(deltaTimeMs / 1000.0, 0.05); 
-          physicsBridge.controlView[4] = clampedDt;
+        // 1. Write Inputs to Shared Memory (SAB)
+        // Layout: [0: lock, 1: mouse_dx, 2: mouse_dy, 3: zoom_delta, 4: dt_js]
 
-          // 2. Tick Physics Engine
-          // This processes the inputs and updates the Camera/Physics blocks in SAB
-          physicsBridge.tick(clampedDt);
+        const dx = (currentMouse.x - lastMousePos.current.x) * 5.0; // Scale sensitivity
+        const dy = (currentMouse.y - lastMousePos.current.y) * 5.0;
+        const processingZoom = 0.0; // Zoom delta if available from event
 
-          // 3. Read Outputs (Optional Debug/Telemetry)
-          // const horizon = physicsBridge.physicsView[0];
-          // const isco = physicsBridge.physicsView[1];
+        // Index 1: mouse_dx
+        physicsBridge.controlView[1] = dx;
+        // Index 2: mouse_dy
+        physicsBridge.controlView[2] = dy;
+        // Index 3: zoom_delta
+        physicsBridge.controlView[3] = processingZoom;
+        // Index 4: dt
+        // CLAMP DT to preventing spiral of death (max 50ms physics step)
+        const clampedDt = Math.min(deltaTimeMs / 1000.0, 0.05);
+        physicsBridge.controlView[4] = clampedDt;
+
+        // 2. Tick Physics Engine
+        // This processes the inputs and updates the Camera/Physics blocks in SAB
+        physicsBridge.tick(clampedDt);
+
+        // 3. Read Outputs (Optional Debug/Telemetry)
+        // const horizon = physicsBridge.physicsView[0];
+        // const isco = physicsBridge.physicsView[1];
       }
       // -------------------------------------
 
@@ -345,31 +345,31 @@ export function useAnimation(
         // Throttle Resolution Changes (0.5Hz / 2000ms) to prevent context thrashing
         // Only if dynamic scaling is enabled
         if (
-             setResolutionScale && 
-             PERFORMANCE_CONFIG.resolution.enableDynamicScaling && 
-             (currentTime - (lastMetricsUpdate.current || 0) > 2000) 
+          setResolutionScale &&
+          PERFORMANCE_CONFIG.resolution.enableDynamicScaling &&
+          currentTime - (lastMetricsUpdate.current || 0) > 2000
         ) {
-              // Wait, lastMetricsUpdate is reset above. Need separate timer.
+          // Wait, lastMetricsUpdate is reset above. Need separate timer.
         }
 
         // Let's use a separate timer for resolution
         if (!gpuTimer.current.lastResolutionChange) {
-            gpuTimer.current.lastResolutionChange = currentTime;
+          gpuTimer.current.lastResolutionChange = currentTime;
         }
 
         if (
-            setResolutionScale &&
-            PERFORMANCE_CONFIG.resolution.enableDynamicScaling &&
-            (currentTime - gpuTimer.current.lastResolutionChange > 2000)
+          setResolutionScale &&
+          PERFORMANCE_CONFIG.resolution.enableDynamicScaling &&
+          currentTime - gpuTimer.current.lastResolutionChange > 2000
         ) {
-             const currentScale = params.renderScale || 1.0;
-             const targetScale = metricsRef.current.renderResolution;
-             
-             // Only update if difference is significant (> 10%) to justify a freeze/resize
-             if (Math.abs(targetScale - currentScale) > 0.1) {
-                 setResolutionScale(targetScale);
-                 gpuTimer.current.lastResolutionChange = currentTime;
-             }
+          const currentScale = params.renderScale || 1.0;
+          const targetScale = metricsRef.current.renderResolution;
+
+          // Only update if difference is significant (> 10%) to justify a freeze/resize
+          if (Math.abs(targetScale - currentScale) > 0.1) {
+            setResolutionScale(targetScale);
+            gpuTimer.current.lastResolutionChange = currentTime;
+          }
         }
 
         const bloomManager = bloomManagerRef.current;
@@ -462,11 +462,9 @@ export function useAnimation(
 
         // Disk Size is in Rs multiplier. Shader uses diskOuter = M * u_disk_size.
         // We want diskOuter = M * (diskSize_Rs * 2).
-        const diskSizeM = (currentParams.diskSize ?? SIMULATION_CONFIG.diskSize.default) * 2.0;
-        uniformBatcher.current.set1f(
-          "u_disk_size",
-          diskSizeM,
-        );
+        const diskSizeM =
+          (currentParams.diskSize ?? SIMULATION_CONFIG.diskSize.default) * 2.0;
+        uniformBatcher.current.set1f("u_disk_size", diskSizeM);
         uniformBatcher.current.set1f("u_maxRaySteps", maxRaySteps);
         uniformBatcher.current.set1f(
           "u_show_redshift",

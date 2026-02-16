@@ -298,7 +298,7 @@ export const ControlPanel = ({
               isActive
                 ? "left-3 bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
                 : "left-0.5 bg-white/30"
-              }`}
+            }`}
           />
         </div>
       </button>
@@ -431,8 +431,6 @@ export const ControlPanel = ({
                     </div>
                   </div>
 
-
-
                   {/* Scrollable Instrumentation Manifold (Responsive Chassis) */}
                   <div className="max-h-[55vh] sm:max-h-[60vh] overflow-y-auto overflow-x-hidden pr-1.5 custom-scrollbar pb-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-min items-start mb-6">
@@ -551,9 +549,7 @@ export const ControlPanel = ({
                                 })
                               }
                               unit={SIMULATION_CONFIG.renderScale.unit}
-                              decimals={
-                                SIMULATION_CONFIG.renderScale.decimals
-                              }
+                              decimals={SIMULATION_CONFIG.renderScale.decimals}
                             />
                           </div>
 
@@ -805,31 +801,31 @@ export const ControlPanel = ({
                         Close
                       </span>
                     </button>
-                    
+
                     {/* Tab Navigation (Bottom - Mobile Optimized) */}
-                   </div>
-                   
-                    {/* Tab Navigation (Bottom - Mobile Optimized) */}
-                    <div className="flex justify-center bg-black/40 p-1 rounded-xl backdrop-blur-md border border-white/5 max-w-lg mx-auto mt-2">
-                        <button
-                          onClick={() => setActiveTab("simulation")}
-                          className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "simulation" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
-                        >
-                          Physics
-                        </button>
-                         <button
-                          onClick={() => setActiveTab("features")}
-                          className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "features" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
-                        >
-                          Modules
-                        </button>
-                         <button
-                          onClick={() => setActiveTab("performance")}
-                          className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "performance" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
-                        >
-                          System
-                        </button>
-                      </div>
+                  </div>
+
+                  {/* Tab Navigation (Bottom - Mobile Optimized) */}
+                  <div className="flex justify-center bg-black/40 p-1 rounded-xl backdrop-blur-md border border-white/5 max-w-lg mx-auto mt-2">
+                    <button
+                      onClick={() => setActiveTab("simulation")}
+                      className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "simulation" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                    >
+                      Physics
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("features")}
+                      className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "features" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                    >
+                      Modules
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("performance")}
+                      className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "performance" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                    >
+                      System
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

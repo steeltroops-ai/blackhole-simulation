@@ -55,8 +55,10 @@ export const WebGPUCanvas = ({
 
   useEffect(() => {
     if (rendererRef.current && params.features?.rayTracingQuality) {
-        const steps = SIMULATION_CONFIG.rayTracingSteps[params.features.rayTracingQuality] || 150;
-        rendererRef.current.updateSettings(steps);
+      const steps =
+        SIMULATION_CONFIG.rayTracingSteps[params.features.rayTracingQuality] ||
+        150;
+      rendererRef.current.updateSettings(steps);
     }
   }, [params.features?.rayTracingQuality]);
 
@@ -79,9 +81,11 @@ export const WebGPUCanvas = ({
     // Use client dimensions
     const displayWidth = canvas.clientWidth;
     const displayHeight = canvas.clientHeight;
-    
+
     // Check if the canvas is not the same size.
-    const needResize = canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr;
+    const needResize =
+      canvas.width !== displayWidth * dpr ||
+      canvas.height !== displayHeight * dpr;
 
     if (needResize) {
       canvas.width = displayWidth * dpr;
@@ -97,10 +101,13 @@ export const WebGPUCanvas = ({
     // Map mouse [0,1] to angles. 0.5 is center.
     // Assume mouse.x/y are normalized [0,1]
     const theta = (mouse.x - 0.5) * Math.PI * 4.0; // Horizontal rotation
-    const phi = (mouse.y - 0.5) * Math.PI * 2.0;   // Vertical rotation
-    
+    const phi = (mouse.y - 0.5) * Math.PI * 2.0; // Vertical rotation
+
     // Clamp vertical to avoid gimbal lock or flipping (keep simple)
-    const clampedPhi = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, phi));
+    const clampedPhi = Math.max(
+      -Math.PI / 2 + 0.1,
+      Math.min(Math.PI / 2 - 0.1, phi),
+    );
 
     // Position (Spherical to Cartesian)
     // x = r sin(theta) cos(phi)
@@ -110,9 +117,9 @@ export const WebGPUCanvas = ({
     const eye = vec3.fromValues(
       zoom * Math.sin(theta) * Math.cos(clampedPhi),
       zoom * Math.sin(clampedPhi),
-      zoom * Math.cos(theta) * Math.cos(clampedPhi)
+      zoom * Math.cos(theta) * Math.cos(clampedPhi),
     );
-    
+
     const target = vec3.fromValues(0, 0, 0);
     const up = vec3.fromValues(0, 1, 0);
 
@@ -120,7 +127,7 @@ export const WebGPUCanvas = ({
     mat4.lookAt(view, eye, target, up);
 
     const proj = mat4.create();
-    const fov = 60 * Math.PI / 180;
+    const fov = (60 * Math.PI) / 180;
     mat4.perspective(proj, fov, width / height, 0.1, 1000.0);
 
     const invView = mat4.create();
@@ -145,7 +152,7 @@ export const WebGPUCanvas = ({
 
     // Physics Param filtering
     const physSpin = Math.max(-1.0, Math.min(1.0, params.spin / 5.0));
-    
+
     const physParams: PhysicsParams = {
       mass: params.mass,
       spin: physSpin,

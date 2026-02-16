@@ -52,7 +52,6 @@ export class GPUTimer {
       // Not available
     }
 
-
     return this._available;
   }
 

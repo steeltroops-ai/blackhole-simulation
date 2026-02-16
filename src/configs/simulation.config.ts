@@ -1,7 +1,7 @@
 /**
  * Global Simulation Governance Schema
  * Centralized source of truth for all physics and visual parameters.
- * 
+ *
  * NOTE: All ranges are set to physically plausible values for a Kerr Black Hole.
  * Mass is in Solar Masses (M☉).
  * Spin is the dimensionless spin parameter a* = J / M^2, strictly bounded [-1, 1].
@@ -76,14 +76,14 @@ export const SIMULATION_CONFIG = {
   // Singularity Dynamics
   mass: {
     default: 1.0,
-    min: 0.1,    // 0.1 Solar Masses (Micro-BH)
-    max: 10.0,   // 10 Solar Masses (Stellar BH)
+    min: 0.1, // 0.1 Solar Masses (Micro-BH)
+    max: 10.0, // 10 Solar Masses (Stellar BH)
     step: 0.1,
     unit: "M\u2609",
     decimals: 1,
     label: "Black Hole Mass",
   },
-  
+
   // Angular Momentum (Spin)
   // Strictly bounded to [-1, 1] for Kerr metric stability.
   // Values outside this range represent a naked singularity.
@@ -96,12 +96,12 @@ export const SIMULATION_CONFIG = {
     decimals: 2,
     label: "Spin Parameter",
   },
-  
+
   // NOTE: ui_spin removed as we now use direct physics values
-  
+
   zoom: {
     default: 20.0,
-    min: 2.5,   // Close orbit
+    min: 2.5, // Close orbit
     max: 100.0, // Far observer
     step: 0.5,
     unit: "Rs", // Schwarzschild Radii
@@ -121,8 +121,8 @@ export const SIMULATION_CONFIG = {
   },
   diskSize: {
     default: 12.0,
-    min: 3.0,   // Just outside ISCO
-    max: 50.0,  // Extended disk
+    min: 3.0, // Just outside ISCO
+    max: 50.0, // Extended disk
     step: 0.5,
     unit: "Rs",
     decimals: 1,
@@ -132,7 +132,7 @@ export const SIMULATION_CONFIG = {
   // Thermodynamics
   diskTemp: {
     default: 5000.0,
-    min: 1000.0,   // Cool edge
+    min: 1000.0, // Cool edge
     max: 100000.0, // X-ray hot
     step: 500,
     unit: "K",
@@ -148,12 +148,12 @@ export const SIMULATION_CONFIG = {
     decimals: 1,
     label: "Opt. Density",
   },
-  
+
   // Relativistic Effects
   lensing: {
-    default: 0.7,  // Standard GR
+    default: 0.7, // Standard GR
     min: 0.0,
-    max: 2.0,      // Exaggerated for education
+    max: 2.0, // Exaggerated for education
     step: 0.1,
     unit: "\u03B7", // Eta
     decimals: 1,

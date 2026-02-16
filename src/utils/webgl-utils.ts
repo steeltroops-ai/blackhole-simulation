@@ -208,37 +208,37 @@ export function createTextureFromData(
     format = gl.RGBA,
     type = gl.UNSIGNED_BYTE,
   } = options;
-  
+
   const texture = gl.createTexture();
   if (!texture) return null;
 
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  
+
   // Handle different data types
   if (data instanceof Float32Array) {
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        internalFormat, // e.g. gl.R32F or gl.RGBA32F
-        width,
-        height,
-        0,
-        format, // e.g. gl.RED or gl.RGBA
-        gl.FLOAT,
-        data
-      );
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      internalFormat, // e.g. gl.R32F or gl.RGBA32F
+      width,
+      height,
+      0,
+      format, // e.g. gl.RED or gl.RGBA
+      gl.FLOAT,
+      data,
+    );
   } else {
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        internalFormat,
-        width,
-        height,
-        0,
-        format,
-        type,
-        data as Uint8Array // Cast needed or logic adjustment
-      );
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      internalFormat,
+      width,
+      height,
+      0,
+      format,
+      type,
+      data as Uint8Array, // Cast needed or logic adjustment
+    );
   }
 
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);

@@ -47,46 +47,46 @@ export class PhysicsBridge {
       this.u32 = new Uint32Array(buffer);
 
       // Create Zero-Copy Subarray Views into the Rust-owned buffer
-      
+
       // Control Block (f32) - Rust reads these as f32
       this.controlView = this.f32.subarray(
         startIdx + OFFSETS.CONTROL,
-        startIdx + OFFSETS.CAMERA
+        startIdx + OFFSETS.CAMERA,
       );
 
       // Camera Block (f32)
       this.cameraView = this.f32.subarray(
         startIdx + OFFSETS.CAMERA,
-        startIdx + OFFSETS.PHYSICS
+        startIdx + OFFSETS.PHYSICS,
       );
 
       // Physics Block (f32)
       this.physicsView = this.f32.subarray(
         startIdx + OFFSETS.PHYSICS,
-        startIdx + OFFSETS.TELEMETRY
+        startIdx + OFFSETS.TELEMETRY,
       );
 
       // Telemetry Block (f32)
       this.telemetryView = this.f32.subarray(
         startIdx + OFFSETS.TELEMETRY,
-        startIdx + OFFSETS.LUTS
+        startIdx + OFFSETS.LUTS,
       );
-      
+
       console.log("Physics Bridge Initialized via Zero-Copy SAB Protocol");
     }
   }
 
   // Helper validation (removed createViews as it is now integrated into init)
   public isReady(): boolean {
-      return !!this.engine && !!this.f32;
+    return !!this.engine && !!this.f32;
   }
-  
+
   public tick(dt: number) {
-      if (this.engine) {
-          // In real zero-copy, we might just write to SAB and let Rust read it.
-          // But tick_sab triggers the update logic in Rust.
-          this.engine.tick_sab(dt);
-      }
+    if (this.engine) {
+      // In real zero-copy, we might just write to SAB and let Rust read it.
+      // But tick_sab triggers the update logic in Rust.
+      this.engine.tick_sab(dt);
+    }
   }
 
   public updateParameters(mass: number, spin: number) {

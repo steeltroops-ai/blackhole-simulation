@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "postinstall": "lefthook install",
     "clean": "rimraf .next node_modules physics-engine/target physics-engine/pkg public/wasm"
   },

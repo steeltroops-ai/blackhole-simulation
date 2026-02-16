@@ -24,19 +24,17 @@ export const SimulationInfo = ({
           )}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
-            animate={{ 
-              opacity: 1, 
+            animate={{
+              opacity: 1,
               x: 0,
               width: isExpanded ? "min(576px, calc(100vw - 3rem))" : "280px",
-              borderRadius: isExpanded ? "1.5rem" : "1.25rem"
+              borderRadius: isExpanded ? "1.5rem" : "1.25rem",
             }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className="fixed md:absolute bottom-6 left-6 z-50 pointer-events-auto overflow-hidden shadow-2xl liquid-glass border border-white/10"
           >
-            <div
-              className={`relative overflow-hidden group`}
-            >
+            <div className={`relative overflow-hidden group`}>
               {/* Glossy Overlay Highlight */}
               <div className="absolute inset-0 liquid-glass-highlight pointer-events-none" />
 
@@ -60,13 +58,13 @@ export const SimulationInfo = ({
               {/* Expandable Content */}
               <motion.div
                 initial={false}
-                animate={{ 
+                animate={{
                   height: isExpanded ? "auto" : 0,
-                  opacity: isExpanded ? 1 : 0
+                  opacity: isExpanded ? 1 : 0,
                 }}
-                transition={{ 
+                transition={{
                   height: { type: "spring", stiffness: 200, damping: 25 },
-                  opacity: { duration: 0.2 }
+                  opacity: { duration: 0.2 },
                 }}
                 className="overflow-hidden relative z-10"
               >
@@ -79,11 +77,18 @@ export const SimulationInfo = ({
                     </h3>
                     <div className="space-y-3 px-4">
                       <p className="text-[12px] leading-relaxed text-white/90 font-light">
-                        The engine solves for the geometry of a rotating uncharged
-                        mass using <strong className="text-white">Boyer-Lindquist coordinates</strong>. Spacetime
-                        curvature is defined by the metric tensor <i>g<sub>μν</sub></i>, where
-                        the rotation of the singularity induces the{" "}
-                        <strong className="text-white">Lense-Thirring</strong> effect (Frame-Dragging).
+                        The engine solves for the geometry of a rotating
+                        uncharged mass using{" "}
+                        <strong className="text-white">
+                          Boyer-Lindquist coordinates
+                        </strong>
+                        . Spacetime curvature is defined by the metric tensor{" "}
+                        <i>
+                          g<sub>μν</sub>
+                        </i>
+                        , where the rotation of the singularity induces the{" "}
+                        <strong className="text-white">Lense-Thirring</strong>{" "}
+                        effect (Frame-Dragging).
                       </p>
                       <div className="p-3 bg-white/[0.05] rounded-lg border border-white/10 font-mono text-[9px] text-white/90 text-center">
                         Δ = r² - 2Mr + a² | Σ = r² + a²cos²θ
@@ -106,9 +111,13 @@ export const SimulationInfo = ({
                           Gravitational Lensing
                         </h4>
                         <p className="text-[11px] leading-relaxed text-white/90 font-light">
-                          Light geodesics are deflected by the potential well, creating 
-                          <strong className="text-white"> Einstein Rings</strong> and 
-                          multiple-image copies of the background starfield.
+                          Light geodesics are deflected by the potential well,
+                          creating
+                          <strong className="text-white">
+                            {" "}
+                            Einstein Rings
+                          </strong>{" "}
+                          and multiple-image copies of the background starfield.
                         </p>
                       </div>
                       <div className="space-y-3">
@@ -116,8 +125,9 @@ export const SimulationInfo = ({
                           Photon Sphere
                         </h4>
                         <p className="text-[11px] leading-relaxed text-white/90 font-light">
-                          Critical orbits at 1.5M to 3M. Prograde photons can orbit closer to the horizon 
-                          than retrograde ones due to rotational dragging.
+                          Critical orbits at 1.5M to 3M. Prograde photons can
+                          orbit closer to the horizon than retrograde ones due
+                          to rotational dragging.
                         </p>
                       </div>
                     </div>
@@ -131,16 +141,20 @@ export const SimulationInfo = ({
                     </h3>
                     <div className="space-y-3 px-4">
                       <p className="text-[12px] leading-relaxed text-white/90 font-light">
-                        The plasma disk follows the <strong className="text-white">Novikov-Thorne</strong> model. 
-                        Spectral radiance is governed by the Redshift Factor <i>g</i>, which 
-                        blue-shifts prograde matter and red-shifts retrograde matter.
+                        The plasma disk follows the{" "}
+                        <strong className="text-white">Novikov-Thorne</strong>{" "}
+                        model. Spectral radiance is governed by the Redshift
+                        Factor <i>g</i>, which blue-shifts prograde matter and
+                        red-shifts retrograde matter.
                       </p>
                       <div className="p-4 bg-white/[0.05] rounded-2xl border border-white/10 font-mono text-[10px] text-white/90 text-center">
-                        I<sub>obs</sub> = I<sub>emit</sub> · g⁴ (Relativistic Beaming)
+                        I<sub>obs</sub> = I<sub>emit</sub> · g⁴ (Relativistic
+                        Beaming)
                       </div>
                       <p className="text-[11px] leading-relaxed text-white/70 font-light italic">
-                        Thermal emission is integrated through the volume using the Radiative Transfer Equation, 
-                        accounting for optical depth and self-absorption.
+                        Thermal emission is integrated through the volume using
+                        the Radiative Transfer Equation, accounting for optical
+                        depth and self-absorption.
                       </p>
                     </div>
                   </section>
@@ -158,7 +172,10 @@ export const SimulationInfo = ({
                         { l: "Redshift", v: "Gravitational + Doppler Shift" },
                         { l: "Optimization", v: "Octree Bounding Geodesics" },
                         { l: "Spectral", v: "Gaussian Basis SPD Transport" },
-                        { l: "Numerical", v: "Hamiltonian Energy Conservation" },
+                        {
+                          l: "Numerical",
+                          v: "Hamiltonian Energy Conservation",
+                        },
                       ].map((i, k) => (
                         <div key={k} className="space-y-1">
                           <span className="block text-[8px] text-white/50 uppercase font-black tracking-widest">
@@ -180,12 +197,18 @@ export const SimulationInfo = ({
                     </h3>
                     <div className="space-y-3 px-4">
                       <p className="text-[12px] leading-relaxed text-white/90 font-light">
-                        Light acts as a vector wave. We solve the transport of the 
-                        <strong className="text-white"> Stokes Parameters</strong> (I, Q, U, V) 
-                        to visualize the polarization vector rotation within the twisted spacetime.
+                        Light acts as a vector wave. We solve the transport of
+                        the
+                        <strong className="text-white">
+                          {" "}
+                          Stokes Parameters
+                        </strong>{" "}
+                        (I, Q, U, V) to visualize the polarization vector
+                        rotation within the twisted spacetime.
                       </p>
                       <div className="p-3 bg-white/[0.05] rounded-lg border border-white/10 font-mono text-[9px] text-white/90 text-center">
-                        χ' = χ + Δφ<sub>Faraday</sub> (Gravitational Rotation)
+                        χ&apos; = χ + Δφ<sub>Faraday</sub> (Gravitational
+                        Rotation)
                       </div>
                     </div>
                   </section>
@@ -203,15 +226,21 @@ export const SimulationInfo = ({
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
                         <span className="text-white/60">ISCO Radius (a=0)</span>
-                        <span className="text-[10px] text-white font-bold">r = 6M</span>
+                        <span className="text-[10px] text-white font-bold">
+                          r = 6M
+                        </span>
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
                         <span className="text-white/60">ISCO Radius (a=1)</span>
                         <span className="text-white font-bold">r = 1M</span>
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
-                        <span className="text-white/60">Keplerian Ω<sub>K</sub></span>
-                        <span className="text-white font-bold">√M / (r<sup>3/2</sup> + a√M)</span>
+                        <span className="text-white/60">
+                          Keplerian Ω<sub>K</sub>
+                        </span>
+                        <span className="text-white font-bold">
+                          √M / (r<sup>3/2</sup> + a√M)
+                        </span>
                       </li>
                     </ul>
                   </section>

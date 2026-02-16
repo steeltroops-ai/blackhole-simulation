@@ -132,9 +132,7 @@ export default function RootLayout({
         className={`${inter.variable} antialiased bg-black text-white`}
         suppressHydrationWarning
       >
-        <ErrorBoundary>
-          {children}
-        </ErrorBoundary>
+        <ErrorBoundary>{children}</ErrorBoundary>
       </body>
     </html>
   );

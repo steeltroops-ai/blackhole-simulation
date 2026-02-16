@@ -34,7 +34,7 @@ fi
 echo "Building WASM physics engine..."
 cd physics-engine
 # Use single job to prevent OOM in Vercel's build environment
-CARGO_BUILD_JOBS=1 wasm-pack build --target web --out-dir ../public/wasm --no-typescript
+CARGO_BUILD_JOBS=1 wasm-pack build --target web --out-dir ../public/wasm
 cd ..
 
 # 6. Run the Next.js build

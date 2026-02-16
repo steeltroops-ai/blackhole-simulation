@@ -36,10 +36,10 @@ describe("Feature Toggles - Property-Based Tests", () => {
           (quality) => {
             const expectedSteps: Record<RayTracingQuality, number> = {
               off: 0,
-              low: 50,
-              medium: 100,
-              high: 250,
-              ultra: 500,
+              low: 32,
+              medium: 64,
+              high: 128,
+              ultra: 256,
             };
 
             const actualSteps = getMaxRaySteps(quality);

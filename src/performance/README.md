@@ -5,6 +5,7 @@ This module provides tools for measuring and validating the performance of the b
 ## Overview
 
 The performance validation system measures:
+
 - **Baseline performance** with all features disabled
 - **Individual feature costs** to understand performance impact
 - **Performance targets** (75 FPS baseline, 60 FPS mobile, 120 FPS desktop)
@@ -26,25 +27,25 @@ The performance validation system measures:
 ### Running Validation
 
 ```typescript
-import { PerformanceValidator } from '@/performance/validation';
+import { PerformanceValidator } from "@/performance/validation";
 
 const validator = new PerformanceValidator();
 
 // Generate complete validation report
-const report = await validator.generateValidationReport(
-    (stage, progress) => {
-        console.log(`${stage}: ${Math.round(progress * 100)}%`);
-    }
-);
+const report = await validator.generateValidationReport((stage, progress) => {
+  console.log(`${stage}: ${Math.round(progress * 100)}%`);
+});
 
 // Check if targets are met
-console.log('Baseline 75 FPS:', report.meetsTargets.baseline75FPS);
-console.log('Mobile 60 FPS:', report.meetsTargets.mobile60FPS);
-console.log('Desktop 120 FPS:', report.meetsTargets.desktop120FPS);
+console.log("Baseline 75 FPS:", report.meetsTargets.baseline75FPS);
+console.log("Mobile 60 FPS:", report.meetsTargets.mobile60FPS);
+console.log("Desktop 120 FPS:", report.meetsTargets.desktop120FPS);
 
 // View feature costs
 for (const cost of report.featureCosts) {
-    console.log(`${cost.featureName}: ${cost.percentageImpact.toFixed(1)}% impact`);
+  console.log(
+    `${cost.featureName}: ${cost.percentageImpact.toFixed(1)}% impact`,
+  );
 }
 
 // Export report
@@ -56,7 +57,7 @@ console.log(json);
 
 ```typescript
 const baseline = await validator.measureBaseline((progress) => {
-    console.log(`Progress: ${Math.round(progress * 100)}%`);
+  console.log(`Progress: ${Math.round(progress * 100)}%`);
 });
 
 console.log(`Baseline FPS: ${baseline.averageFPS.toFixed(1)}`);
@@ -68,17 +69,17 @@ console.log(`Frame Time: ${baseline.averageFrameTimeMs.toFixed(2)}ms`);
 ```typescript
 const baseline = await validator.measureBaseline();
 const costs = await validator.measureFeatureCosts(
-    baseline,
-    (feature, progress) => {
-        console.log(`Testing ${feature}: ${Math.round(progress * 100)}%`);
-    }
+  baseline,
+  (feature, progress) => {
+    console.log(`Testing ${feature}: ${Math.round(progress * 100)}%`);
+  },
 );
 
 for (const cost of costs) {
-    console.log(`${cost.featureName}:`);
-    console.log(`  FPS Impact: ${cost.fpsImpact.toFixed(1)}`);
-    console.log(`  Frame Time Impact: +${cost.frameTimeImpactMs.toFixed(2)}ms`);
-    console.log(`  Percentage Impact: ${cost.percentageImpact.toFixed(1)}%`);
+  console.log(`${cost.featureName}:`);
+  console.log(`  FPS Impact: ${cost.fpsImpact.toFixed(1)}`);
+  console.log(`  Frame Time Impact: +${cost.frameTimeImpactMs.toFixed(2)}ms`);
+  console.log(`  Percentage Impact: ${cost.percentageImpact.toFixed(1)}%`);
 }
 ```
 
@@ -94,6 +95,7 @@ import { PerformanceValidation } from '@/components/ui/PerformanceValidation';
 ```
 
 Features:
+
 - One-click validation testing
 - Real-time progress display
 - Visual results with color-coded metrics
@@ -120,37 +122,40 @@ Features:
 ## Performance Metrics
 
 ### FPS Statistics
+
 - **Average FPS**: Mean frames per second over measurement period
 - **Min FPS**: Lowest FPS recorded
 - **Max FPS**: Highest FPS recorded
 
 ### Frame Time Statistics
+
 - **Average Frame Time**: Mean time per frame in milliseconds
 - **P95 Frame Time**: 95th percentile (5% of frames are slower)
 - **P99 Frame Time**: 99th percentile (1% of frames are slower)
 
 ### Feature Costs
+
 - **FPS Impact**: Change in FPS when feature is enabled
 - **Frame Time Impact**: Additional milliseconds per frame
 - **Percentage Impact**: Percentage change in performance
 
 ## Performance Targets
 
-| Target | Requirement | Description |
-|--------|-------------|-------------|
-| 75 FPS | 1.1 | Baseline with all features disabled on integrated GPU |
-| 60 FPS | 1.3 | Mobile devices with default settings |
-| 120 FPS | 1.4 | Desktop with dedicated GPU and all features enabled |
+| Target  | Requirement | Description                                           |
+| ------- | ----------- | ----------------------------------------------------- |
+| 75 FPS  | 1.1         | Baseline with all features disabled on integrated GPU |
+| 60 FPS  | 1.3         | Mobile devices with default settings                  |
+| 120 FPS | 1.4         | Desktop with dedicated GPU and all features enabled   |
 
 ## Expected Feature Costs
 
-| Feature | Expected Impact | Requirement |
-|---------|----------------|-------------|
-| Gravitational Lensing | 30% reduction | 2.5 |
-| Accretion Disk | 40% reduction | 4.5 |
-| Doppler Beaming | 15% reduction | 5.5 |
-| Background Stars | 10% reduction | 6.4 |
-| Bloom | 20% reduction | 8.4 |
+| Feature               | Expected Impact | Requirement |
+| --------------------- | --------------- | ----------- |
+| Gravitational Lensing | 30% reduction   | 2.5         |
+| Accretion Disk        | 40% reduction   | 4.5         |
+| Doppler Beaming       | 15% reduction   | 5.5         |
+| Background Stars      | 10% reduction   | 6.4         |
+| Bloom                 | 20% reduction   | 8.4         |
 
 ## Recommendations
 
@@ -161,6 +166,7 @@ The validator generates recommendations based on measurements:
 - **ℹ️ Info**: General information
 
 Example recommendations:
+
 - "✓ Baseline performance meets 75 FPS target (80.5 FPS)"
 - "⚠️ Gravitational Lensing has high performance cost (35.2% impact)"
 - "⚠️ Frame time budget exceeded: 125.4% (16.7ms / 13.3ms target)"
@@ -174,6 +180,7 @@ bun test src/__tests__/performance/validation.test.ts --run
 ```
 
 Tests cover:
+
 - Baseline configuration
 - Feature cost calculations
 - Performance target validation

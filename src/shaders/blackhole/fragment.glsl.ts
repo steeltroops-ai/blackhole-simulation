@@ -9,7 +9,7 @@ import { DISK_CHUNK } from "./chunks/disk";
 /**
  * Realistic Black Hole Fragment Shader
  * Features: Starfield, Realistic Accretion Disk, Photon Sphere, Gravitational Lensing
- * 
+ *
  * Modular Architecture:
  * - Common: Uniforms, Constants, ACES Tone Mapping
  * - Metric: Kerr Geometry (Horizon, ISCO, Ergosphere)

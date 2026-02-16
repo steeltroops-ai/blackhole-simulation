@@ -1,4 +1,3 @@
-
 export const raymarchingWgsl = `
 // WGSL Port of Realistic Black Hole Raymarcher
 // Features: Metric Raymarching, Accretion Disk, Starfield

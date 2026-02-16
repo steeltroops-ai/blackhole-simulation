@@ -48,7 +48,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const spectrumLUTTextureRef = useRef<WebGLTexture | null>(null);
   const [error, setError] = useState<WebGLError | null>(null);
   const [resolutionScale, setResolutionScale] = useState(1.0);
-  
+
   // Version to trigger full context recreation (e.g. on error retry or context restoration)
   const [contextVersion, setContextVersion] = useState(0);
 
@@ -191,7 +191,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       // However, they have .resize() methods. We initialize them with CURRENT canvas size.
       // Note: If canvas size was not yet updated by resolutionScale, they might be init at native size.
       // That is fine, the resizing effect below will catch it.
-      
+
       const bloomManager = new BloomManager(gl);
       const bloomInitialized = bloomManager.initialize(
         canvas.width,
@@ -229,7 +229,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       if (resolutionScale > 0.5) {
         const newScale = resolutionScale * 0.5;
         setResolutionScale(newScale);
-        setContextVersion(v => v + 1); // Trigger RE-INIT with lower scale (implicitly, next render cycle)
+        setContextVersion((v) => v + 1); // Trigger RE-INIT with lower scale (implicitly, next render cycle)
 
         setError({
           type: "memory",
@@ -240,8 +240,8 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         console.warn(
           `Reducing resolution to ${Math.round(newScale * 100)}% due to GPU memory constraints`,
         );
-        
-        // Note: Canvas resize happens in the Resolution Effect or explicitly here? 
+
+        // Note: Canvas resize happens in the Resolution Effect or explicitly here?
         // Resolution Effect depends on [resolutionScale], so it will run too.
       } else {
         setError({
@@ -273,7 +273,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const handleContextRestored = () => {
       console.warn("WebGL context restored -- re-initialization required");
       setError(null);
-      setContextVersion(v => v + 1); // Trigger RE-INIT
+      setContextVersion((v) => v + 1); // Trigger RE-INIT
     };
 
     canvas.addEventListener("webglcontextlost", handleContextLost);
@@ -310,27 +310,30 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
   // Effect 2: Handle Resolution Changes (LIGHTWEIGHT)
   useEffect(() => {
-     const canvas = canvasRef.current;
-     if (!canvas || !glRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas || !glRef.current) return;
 
-     // Calculate new dimensions
-     const dpr = Math.min(window.devicePixelRatio || 1, 2.0) * resolutionScale;
-     const newWidth = window.innerWidth * dpr;
-     const newHeight = window.innerHeight * dpr;
+    // Calculate new dimensions
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.0) * resolutionScale;
+    const newWidth = window.innerWidth * dpr;
+    const newHeight = window.innerHeight * dpr;
 
-     // Only resize if dimensions actually changed
-     if (Math.abs(canvas.width - newWidth) > 1 || Math.abs(canvas.height - newHeight) > 1) {
-         canvas.width = newWidth;
-         canvas.height = newHeight;
-         
-         // Resize managers (reallocate internal FBOs)
-         if (bloomManagerRef.current) {
-             bloomManagerRef.current.resize(newWidth, newHeight);
-         }
-         if (reprojectionManagerRef.current) {
-             reprojectionManagerRef.current.resize(newWidth, newHeight);
-         }
-     }
+    // Only resize if dimensions actually changed
+    if (
+      Math.abs(canvas.width - newWidth) > 1 ||
+      Math.abs(canvas.height - newHeight) > 1
+    ) {
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+
+      // Resize managers (reallocate internal FBOs)
+      if (bloomManagerRef.current) {
+        bloomManagerRef.current.resize(newWidth, newHeight);
+      }
+      if (reprojectionManagerRef.current) {
+        reprojectionManagerRef.current.resize(newWidth, newHeight);
+      }
+    }
   }, [resolutionScale]);
 
   return {

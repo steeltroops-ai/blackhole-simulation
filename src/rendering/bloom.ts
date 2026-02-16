@@ -384,7 +384,6 @@ export class BloomManager {
       return null;
     }
 
-
     // Safety: Unbind potential feedback textures
     this.gl.activeTexture(this.gl.TEXTURE0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, null);
@@ -515,7 +514,6 @@ export class BloomManager {
 
     // Final source texture for combine pass is the result of vertical blur
     const sourceTexture = currentSourceTexture;
-
 
     // === PASS 3: Combine with original scene ===
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
