@@ -47,8 +47,6 @@ export const usePresets = (): UsePresetsReturn => {
         ...currentParams,
         features,
         performancePreset: preset,
-        // Update quality based on ray tracing quality directly
-        quality: features.rayTracingQuality,
       };
     },
     [],

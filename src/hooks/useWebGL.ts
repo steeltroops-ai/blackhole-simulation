@@ -44,9 +44,15 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const reprojectionManagerRef = useRef<ReprojectionManager | null>(null);
   const noiseTextureRef = useRef<WebGLTexture | null>(null);
   const blueNoiseTextureRef = useRef<WebGLTexture | null>(null);
+  const diskLUTTextureRef = useRef<WebGLTexture | null>(null);
+  const spectrumLUTTextureRef = useRef<WebGLTexture | null>(null);
   const [error, setError] = useState<WebGLError | null>(null);
   const [resolutionScale, setResolutionScale] = useState(1.0);
+  
+  // Version to trigger full context recreation (e.g. on error retry or context restoration)
+  const [contextVersion, setContextVersion] = useState(0);
 
+  // Effect 1: Context Initialization & Heavy Resource Creation
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -55,7 +61,6 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
 
     // Check WebGL support before attempting context creation
-    // Requirement 12.1: Check WebGL support before context creation
     const isWebGLSupported = (() => {
       try {
         const testCanvas = document.createElement("canvas");
@@ -70,7 +75,6 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     })();
 
     if (!isWebGLSupported) {
-      // Requirement 12.1: Display user-friendly error message for missing WebGL
       const errorMsg =
         "WebGL is required but not supported by your browser. Please use a modern browser like Chrome, Firefox, Safari, or Edge.";
       setError({
@@ -83,7 +87,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       return;
     }
 
-    // Try to create WebGL2 context (required for GLSL 300 es, RGBA16F, HDR pipeline)
+    // Try to create WebGL2 context
     let gl: WebGL2RenderingContext | null = null;
     try {
       gl = canvas.getContext("webgl2", {
@@ -121,7 +125,6 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       return;
     }
 
-    // Enable float texture rendering support (required for HDR buffers)
     const floatExt = gl.getExtension("EXT_color_buffer_float");
     if (!floatExt) {
       console.warn(
@@ -129,7 +132,6 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       );
     }
 
-    // Initialize shader manager and compile initial variant
     const shaderManager = new ShaderManager(gl);
     const features = DEFAULT_FEATURES;
 
@@ -141,7 +143,6 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       );
 
       if (!variant) {
-        // If it returns null but didn't throw (shouldn't happen with our updated utils)
         setError({
           type: "program",
           message: "Shader initialization failed",
@@ -170,28 +171,27 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const program = programRef.current;
     if (!program) return;
 
-    // Requirement 12.3: Catch GPU memory errors and reduce resolution
     try {
-      // Use shared quad buffer to ensure consistency with other managers
       const buffer = getSharedQuadBuffer(gl);
       if (!buffer) {
         throw new Error("Failed to create shared quad buffer");
       }
 
-      // Initial setup of attribute pointer (will be reinforced in useAnimation)
       setupPositionAttribute(gl, program, "position", buffer);
 
-      // Check for GPU memory errors
       const glError = gl.getError();
       if (glError !== gl.NO_ERROR && glError !== 1282) {
         throw new Error(`WebGL error: ${glError}`);
       }
 
-      // Clear any error state on success
       setError(null);
 
-      // Initialize bloom manager
-      // Requirements: 8.1, 8.2, 8.3, 8.4
+      // Initialize Managers
+      // WARNING: Bloom/Reprojection managers create TEXTURES which are resolution dependent.
+      // However, they have .resize() methods. We initialize them with CURRENT canvas size.
+      // Note: If canvas size was not yet updated by resolutionScale, they might be init at native size.
+      // That is fine, the resizing effect below will catch it.
+      
       const bloomManager = new BloomManager(gl);
       const bloomInitialized = bloomManager.initialize(
         canvas.width,
@@ -204,12 +204,10 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         console.warn("Failed to initialize bloom post-processing");
       }
 
-      // Initialize Reprojection Manager (Phase 2)
       const repoManager = new ReprojectionManager(gl);
-      repoManager.resize(canvas.width, canvas.height); // Initial size
+      repoManager.resize(canvas.width, canvas.height);
       reprojectionManagerRef.current = repoManager;
 
-      // Phase 1 Optimization: Pre-computed Noise Textures
       const noiseTex = createNoiseTexture(gl, 256);
       if (noiseTex) {
         noiseTextureRef.current = noiseTex;
@@ -224,13 +222,14 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         console.warn("Failed to create blue noise texture");
       }
     } catch (e) {
-      // Requirement 12.3: Reduce resolution and retry on GPU memory error
       const errorMsg = "GPU memory error detected";
       console.error(errorMsg, e);
 
+      // Reduce resolution on error
       if (resolutionScale > 0.5) {
         const newScale = resolutionScale * 0.5;
         setResolutionScale(newScale);
+        setContextVersion(v => v + 1); // Trigger RE-INIT with lower scale (implicitly, next render cycle)
 
         setError({
           type: "memory",
@@ -241,13 +240,9 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         console.warn(
           `Reducing resolution to ${Math.round(newScale * 100)}% due to GPU memory constraints`,
         );
-
-        // Adjust canvas resolution
-        if (canvas) {
-          const dpr = Math.min(window.devicePixelRatio || 1, 2.0) * newScale;
-          canvas.width = window.innerWidth * dpr;
-          canvas.height = window.innerHeight * dpr;
-        }
+        
+        // Note: Canvas resize happens in the Resolution Effect or explicitly here? 
+        // Resolution Effect depends on [resolutionScale], so it will run too.
       } else {
         setError({
           type: "memory",
@@ -258,13 +253,9 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
     }
 
-    // Context loss/restore handlers (Bug 3.10)
-    // Mobile tab switches, driver resets, and GPU watchdog timeouts
-    // invalidate all WebGL resources. We must detect this and clean up.
     const handleContextLost = (e: Event) => {
-      e.preventDefault(); // Allow browser to attempt automatic restore
+      e.preventDefault();
       console.warn("WebGL context lost -- invalidating all GPU resources");
-      // Invalidate all refs to prevent using stale handles
       programRef.current = null;
       noiseTextureRef.current = null;
       blueNoiseTextureRef.current = null;
@@ -281,9 +272,8 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     const handleContextRestored = () => {
       console.warn("WebGL context restored -- re-initialization required");
-      // Clear error to allow the effect to re-run on next dependency change
-      // The user can also refresh to fully reinitialize
       setError(null);
+      setContextVersion(v => v + 1); // Trigger RE-INIT
     };
 
     canvas.addEventListener("webglcontextlost", handleContextLost);
@@ -316,7 +306,32 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         reprojectionManagerRef.current = null;
       }
     };
-  }, [canvasRef, resolutionScale]);
+  }, [canvasRef, contextVersion]); // Initial Setup depends ONLY on Canvas + Manual Re-init Trigger
+
+  // Effect 2: Handle Resolution Changes (LIGHTWEIGHT)
+  useEffect(() => {
+     const canvas = canvasRef.current;
+     if (!canvas || !glRef.current) return;
+
+     // Calculate new dimensions
+     const dpr = Math.min(window.devicePixelRatio || 1, 2.0) * resolutionScale;
+     const newWidth = window.innerWidth * dpr;
+     const newHeight = window.innerHeight * dpr;
+
+     // Only resize if dimensions actually changed
+     if (Math.abs(canvas.width - newWidth) > 1 || Math.abs(canvas.height - newHeight) > 1) {
+         canvas.width = newWidth;
+         canvas.height = newHeight;
+         
+         // Resize managers (reallocate internal FBOs)
+         if (bloomManagerRef.current) {
+             bloomManagerRef.current.resize(newWidth, newHeight);
+         }
+         if (reprojectionManagerRef.current) {
+             reprojectionManagerRef.current.resize(newWidth, newHeight);
+         }
+     }
+  }, [resolutionScale]);
 
   return {
     glRef,
@@ -325,6 +340,8 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     reprojectionManagerRef,
     noiseTextureRef,
     blueNoiseTextureRef,
+    diskLUTTextureRef,
+    spectrumLUTTextureRef,
     error,
     resolutionScale,
     setResolutionScale,

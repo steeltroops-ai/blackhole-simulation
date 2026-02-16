@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp } from "lucide-react";
 import { WebGLCanvas } from "@/components/canvas/WebGLCanvas";
-import { ErrorBoundary } from "@/components/debug/ErrorBoundary";
+import { WebGPUCanvas } from "@/components/canvas/WebGPUCanvas";
+import ErrorBoundary from "@/components/debug/ErrorBoundary";
 import { ControlPanel } from "@/components/ui/ControlPanel";
 import { Telemetry } from "@/components/ui/Telemetry";
 import { SimulationInfo } from "@/components/ui/SimulationInfo";
@@ -23,10 +24,12 @@ import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
 import type { PerformanceMetrics } from "@/performance/monitor";
 import { DEFAULT_FEATURES, type PresetName } from "@/types/features";
 import { settingsStorage } from "@/storage/settings";
+import { useWebGPUSupport } from "@/hooks/useWebGPUSupport";
 
 const App = () => {
   const { isMobile, getMobileFeatures } = useMobileOptimization();
   const { applyPreset } = usePresets();
+  const { isSupported: isWebGPUSupported } = useWebGPUSupport();
 
   const [params, setParams] = useState<SimulationParams>(() => {
     // Forced Config Authority: Ignore local storage to respect simulation.config.ts defaults
@@ -111,21 +114,54 @@ const App = () => {
   // Phase 7: URL hash state for shareable simulation links
   useUrlState(params, setParams);
 
+  // Phase 6: WebGPU Support Hook
+  const [useWebGPU, setUseWebGPU] = useState(false);
+  
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const requested = urlParams.get("webgpu") === "true";
+      // Only enable if requested AND supported (or forced for testing?)
+      // Let's allow force if supported is unknown/true, but fallback if explicitly false?
+      // For now: require explicit URL param + browser support
+      if (requested && isWebGPUSupported !== false) {
+           setUseWebGPU(true);
+      } else {
+           setUseWebGPU(false);
+      }
+    }
+  }, [isWebGPUSupported]);
+
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans text-white">
       <ErrorBoundary>
-        <WebGLCanvas
-          params={params}
-          mouse={mouse}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onWheel={handleWheel}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onMetricsUpdate={setMetrics}
-        />
+        {useWebGPU ? (
+          <WebGPUCanvas
+            params={params}
+            mouse={mouse}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMetricsUpdate={setMetrics}
+          />
+        ) : (
+          <WebGLCanvas
+            params={params}
+            mouse={mouse}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMetricsUpdate={setMetrics}
+          />
+        )}
 
         <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
 
@@ -135,7 +171,7 @@ const App = () => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="absolute top-0 left-0 w-full p-4 md:p-8 flex justify-between items-start z-30 pointer-events-none"
+              className="absolute top-0 left-0 w-full p-4 md:p-8 flex justify-between items-start z-50 pointer-events-none"
             >
               {/* SLEEK IDENTITY HUD */}
               <IdentityHUD />
@@ -218,6 +254,7 @@ const App = () => {
                   renderResolution: 1,
                 } as DebugMetrics)
           }
+          backend={useWebGPU ? "WebGPU" : "WebGL (CPU)"}
         />
       </ErrorBoundary>
     </div>

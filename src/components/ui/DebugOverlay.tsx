@@ -47,6 +47,8 @@ interface DebugOverlayProps {
     onToggle: (enabled: boolean) => void;
     /** Debug performance metrics */
     metrics: DebugMetrics;
+    /** Active backend name */
+    backend?: string;
 }
 
 /**
@@ -59,7 +61,7 @@ interface DebugOverlayProps {
  * - Uniform update counts and buffer swap times (Requirement 20.4)
  * - Toggle to enable/disable debug overlay (Requirement 20.5)
  */
-export const DebugOverlay = ({ enabled, onToggle, metrics }: DebugOverlayProps) => {
+export const DebugOverlay = ({ enabled, onToggle, metrics, backend }: DebugOverlayProps) => {
     if (!enabled) {
         return null;
     }
@@ -98,6 +100,11 @@ export const DebugOverlay = ({ enabled, onToggle, metrics }: DebugOverlayProps) 
                         Debug Performance
                     </h3>
                 </div>
+                {backend && (
+                    <div className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-medium tracking-wide">
+                        {backend}
+                    </div>
+                )}
                 <button
                     onClick={() => onToggle(false)}
                     className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"

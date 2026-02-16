@@ -5,21 +5,19 @@
  * Provides centralized control over simulation parameters, feature toggles, and performance settings.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   Power,
   RefreshCcw,
-  ChevronDown,
   Settings,
   Zap,
   Star,
   Sun,
   Disc,
   Sparkles,
-  SlidersHorizontal,
 } from "lucide-react";
 import { UserProfile } from "./UserProfile";
 import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
@@ -38,8 +36,6 @@ interface ControlPanelProps {
   onParamsChange: (params: SimulationParams) => void;
   showUI: boolean;
   onToggleUI: (show: boolean) => void;
-  onMetricClick?: (id: string, value: unknown) => void;
-  onToggleChange?: (id: string, value: unknown) => void;
   onStartBenchmark?: () => void;
   onCancelBenchmark?: () => void;
   isBenchmarkRunning?: boolean;
@@ -147,10 +143,7 @@ export const ControlPanel = ({
     "simulation" | "performance" | "features"
   >("simulation");
 
-  // 3-Panel State: Variables (Scrollable), Modules (Toggles), System (Performance)
-
   const { applyPreset } = usePresets();
-
   const physicsState = usePhysicsState(params);
 
   const calculatedRadii = useMemo(
@@ -162,100 +155,107 @@ export const ControlPanel = ({
     [physicsState],
   );
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setIsResetting(true);
     onParamsChange(DEFAULT_PARAMS);
     if (onResetCamera) onResetCamera();
     setTimeout(() => setIsResetting(false), 500);
-  };
+  }, [onParamsChange, onResetCamera]);
 
-  const handleParamChange = (newParams: SimulationParams) => {
-    const validatedParams: SimulationParams = {
-      ...newParams,
-      mass: clampAndValidate(
-        newParams.mass,
-        SIMULATION_CONFIG.mass.min,
-        SIMULATION_CONFIG.mass.max,
-        DEFAULT_PARAMS.mass,
-      ),
-      spin: clampAndValidate(
-        newParams.spin,
-        SIMULATION_CONFIG.ui_spin.min,
-        SIMULATION_CONFIG.ui_spin.max,
-        DEFAULT_PARAMS.spin,
-      ),
-      diskDensity: clampAndValidate(
-        newParams.diskDensity,
-        SIMULATION_CONFIG.diskDensity.min,
-        SIMULATION_CONFIG.diskDensity.max,
-        DEFAULT_PARAMS.diskDensity,
-      ),
-      diskTemp: clampAndValidate(
-        newParams.diskTemp,
-        SIMULATION_CONFIG.diskTemp.min,
-        SIMULATION_CONFIG.diskTemp.max,
-        DEFAULT_PARAMS.diskTemp,
-      ),
-      lensing: clampAndValidate(
-        newParams.lensing,
-        SIMULATION_CONFIG.lensing.min,
-        SIMULATION_CONFIG.lensing.max,
-        DEFAULT_PARAMS.lensing,
-      ),
-      zoom: clampAndValidate(
-        newParams.zoom,
-        SIMULATION_CONFIG.zoom.min,
-        SIMULATION_CONFIG.zoom.max,
-        DEFAULT_PARAMS.zoom,
-      ),
-      autoSpin: clampAndValidate(
-        newParams.autoSpin ?? SIMULATION_CONFIG.autoSpin.default,
-        SIMULATION_CONFIG.autoSpin.min,
-        SIMULATION_CONFIG.autoSpin.max,
-        DEFAULT_PARAMS.autoSpin,
-      ),
-      diskSize: clampAndValidate(
-        newParams.diskSize ?? SIMULATION_CONFIG.diskSize.default,
-        SIMULATION_CONFIG.diskSize.min,
-        SIMULATION_CONFIG.diskSize.max,
-        DEFAULT_PARAMS.diskSize,
-      ),
-      renderScale: clampAndValidate(
-        newParams.renderScale ?? SIMULATION_CONFIG.renderScale.default,
-        SIMULATION_CONFIG.renderScale.min,
-        SIMULATION_CONFIG.renderScale.max,
-        DEFAULT_PARAMS.renderScale,
-      ),
-      paused: newParams.paused,
-    };
-    onParamsChange(validatedParams);
-  };
+  // Debounced/Throttled handler is not strictly here, expecting parent optimization
+  // But we wrap in useCallback
+  const handleParamChange = useCallback(
+    (newParams: SimulationParams) => {
+      const validatedParams: SimulationParams = {
+        ...newParams,
+        mass: clampAndValidate(
+          newParams.mass,
+          SIMULATION_CONFIG.mass.min,
+          SIMULATION_CONFIG.mass.max,
+          DEFAULT_PARAMS.mass,
+        ),
+        spin: clampAndValidate(
+          newParams.spin,
+          SIMULATION_CONFIG.spin.min,
+          SIMULATION_CONFIG.spin.max,
+          DEFAULT_PARAMS.spin,
+        ),
+        diskDensity: clampAndValidate(
+          newParams.diskDensity,
+          SIMULATION_CONFIG.diskDensity.min,
+          SIMULATION_CONFIG.diskDensity.max,
+          DEFAULT_PARAMS.diskDensity,
+        ),
+        diskTemp: clampAndValidate(
+          newParams.diskTemp,
+          SIMULATION_CONFIG.diskTemp.min,
+          SIMULATION_CONFIG.diskTemp.max,
+          DEFAULT_PARAMS.diskTemp,
+        ),
+        lensing: clampAndValidate(
+          newParams.lensing,
+          SIMULATION_CONFIG.lensing.min,
+          SIMULATION_CONFIG.lensing.max,
+          DEFAULT_PARAMS.lensing,
+        ),
+        zoom: clampAndValidate(
+          newParams.zoom,
+          SIMULATION_CONFIG.zoom.min,
+          SIMULATION_CONFIG.zoom.max,
+          DEFAULT_PARAMS.zoom,
+        ),
+        autoSpin: clampAndValidate(
+          newParams.autoSpin ?? SIMULATION_CONFIG.autoSpin.default,
+          SIMULATION_CONFIG.autoSpin.min,
+          SIMULATION_CONFIG.autoSpin.max,
+          DEFAULT_PARAMS.autoSpin,
+        ),
+        diskSize: clampAndValidate(
+          newParams.diskSize ?? SIMULATION_CONFIG.diskSize.default,
+          SIMULATION_CONFIG.diskSize.min,
+          SIMULATION_CONFIG.diskSize.max,
+          DEFAULT_PARAMS.diskSize,
+        ),
+        renderScale: clampAndValidate(
+          newParams.renderScale ?? SIMULATION_CONFIG.renderScale.default,
+          SIMULATION_CONFIG.renderScale.min,
+          SIMULATION_CONFIG.renderScale.max,
+          DEFAULT_PARAMS.renderScale,
+        ),
+        paused: newParams.paused,
+      };
+      onParamsChange(validatedParams);
+    },
+    [onParamsChange],
+  );
 
-  const toggleFeature = (key: keyof FeatureToggles) => {
-    if (!params.features) return;
-    const currentVal = params.features[key];
-    if (typeof currentVal !== "boolean") return;
-    const newFeatures = { ...params.features, [key]: !currentVal };
-    onParamsChange({
-      ...params,
-      features: newFeatures,
-      performancePreset: "custom",
-    });
-  };
+  const toggleFeature = useCallback(
+    (key: keyof FeatureToggles) => {
+      if (!params.features) return;
+      const currentVal = params.features[key];
+      if (typeof currentVal !== "boolean") return;
+      const newFeatures = { ...params.features, [key]: !currentVal };
+      onParamsChange({
+        ...params,
+        features: newFeatures,
+        performancePreset: "custom",
+      });
+    },
+    [params, onParamsChange],
+  );
 
-  const setQuality = (q: RayTracingQuality) => {
-    if (!params.features) return;
-    const newFeatures = { ...params.features, rayTracingQuality: q };
-    onParamsChange({
-      ...params,
-      features: newFeatures,
-      performancePreset: "custom",
-    });
-  };
-
-  // --- Premium Inline UI Primitives (Symmetric & Stable) ---
-
-  // --- Premium Inline UI Primitives (Symmetric & Stable) ---
+  const setQuality = useCallback(
+    (q: RayTracingQuality) => {
+      if (!params.features) return;
+      const newFeatures = { ...params.features, rayTracingQuality: q };
+      onParamsChange({
+        ...params,
+        features: newFeatures,
+        performancePreset: "custom",
+      });
+    },
+    [params, onParamsChange],
+  );
 
   const renderToggle = (
     label: string,
@@ -298,7 +298,7 @@ export const ControlPanel = ({
               isActive
                 ? "left-3 bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
                 : "left-0.5 bg-white/30"
-            }`}
+              }`}
           />
         </div>
       </button>
@@ -393,7 +393,7 @@ export const ControlPanel = ({
                             by Mayank _@steeltroops_ai
                           </p>
                           <button
-                            onClick={() => onToggleUI(false)}
+                            onClick={() => onCompactChange(true)}
                             className="text-[9px] text-white/40 hover:text-white uppercase tracking-widest border border-white/10 px-1.5 rounded-sm hover:bg-white/10 transition-colors"
                           >
                             Hide
@@ -431,92 +431,91 @@ export const ControlPanel = ({
                     </div>
                   </div>
 
+
+
                   {/* Scrollable Instrumentation Manifold (Responsive Chassis) */}
                   <div className="max-h-[55vh] sm:max-h-[60vh] overflow-y-auto overflow-x-hidden pr-1.5 custom-scrollbar pb-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 items-start mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-min items-start mb-6">
                       {activeTab === "simulation" && (
                         <>
-                          <div className="space-y-6">
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="Black Hole Parameters" />
-                              <div className="space-y-4">
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.mass.label}
-                                  value={params.mass}
-                                  min={SIMULATION_CONFIG.mass.min}
-                                  max={SIMULATION_CONFIG.mass.max}
-                                  step={SIMULATION_CONFIG.mass.step}
-                                  onChange={(v) =>
-                                    handleParamChange({ ...params, mass: v })
-                                  }
-                                  unit={SIMULATION_CONFIG.mass.unit}
-                                  decimals={SIMULATION_CONFIG.mass.decimals}
-                                />
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.zoom.label}
-                                  value={params.zoom}
-                                  min={SIMULATION_CONFIG.zoom.min}
-                                  max={SIMULATION_CONFIG.zoom.max}
-                                  step={SIMULATION_CONFIG.zoom.step}
-                                  onChange={(v) =>
-                                    handleParamChange({ ...params, zoom: v })
-                                  }
-                                  unit={SIMULATION_CONFIG.zoom.unit}
-                                  decimals={SIMULATION_CONFIG.zoom.decimals}
-                                />
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.ui_spin.label}
-                                  value={params.spin}
-                                  min={SIMULATION_CONFIG.ui_spin.min}
-                                  max={SIMULATION_CONFIG.ui_spin.max}
-                                  step={SIMULATION_CONFIG.ui_spin.step}
-                                  onChange={(v) =>
-                                    handleParamChange({ ...params, spin: v })
-                                  }
-                                  unit={SIMULATION_CONFIG.ui_spin.unit}
-                                  decimals={SIMULATION_CONFIG.ui_spin.decimals}
-                                />
-                              </div>
+                          <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                            <SectionHeader label="Black Hole Parameters" />
+                            <div className="space-y-4">
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.mass.label}
+                                value={params.mass}
+                                min={SIMULATION_CONFIG.mass.min}
+                                max={SIMULATION_CONFIG.mass.max}
+                                step={SIMULATION_CONFIG.mass.step}
+                                onChange={(v) =>
+                                  handleParamChange({ ...params, mass: v })
+                                }
+                                unit={SIMULATION_CONFIG.mass.unit}
+                                decimals={SIMULATION_CONFIG.mass.decimals}
+                              />
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.zoom.label}
+                                value={params.zoom}
+                                min={SIMULATION_CONFIG.zoom.min}
+                                max={SIMULATION_CONFIG.zoom.max}
+                                step={SIMULATION_CONFIG.zoom.step}
+                                onChange={(v) =>
+                                  handleParamChange({ ...params, zoom: v })
+                                }
+                                unit={SIMULATION_CONFIG.zoom.unit}
+                                decimals={SIMULATION_CONFIG.zoom.decimals}
+                              />
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.spin.label} // Updated from ui_spin
+                                value={params.spin}
+                                min={SIMULATION_CONFIG.spin.min} // Updated from ui_spin
+                                max={SIMULATION_CONFIG.spin.max} // Updated from ui_spin
+                                step={SIMULATION_CONFIG.spin.step} // Updated from ui_spin
+                                onChange={(v) =>
+                                  handleParamChange({ ...params, spin: v })
+                                }
+                                unit={SIMULATION_CONFIG.spin.unit} // Updated from ui_spin
+                                decimals={SIMULATION_CONFIG.spin.decimals} // Updated from ui_spin
+                              />
                             </div>
                           </div>
-                          <div className="space-y-6">
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="Accretion Dynamics" />
-                              <div className="space-y-4">
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.autoSpin.label}
-                                  value={params.autoSpin}
-                                  min={SIMULATION_CONFIG.autoSpin.min}
-                                  max={SIMULATION_CONFIG.autoSpin.max}
-                                  step={SIMULATION_CONFIG.autoSpin.step}
-                                  onChange={(v) =>
-                                    handleParamChange({
-                                      ...params,
-                                      autoSpin: v,
-                                    })
-                                  }
-                                  unit={SIMULATION_CONFIG.autoSpin.unit}
-                                  decimals={SIMULATION_CONFIG.autoSpin.decimals}
-                                />
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.diskSize.label}
-                                  value={
-                                    params.diskSize ??
-                                    SIMULATION_CONFIG.diskSize.default
-                                  }
-                                  min={SIMULATION_CONFIG.diskSize.min}
-                                  max={SIMULATION_CONFIG.diskSize.max}
-                                  step={SIMULATION_CONFIG.diskSize.step}
-                                  onChange={(v) =>
-                                    handleParamChange({
-                                      ...params,
-                                      diskSize: v,
-                                    })
-                                  }
-                                  unit={SIMULATION_CONFIG.diskSize.unit}
-                                  decimals={SIMULATION_CONFIG.diskSize.decimals}
-                                />
-                              </div>
+
+                          <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                            <SectionHeader label="Accretion Dynamics" />
+                            <div className="space-y-4">
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.autoSpin.label}
+                                value={params.autoSpin}
+                                min={SIMULATION_CONFIG.autoSpin.min}
+                                max={SIMULATION_CONFIG.autoSpin.max}
+                                step={SIMULATION_CONFIG.autoSpin.step}
+                                onChange={(v) =>
+                                  handleParamChange({
+                                    ...params,
+                                    autoSpin: v,
+                                  })
+                                }
+                                unit={SIMULATION_CONFIG.autoSpin.unit}
+                                decimals={SIMULATION_CONFIG.autoSpin.decimals}
+                              />
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.diskSize.label}
+                                value={
+                                  params.diskSize ??
+                                  SIMULATION_CONFIG.diskSize.default
+                                }
+                                min={SIMULATION_CONFIG.diskSize.min}
+                                max={SIMULATION_CONFIG.diskSize.max}
+                                step={SIMULATION_CONFIG.diskSize.step}
+                                onChange={(v) =>
+                                  handleParamChange({
+                                    ...params,
+                                    diskSize: v,
+                                  })
+                                }
+                                unit={SIMULATION_CONFIG.diskSize.unit}
+                                decimals={SIMULATION_CONFIG.diskSize.decimals}
+                              />
                             </div>
                           </div>
                         </>
@@ -524,96 +523,93 @@ export const ControlPanel = ({
 
                       {activeTab === "performance" && (
                         <>
-                          <div className="space-y-6">
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="Performance Presets" />
-                              <div className="grid grid-cols-2 gap-3 mb-4">
-                                {PRESETS.map((p) =>
-                                  renderPresetButton(
-                                    p.label,
-                                    params.performancePreset === p.id,
-                                    () =>
-                                      onParamsChange(applyPreset(p.id, params)),
-                                  ),
-                                )}
-                              </div>
-                              <ControlSlider
-                                label={SIMULATION_CONFIG.renderScale.label}
-                                value={
-                                  params.renderScale ??
-                                  SIMULATION_CONFIG.renderScale.default
-                                }
-                                min={SIMULATION_CONFIG.renderScale.min}
-                                max={SIMULATION_CONFIG.renderScale.max}
-                                step={SIMULATION_CONFIG.renderScale.step}
-                                onChange={(v) =>
-                                  handleParamChange({
-                                    ...params,
-                                    renderScale: v,
-                                  })
-                                }
-                                unit={SIMULATION_CONFIG.renderScale.unit}
-                                decimals={
-                                  SIMULATION_CONFIG.renderScale.decimals
-                                }
-                              />
+                          <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                            <SectionHeader label="Performance Presets" />
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              {PRESETS.map((p) =>
+                                renderPresetButton(
+                                  p.label,
+                                  params.performancePreset === p.id,
+                                  () =>
+                                    onParamsChange(applyPreset(p.id, params)),
+                                ),
+                              )}
+                            </div>
+                            <ControlSlider
+                              label={SIMULATION_CONFIG.renderScale.label}
+                              value={
+                                params.renderScale ??
+                                SIMULATION_CONFIG.renderScale.default
+                              }
+                              min={SIMULATION_CONFIG.renderScale.min}
+                              max={SIMULATION_CONFIG.renderScale.max}
+                              step={SIMULATION_CONFIG.renderScale.step}
+                              onChange={(v) =>
+                                handleParamChange({
+                                  ...params,
+                                  renderScale: v,
+                                })
+                              }
+                              unit={SIMULATION_CONFIG.renderScale.unit}
+                              decimals={
+                                SIMULATION_CONFIG.renderScale.decimals
+                              }
+                            />
+                          </div>
+
+                          <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                            <SectionHeader label="Ray Tracing Fidelity" />
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              {QUALITY_LEVELS.map((q) =>
+                                renderPresetButton(
+                                  q.label,
+                                  params.features?.rayTracingQuality === q.id,
+                                  () => setQuality(q.id),
+                                ),
+                              )}
                             </div>
                           </div>
-                          <div className="space-y-6">
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="Ray Tracing Fidelity" />
-                              <div className="grid grid-cols-2 gap-3 mb-4">
-                                {QUALITY_LEVELS.map((q) =>
-                                  renderPresetButton(
-                                    q.label,
-                                    params.features?.rayTracingQuality === q.id,
-                                    () => setQuality(q.id),
-                                  ),
-                                )}
-                              </div>
-                            </div>
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="System Validation" />
-                              <button
-                                onClick={
-                                  isBenchmarkRunning
-                                    ? onCancelBenchmark
-                                    : onStartBenchmark
-                                }
-                                className={`w-full py-3 rounded-xl border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
-                                  isBenchmarkRunning
-                                    ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
-                                    : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
-                                }`}
-                              >
-                                {isBenchmarkRunning ? (
-                                  <>
-                                    <Power className="w-3.5 h-3.5 text-red-400" />
-                                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">
-                                      Abort Benchmark
-                                    </span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Activity className="w-3.5 h-3.5" />
-                                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">
-                                      Run Performance Suite
-                                    </span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
+
+                          <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                            <SectionHeader label="System Validation" />
+                            <button
+                              onClick={
+                                isBenchmarkRunning
+                                  ? onCancelBenchmark
+                                  : onStartBenchmark
+                              }
+                              className={`w-full py-3 rounded-xl border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                                isBenchmarkRunning
+                                  ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
+                                  : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                              }`}
+                            >
+                              {isBenchmarkRunning ? (
+                                <>
+                                  <Power className="w-3.5 h-3.5 text-red-400" />
+                                  <span className="text-[9px] font-black uppercase tracking-[0.2em]">
+                                    Abort Benchmark
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <Activity className="w-3.5 h-3.5" />
+                                  <span className="text-[9px] font-black uppercase tracking-[0.2em]">
+                                    Run Performance Suite
+                                  </span>
+                                </>
+                              )}
+                            </button>
                           </div>
-                          <div className="space-y-6">
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="Display Precision" />
-                              <div className="space-y-4">
-                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                                  <p className="text-[7.5px] text-white/30 uppercase tracking-widest leading-relaxed">
-                                    Spectral precision and volumetric scattering
-                                    density limit.
-                                  </p>
-                                </div>
+
+                          <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                            <SectionHeader label="Display Precision" />
+                            <div className="space-y-4">
+                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                                <p className="text-[7.5px] text-white/30 uppercase tracking-widest leading-relaxed">
+                                  Spectral precision and volumetric scattering
+                                  density limit.
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -622,68 +618,68 @@ export const ControlPanel = ({
 
                       {activeTab === "features" && (
                         <>
-                          <div className="space-y-6">
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="Physics Modules" />
-                              <div className="grid grid-cols-1 gap-2">
-                                {[
-                                  {
-                                    label: "Gravitational Lensing",
-                                    key: "gravitationalLensing" as const,
-                                    icon: Star,
-                                  },
-                                  {
-                                    label: "Accretion Disk",
-                                    key: "accretionDisk" as const,
-                                    icon: Disc,
-                                  },
-                                  {
-                                    label: "Doppler Beaming",
-                                    key: "dopplerBeaming" as const,
-                                    icon: Zap,
-                                  },
-                                  {
-                                    label: "Photon Sphere",
-                                    key: "photonSphereGlow" as const,
-                                    icon: Sun,
-                                  },
-                                  {
-                                    label: "Ambient Stars",
-                                    key: "backgroundStars" as const,
-                                    icon: Star,
-                                  },
-                                  {
-                                    label: "Volumetric Bloom",
-                                    key: "bloom" as const,
-                                    icon: Sparkles,
-                                  },
-                                  {
-                                    label: "Gravitational Redshift",
-                                    key: "gravitationalRedshift" as const,
-                                    icon: Activity,
-                                  },
-                                  {
-                                    label: "Kerr Shadow Guide",
-                                    key: "kerrShadow" as const,
-                                    icon: Disc,
-                                  },
-                                ].map((f) =>
-                                  renderToggle(
-                                    f.label,
-                                    !!params.features?.[
-                                      f.key as keyof FeatureToggles
-                                    ],
-                                    () =>
-                                      toggleFeature(
-                                        f.key as keyof FeatureToggles,
-                                      ),
-                                    f.icon,
-                                  ),
-                                )}
-                              </div>
+                          <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                            <SectionHeader label="Physics Modules" />
+                            <div className="grid grid-cols-1 gap-2">
+                              {[
+                                {
+                                  label: "Gravitational Lensing",
+                                  key: "gravitationalLensing" as const,
+                                  icon: Star,
+                                },
+                                {
+                                  label: "Accretion Disk",
+                                  key: "accretionDisk" as const,
+                                  icon: Disc,
+                                },
+                                {
+                                  label: "Doppler Beaming",
+                                  key: "dopplerBeaming" as const,
+                                  icon: Zap,
+                                },
+                                {
+                                  label: "Photon Sphere",
+                                  key: "photonSphereGlow" as const,
+                                  icon: Sun,
+                                },
+                                {
+                                  label: "Ambient Stars",
+                                  key: "backgroundStars" as const,
+                                  icon: Star,
+                                },
+                                {
+                                  label: "Volumetric Bloom",
+                                  key: "bloom" as const,
+                                  icon: Sparkles,
+                                },
+                                {
+                                  label: "Gravitational Redshift",
+                                  key: "gravitationalRedshift" as const,
+                                  icon: Activity,
+                                },
+                                {
+                                  label: "Kerr Shadow Guide",
+                                  key: "kerrShadow" as const,
+                                  icon: Disc,
+                                },
+                              ].map((f) =>
+                                renderToggle(
+                                  f.label,
+                                  !!params.features?.[
+                                    f.key as keyof FeatureToggles
+                                  ],
+                                  () =>
+                                    toggleFeature(
+                                      f.key as keyof FeatureToggles,
+                                    ),
+                                  f.icon,
+                                ),
+                              )}
                             </div>
                           </div>
-                          <div className="space-y-6">
+
+                          {/* Right Column Stack: Spectral Properties & Cinematic Utility */}
+                          <div className="space-y-4">
                             <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
                               <SectionHeader label="Spectral Properties" />
                               <div className="space-y-4">
@@ -736,10 +732,8 @@ export const ControlPanel = ({
                                 />
                               </div>
                             </div>
-                          </div>
 
-                          {/* Cinematic Tools - Features Tab Extension */}
-                          <div className="space-y-6 mt-6">
+                            {/* Cinematic Tools - Relocated to Right Column for Balance */}
                             <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
                               <SectionHeader label="Cinematic Tools" />
                               <div className="grid grid-cols-2 gap-3">
@@ -801,69 +795,41 @@ export const ControlPanel = ({
                     </button>
 
                     <button
-                      onClick={() => onCompactChange(true)}
-                      className="flex-1 flex items-center justify-center p-2 rounded-xl bg-white/[0.04] border border-white/10 text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
-                      title="Collapse System"
+                      onClick={() => {
+                        onToggleUI(false);
+                        setActiveTab("simulation");
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-[8px] tracking-[0.1em] uppercase transition-all duration-300 border bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 group/close`}
                     >
-                      <ChevronDown className="w-4 h-4" />
+                      <span className="group-hover/close:text-white transition-colors">
+                        Close
+                      </span>
                     </button>
-                  </div>
-
-                  <div className="flex items-center gap-3 max-w-lg mx-auto bg-white/[0.02] p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
-                    {[
-                      {
-                        id: "simulation" as const,
-                        label: "General",
-                        icon: SlidersHorizontal,
-                      },
-                      {
-                        id: "performance" as const,
-                        label: "Performance",
-                        icon: Activity,
-                      },
-                      {
-                        id: "features" as const,
-                        label: "Features",
-                        icon: Settings,
-                      },
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => {
-                          if (isCompact) onCompactChange(false);
-                          setActiveTab(tab.id);
-                        }}
-                        className={`
-                          flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all duration-500 relative group overflow-hidden border
-                          ${
-                            activeTab === tab.id
-                              ? "bg-white/15 backdrop-blur-3xl text-white border-white/40 shadow-[0_0_20px_rgba(255,255,255,0.06),inset_0_0_10px_rgba(255,255,255,0.06)]"
-                              : "bg-transparent text-white/70 border-transparent hover:text-white hover:bg-white/[0.05]"
-                          }
-                        `}
-                      >
-                        <tab.icon
-                          className={`w-3.5 h-3.5 transition-all duration-500 ${activeTab === tab.id ? "icon-glow scale-110" : "text-white/80 group-hover:text-white"}`}
-                        />
-                        <span className="hidden sm:inline text-[9px] font-bold tracking-[0.2em] uppercase transition-all duration-500">
-                          {tab.label}
-                        </span>
-
-                        {/* Interactive Highlight */}
-                        {activeTab === tab.id && (
-                          <motion.div
-                            layoutId="nav-pill"
-                            className="absolute inset-0 bg-white/5 pointer-events-none"
-                            transition={{
-                              type: "spring",
-                              stiffness: 400,
-                              damping: 30,
-                            }}
-                          />
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                    
+                    {/* Tab Navigation (Bottom - Mobile Optimized) */}
+                   </div>
+                   
+                    {/* Tab Navigation (Bottom - Mobile Optimized) */}
+                    <div className="flex justify-center bg-black/40 p-1 rounded-xl backdrop-blur-md border border-white/5 max-w-lg mx-auto mt-2">
+                        <button
+                          onClick={() => setActiveTab("simulation")}
+                          className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "simulation" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                        >
+                          Physics
+                        </button>
+                         <button
+                          onClick={() => setActiveTab("features")}
+                          className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "features" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                        >
+                          Modules
+                        </button>
+                         <button
+                          onClick={() => setActiveTab("performance")}
+                          className={`flex-1 px-3 py-2 text-[8px] uppercase tracking-widest rounded-lg transition-all ${activeTab === "performance" ? "bg-white text-black font-bold shadow-lg shadow-white/20" : "text-white/50 hover:text-white"}`}
+                        >
+                          System
+                        </button>
+                      </div>
                 </div>
               </div>
             </motion.div>

@@ -3,7 +3,7 @@
  */
 
 import type { FeatureToggles, RayTracingQuality } from "./features";
-import { SIMULATION_CONFIG } from "../configs/simulation.config";
+import { SIMULATION_CONFIG } from "@/configs/simulation.config";
 
 export type QualityLevel = RayTracingQuality;
 
@@ -17,16 +17,15 @@ export interface SimulationParams {
   zoom: number;
   autoSpin: number;
   diskSize: number;
-  quality?: QualityLevel;
-  features?: FeatureToggles;
-  performancePreset?: import("./features").PresetName;
   adaptiveResolution?: boolean;
   renderScale: number;
+  features?: FeatureToggles;
+  performancePreset?: import("./features").PresetName;
 }
 
 export const DEFAULT_PARAMS: SimulationParams = {
   mass: SIMULATION_CONFIG.mass.default,
-  spin: SIMULATION_CONFIG.ui_spin.default,
+  spin: SIMULATION_CONFIG.spin.default, // Using direct physics spin
   diskDensity: SIMULATION_CONFIG.diskDensity.default,
   diskTemp: SIMULATION_CONFIG.diskTemp.default,
   lensing: SIMULATION_CONFIG.lensing.default,

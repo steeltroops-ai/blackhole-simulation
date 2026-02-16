@@ -1,12 +1,6 @@
 import { useMemo } from "react";
 import type { SimulationParams } from "@/types/simulation";
-import {
-  calculateEventHorizon,
-  calculatePhotonSphere,
-  calculateISCO,
-  calculateTimeDilation,
-  calculateRedshift,
-} from "@/physics/kerr-metric";
+import { physicsBridge } from "@/engine/physics-bridge";
 
 export interface PhysicsState {
   normalizedSpin: number;
@@ -19,37 +13,44 @@ export interface PhysicsState {
 
 /**
  * Hook to centralize physics calculations based on simulation parameters.
- * Eliminates duplicate logic in ControlPanel and Telemetry (Circular Dependency Fix).
+ * Uses the Rust PhysicsBridge for calculations.
  *
  * @param params - Current simulation parameters
  * @returns PhysicsState containing calculated metric properties
  */
 export function usePhysicsState(params: SimulationParams): PhysicsState {
   return useMemo(() => {
-    // Normalize spin from UI range [-5, 5] to physics range [-1, 1]
-    const normalizedSpin = Math.max(-1, Math.min(1, params.spin / 5.0));
+    // Spin is now directly in physics units [-1, 1]
+    const normalizedSpin = Math.max(-1, Math.min(1, params.spin));
 
-    // Calculate core metric properties
-    const eventHorizonRadius = calculateEventHorizon(
-      params.mass,
-      normalizedSpin,
-    );
-    const photonSphereRadius = calculatePhotonSphere(
-      params.mass,
-      normalizedSpin,
-    );
+    // Update bridge parameters if ready
+    if (physicsBridge.isReady()) {
+      physicsBridge.updateParameters(params.mass, normalizedSpin);
+    }
+
+    // Calculate core metric properties using the bridge
+    // Note: computeHorizon and computeISCO handle the checks internally
+    const eventHorizonRadius = physicsBridge.computeHorizon();
+    
+    // Photon capture radius (approximation for UI until exposed from Rust)
+    // r_ph roughly lies between 2M and 4M depending on spin
+    const photonSphereRadius = 3.0 * params.mass; 
+
     // ISCO for prograde accretion disk
-    const iscoRadius = calculateISCO(params.mass, normalizedSpin, true);
+    const iscoRadius = physicsBridge.computeISCO();
 
-    // Calculate observer-dependent properties at current camera distance (zoom)
-    // Ensure we don't calculate inside the horizon to avoid Infinity/NaN in UI
-    const effectiveRadius = Math.max(
-      params.zoom,
-      eventHorizonRadius * 1.01, // 1% buffer
-    );
+    // Calculate observer-dependent properties at current camera distance (zoom in Rs)
+    // r is absolute distance in simulation units (assuming M=1 for units relative, but here we use absolute mass)
+    const absoluteZoom = params.zoom * 2.0 * params.mass;
+    const r = Math.max(absoluteZoom, eventHorizonRadius * 1.01);
+    const rs = 2.0 * params.mass;
+    
+    // Schwarzschild approximation for UI display of Time Dilation
+    // T_obs = T_proper / sqrt(1 - rs/r)
+    const timeDilation = 1.0 / Math.sqrt(Math.max(0.001, 1.0 - rs / r));
 
-    const timeDilation = calculateTimeDilation(effectiveRadius, params.mass);
-    const redshift = calculateRedshift(effectiveRadius, params.mass);
+    // Gravitational Redshift z = 1/sqrt(1-rs/r) - 1
+    const redshift = timeDilation - 1.0;
 
     return {
       normalizedSpin,

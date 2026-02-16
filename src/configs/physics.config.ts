@@ -20,7 +20,7 @@ export const PHYSICS_CONSTANTS = {
   // Color & Temperature Physics (Blackbody Radiation)
   blackbody: {
     tempMin: 1000.0,
-    tempMax: 50000.0,
+    tempMax: 100000.0,
     // Coefficients for converting temperature to RGB (Approximation of Planck's Law)
     redChannel: {
       threshold: 66.0,

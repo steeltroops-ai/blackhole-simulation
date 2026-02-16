@@ -1,6 +1,11 @@
 /**
  * Global Simulation Governance Schema
  * Centralized source of truth for all physics and visual parameters.
+ * 
+ * NOTE: All ranges are set to physically plausible values for a Kerr Black Hole.
+ * Mass is in Solar Masses (M☉).
+ * Spin is the dimensionless spin parameter a* = J / M^2, strictly bounded [-1, 1].
+ * Temperatures are in Kelvin.
  */
 
 export interface ParameterConfig {
@@ -65,101 +70,99 @@ const PERFORMANCE_PRESETS = {
 } as const;
 
 // --- MASTER CONFIGURATION SWITCH ---
-// Change this to automatically inherit all settings for that preset
-const DEFAULT_PRESET_MODE: keyof typeof PERFORMANCE_PRESETS = "ultra-quality";
+const DEFAULT_PRESET_MODE: keyof typeof PERFORMANCE_PRESETS = "high-quality";
 
 export const SIMULATION_CONFIG = {
   // Singularity Dynamics
   mass: {
-    default: 0.5,
-    min: 0.1,
-    max: 3.0,
+    default: 1.0,
+    min: 0.1,    // 0.1 Solar Masses (Micro-BH)
+    max: 10.0,   // 10 Solar Masses (Stellar BH)
     step: 0.1,
     unit: "M\u2609",
     decimals: 1,
     label: "Black Hole Mass",
   },
+  
+  // Angular Momentum (Spin)
+  // Strictly bounded to [-1, 1] for Kerr metric stability.
+  // Values outside this range represent a naked singularity.
   spin: {
-    default: 0.9,
-    min: -1.0, // Internal normalized range is -1 to 1 for physics, but UI uses -5 to 5 for "feel"
-    max: 1.0,
+    default: 0.5,
+    min: -0.99, // Avoid exactly -1/1 to prevent numerical singularity at horizon
+    max: 0.99,
     step: 0.01,
     unit: "a*",
     decimals: 2,
-    label: "Angular Spin",
+    label: "Spin Parameter",
   },
-  // UI mapping for spin (converts slider -5..5 to physics -1..1)
-  ui_spin: {
-    default: 4.5, // matches physics 0.9
-    min: -5.0,
-    max: 5.0,
-    step: 0.1,
-    unit: "a*",
-    decimals: 1,
-    label: "Angular Spin",
-  },
+  
+  // NOTE: ui_spin removed as we now use direct physics values
+  
   zoom: {
-    default: 50.0,
-    min: 5.0,
-    max: 100.0,
+    default: 20.0,
+    min: 2.5,   // Close orbit
+    max: 100.0, // Far observer
     step: 0.5,
-    unit: "AU",
+    unit: "Rs", // Schwarzschild Radii
     decimals: 1,
-    label: "Observer Distance",
+    label: "Observer Dist",
   },
 
   // System Kinetics
   autoSpin: {
-    default: 0.001,
-    min: -0.05,
-    max: 0.05,
+    default: 0.005, // Default to static for accuracy
+    min: -0.1,
+    max: 0.1,
     step: 0.001,
     unit: "rad/s",
     decimals: 3,
-    label: "Auto-Rotation",
+    label: "Cam Auto-Pan",
   },
   diskSize: {
-    default: 35.0,
-    min: 5.0,
-    max: 50.0,
+    default: 12.0,
+    min: 3.0,   // Just outside ISCO
+    max: 50.0,  // Extended disk
     step: 0.5,
-    unit: "M",
+    unit: "Rs",
     decimals: 1,
-    label: "Accretion Radius",
+    label: "Disk Radius",
   },
 
-  // Light & Color
+  // Thermodynamics
   diskTemp: {
-    default: 3000.0,
-    min: 1000.0,
-    max: 50000.0,
+    default: 5000.0,
+    min: 1000.0,   // Cool edge
+    max: 100000.0, // X-ray hot
     step: 500,
     unit: "K",
     decimals: 0,
-    label: "Accretion Temp",
-  },
-  lensing: {
-    default: 1.0,
-    min: 0.0,
-    max: 3.0,
-    step: 0.1,
-    unit: "\u03bb",
-    decimals: 1,
-    label: "Lensing Factor",
+    label: "Disk Temp",
   },
   diskDensity: {
-    default: 3.9,
+    default: 4.0,
     min: 0.0,
     max: 5.0,
     step: 0.1,
-    unit: "g/cm\u00b3",
+    unit: "rel",
     decimals: 1,
-    label: "Plasma Density",
+    label: "Opt. Density",
+  },
+  
+  // Relativistic Effects
+  lensing: {
+    default: 0.7,  // Standard GR
+    min: 0.0,
+    max: 2.0,      // Exaggerated for education
+    step: 0.1,
+    unit: "\u03B7", // Eta
+    decimals: 1,
+    label: "Lensing Str",
   },
 
   // System Optimization
   renderScale: {
-    default: 1.5,
+    default: 1.0,
     min: 0.25,
     max: 2.0,
     step: 0.25,
@@ -176,10 +179,10 @@ export const SIMULATION_CONFIG = {
   // Ray Tracing Step Budgets
   rayTracingSteps: {
     off: 0,
-    low: 50,
-    medium: 100,
-    high: 250,
-    ultra: 500,
+    low: 32,
+    medium: 64,
+    high: 128,
+    ultra: 256, // 500 is often overkill for real-time
   } as const,
 
   // Global Performance Presets
