@@ -71,28 +71,30 @@ export const SimulationInfo = ({
                 className="overflow-hidden relative z-10"
               >
                 <div className="px-6 pb-8 pt-2 space-y-6 h-auto max-h-[65vh] sm:max-h-[80vh] overflow-y-auto custom-scrollbar">
-                  {/* 1. Spacetime Geometry */}
+                  {/* 1. Spacetime Topology */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                      Spacetime Geometry
+                      Kerr Spacetime Manifold
                     </h3>
                     <div className="space-y-3 px-4">
                       <p className="text-[12px] leading-relaxed text-white/90 font-light">
                         The engine solves for the geometry of a rotating uncharged
-                        mass using Boyer-Lindquist coordinates. Spacetime
-                        curvature is defined by the metric tensor <i>ds</i>², where
-                        the rotation of the singularity induces a{" "}
-                        <strong className="text-white">Frame-Dragging</strong> effect (Lense-Thirring
-                        Precession).
+                        mass using <strong className="text-white">Boyer-Lindquist coordinates</strong>. Spacetime
+                        curvature is defined by the metric tensor <i>g<sub>μν</sub></i>, where
+                        the rotation of the singularity induces the{" "}
+                        <strong className="text-white">Lense-Thirring</strong> effect (Frame-Dragging).
                       </p>
+                      <div className="p-3 bg-white/[0.05] rounded-lg border border-white/10 font-mono text-[9px] text-white/90 text-center">
+                        Δ = r² - 2Mr + a² | Σ = r² + a²cos²θ
+                      </div>
                       <div className="p-3 bg-white/[0.05] rounded-lg border border-white/10 font-mono text-[9px] text-white/90 text-center">
                         r₊ = M + √(M² - a²) (Event Horizon Boundary)
                       </div>
                     </div>
                   </section>
 
-                  {/* 2. Optical Phenomena */}
+                  {/* 2. Relativistic Optics */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
@@ -104,8 +106,9 @@ export const SimulationInfo = ({
                           Gravitational Lensing
                         </h4>
                         <p className="text-[11px] leading-relaxed text-white/90 font-light">
-                          Intense light distortion creates a secondary,
-                          mirror-image of the background starfield.
+                          Light geodesics are deflected by the potential well, creating 
+                          <strong className="text-white"> Einstein Rings</strong> and 
+                          multiple-image copies of the background starfield.
                         </p>
                       </div>
                       <div className="space-y-3">
@@ -113,14 +116,14 @@ export const SimulationInfo = ({
                           Photon Sphere
                         </h4>
                         <p className="text-[11px] leading-relaxed text-white/90 font-light">
-                          At r = 3M, gravity is strong enough to force photons
-                          into circular orbits, creating a luminous boundary.
+                          Critical orbits at 1.5M to 3M. Prograde photons can orbit closer to the horizon 
+                          than retrograde ones due to rotational dragging.
                         </p>
                       </div>
                     </div>
                   </section>
 
-                  {/* 3. Accretion Dynamics */}
+                  {/* 3. Accretion & Radiative Transfer */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
@@ -128,30 +131,34 @@ export const SimulationInfo = ({
                     </h3>
                     <div className="space-y-3 px-4">
                       <p className="text-[12px] leading-relaxed text-white/90 font-light">
-                        The plasma disk follows the{" "}
-                        <strong className="text-white">Shakura-Sunyaev</strong> power law. Spectral
-                        intensity is governed by the Doppler factor, which
-                        blue-shifts prograde matter and red-shifts retrograde
-                        matter.
+                        The plasma disk follows the <strong className="text-white">Novikov-Thorne</strong> model. 
+                        Spectral radiance is governed by the Redshift Factor <i>g</i>, which 
+                        blue-shifts prograde matter and red-shifts retrograde matter.
                       </p>
                       <div className="p-4 bg-white/[0.05] rounded-2xl border border-white/10 font-mono text-[10px] text-white/90 text-center">
-                        I<sub>obs</sub> = I<sub>emit</sub> · δ⁴ (Relativistic Beaming)
+                        I<sub>obs</sub> = I<sub>emit</sub> · g⁴ (Relativistic Beaming)
                       </div>
+                      <p className="text-[11px] leading-relaxed text-white/70 font-light italic">
+                        Thermal emission is integrated through the volume using the Radiative Transfer Equation, 
+                        accounting for optical depth and self-absorption.
+                      </p>
                     </div>
                   </section>
 
-                  {/* 4. GPU Integration */}
+                  {/* 4. Computational Physics */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                      Rendering Core
+                      Computation & Integration
                     </h3>
                     <div className="grid grid-cols-2 gap-6 mt-4 px-4">
                       {[
-                        { l: "Anti-Aliasing", v: "Temporal Reprojection" },
+                        { l: "Integrator", v: "Yoshida 6th-Order Symplectic" },
                         { l: "Tone Mapping", v: "ACES Filmic (Narkowicz)" },
-                        { l: "Integration", v: "Velocity Verlet (Symplectic)" },
-                        { l: "Optimization", v: "Adaptive Step Scaling" },
+                        { l: "Redshift", v: "Gravitational + Doppler Shift" },
+                        { l: "Optimization", v: "Octree Bounding Geodesics" },
+                        { l: "Spectral", v: "Gaussian Basis SPD Transport" },
+                        { l: "Numerical", v: "Hamiltonian Energy Conservation" },
                       ].map((i, k) => (
                         <div key={k} className="space-y-1">
                           <span className="block text-[8px] text-white/50 uppercase font-black tracking-widest">
@@ -165,26 +172,70 @@ export const SimulationInfo = ({
                     </div>
                   </section>
 
-                  {/* 5. Constants */}
+                  {/* 5. Relativistic Polarimetry */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                      Physics Constants
+                      Vector Wave Transport
+                    </h3>
+                    <div className="space-y-3 px-4">
+                      <p className="text-[12px] leading-relaxed text-white/90 font-light">
+                        Light acts as a vector wave. We solve the transport of the 
+                        <strong className="text-white"> Stokes Parameters</strong> (I, Q, U, V) 
+                        to visualize the polarization vector rotation within the twisted spacetime.
+                      </p>
+                      <div className="p-3 bg-white/[0.05] rounded-lg border border-white/10 font-mono text-[9px] text-white/90 text-center">
+                        χ' = χ + Δφ<sub>Faraday</sub> (Gravitational Rotation)
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* 6. Orbital Constants */}
+                  <section>
+                    <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                      Critical Limits
                     </h3>
                     <ul className="space-y-4 px-4">
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
                         <span className="text-white/60">Ergosphere Max</span>
-                        <span className="text-white font-bold">2M</span>
+                        <span className="text-white font-bold">r = 2M</span>
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
                         <span className="text-white/60">ISCO Radius (a=0)</span>
-                        <span className="text-[10px] text-white font-bold">6M</span>
+                        <span className="text-[10px] text-white font-bold">r = 6M</span>
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
-                        <span className="text-white/60">Photon Inner Limit</span>
-                        <span className="text-white font-bold">1.5M (a=1)</span>
+                        <span className="text-white/60">ISCO Radius (a=1)</span>
+                        <span className="text-white font-bold">r = 1M</span>
+                      </li>
+                      <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
+                        <span className="text-white/60">Keplerian Ω<sub>K</sub></span>
+                        <span className="text-white font-bold">√M / (r<sup>3/2</sup> + a√M)</span>
                       </li>
                     </ul>
+                  </section>
+
+                  {/* 7. Research References */}
+                  <section>
+                    <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                      Verification Sources
+                    </h3>
+                    <div className="space-y-2 px-4 opacity-70">
+                      <p className="text-[9px] font-mono leading-tight">
+                        [1] Shakura & Sunyaev (1973): Standard Disk Model
+                      </p>
+                      <p className="text-[9px] font-mono leading-tight">
+                        [2] Boyer & Lindquist (1967): Maximal Analytic Extension
+                      </p>
+                      <p className="text-[9px] font-mono leading-tight">
+                        [3] Yoshida (1990): Symplectic Integration Hierarchy
+                      </p>
+                      <p className="text-[9px] font-mono leading-tight">
+                        [4] Novikov & Thorne (1973): Relativistic Accretion
+                      </p>
+                    </div>
                   </section>
 
                   <div className="pt-4 opacity-10 text-center">

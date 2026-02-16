@@ -393,7 +393,7 @@ export const ControlPanel = ({
                             by Mayank _@steeltroops_ai
                           </p>
                           <button
-                            onClick={() => onCompactChange(true)}
+                            onClick={() => onToggleUI(false)}
                             className="text-[9px] text-white/40 hover:text-white uppercase tracking-widest border border-white/10 px-1.5 rounded-sm hover:bg-white/10 transition-colors"
                           >
                             Hide
@@ -796,7 +796,7 @@ export const ControlPanel = ({
 
                     <button
                       onClick={() => {
-                        onToggleUI(false);
+                        onCompactChange(true);
                         setActiveTab("simulation");
                       }}
                       className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-[8px] tracking-[0.1em] uppercase transition-all duration-300 border bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 group/close`}
