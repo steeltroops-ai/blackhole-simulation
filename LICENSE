@@ -1,5 +1,30 @@
-PROPRIETARY AND CONFIDENTIAL
+# PROJECT BLACKHOLE SIMULATION - PERSONAL & COMMUNITY LICENSE
 
 Copyright (c) 2026. All rights reserved.
 
-This software and its associated documentation are the exclusive property of the owner. Unauthorized copying, distribution, modification, or use of this software, via any medium, is strictly prohibited without express written permission.
+## 1. OWNERSHIP & PROPRIETARY RIGHTS
+
+This software and all associated documentation ("The Project") are the private property of Mayank (the "Owner"). The Owner retains all legal rights, title, and interest in and to the Project, including all intellectual property rights therein.
+
+## 2. GRANT OF LICENSE
+
+Subject to the terms and conditions of this License, the Owner hereby grants to any person obtaining a copy of this Project the following rights:
+
+- **Personal & Educational Use**: You may use, study, and run the Project for personal, non-commercial, and educational purposes.
+- **Contribution**: You are encouraged to contribute to the Project by submitting pull requests, bug reports, and suggestions. By contributing, you agree that your contributions will be governed by this License and will be integrated into the Project under the Owner's control.
+
+## 3. RESTRICTIONS
+
+The following actions are strictly prohibited without express, prior written consent from the Owner:
+
+- **Commercial Use**: You may not use the Project, in whole or in part, for any commercial purpose. This includes, but is not limited to, selling, leasing, or using the Project to generate revenue or for recruitment/marketing of commercial services.
+- **Public Redistribution for Profit**: You may not redistribute the Project if such redistribution involves a fee or any form of commercial transaction.
+- **Brand Protection**: You may not use the names, logos, or trademarks of the Project or the Owner to endorse or promote products without specific prior written permission.
+
+## 4. ATTRIBUTION
+
+Any redistribution of the Project, in source or binary form, must retain this LICENSE file and the original copyright notice.
+
+## 5. DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

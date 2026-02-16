@@ -9,7 +9,7 @@ A scientifically accurate, real-time relativistic ray-marching engine for visual
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=https://cdn.simpleicons.org/typescript/white)
 ![Bun](https://img.shields.io/badge/Bun-v1.2-000000?style=flat&logo=https://cdn.simpleicons.org/bun/white)
 ![CI/CD](https://github.com/steeltroops-ai/blackhole-simulation/actions/workflows/production.yml/badge.svg)
-![License](https://img.shields.io/static/v1?style=flat&message=Proprietary&label=License&color=orange)
+![License](https://img.shields.io/static/v1?style=flat&message=Community&label=License&color=blue)
 
 ---
 
@@ -124,5 +124,10 @@ Detailed engineering specifications are available in the **`docs/`** directory:
 
 ## License
 
-Proprietary Software. All rights reserved by **Mayank**.
-Unauthorized copying, modification, distribution, or use of this source code is strictly prohibited.
+This project is licensed under the [**Personal & Community License**](./LICENSE).
+
+- **Personal & Educational**: Free to use, study, and modify for personal use.
+- **Contributions**: Contributions are welcome and encouraged via pull requests.
+- **Commercial Usage**: Strictly prohibited. You may not sell this project or use it for commercial profit without express written permission from the owner (**Mayank**).
+
+Copyright (c) 2026. All rights reserved.
