@@ -18,137 +18,75 @@ export class PhysicsBridge {
   private _lastGoodPhysics = new Float32Array(128);
 
   // Persistent views
-  private _f32: Float32Array | null = null;
+  private controlView: Float32Array = new Float32Array(0);
+  private cameraView: Float32Array = new Float32Array(0);
+  private physicsView: Float32Array = new Float32Array(0);
 
-  // Subarray views
-  public controlView!: Float32Array;
-  public cameraView!: Float32Array;
-  public physicsView!: Float32Array;
-  public telemetryView!: Float32Array;
-
-  constructor() {}
-
-  public async ensureInitialized(): Promise<void> {
+  public async initialize(): Promise<void> {
     if (this.initializationPromise) return this.initializationPromise;
 
     this.initializationPromise = (async () => {
       try {
-        // 1. Create Shared Communication Buffer (8KB)
-        if (typeof SharedArrayBuffer !== "undefined") {
-          this.sab = new SharedArrayBuffer(8192);
-        } else {
-          console.warn(
-            "SharedArrayBuffer not available. Falling back to Main Thread Physics.",
-          );
-        }
+        console.log("PhysicsBridge: Initializing WASM Kernel...");
 
-        // 2. Spawn Worker for Phase 2 Threaded Simulation
-        if (typeof Worker !== "undefined" && this.sab) {
-          try {
-            const workerInstance = new Worker(
-              new URL("../workers/physics.worker.ts", import.meta.url),
-              { type: "module" },
-            );
-            this.worker = workerInstance;
-
-            await new Promise<void>((resolve, reject) => {
-              workerInstance.onmessage = (e) => {
-                if (e.data.type === "READY") resolve();
-                if (e.data.type === "ERROR") reject(new Error(e.data.error));
-              };
-
-              workerInstance.postMessage({
-                type: "INIT",
-                data: {
-                  sab: this.sab,
-                  mass: this.engine ? this.engine.mass : 1.0,
-                  spin: this.engine ? this.engine.spin : 0.0,
-                },
-              });
-            });
-          } catch (workerErr) {
-            console.warn(
-              "Failed to spawn physics worker, falling back to main thread:",
-              workerErr,
-            );
-            this.worker = null;
-          }
-        }
-
-        // 3. Initialize Local WASM for LUTs and Queries (and fallback tick)
-        const wasmModuleWrap = await import("blackhole-physics");
-        this.wasmModule = await wasmModuleWrap.default();
-        const { PhysicsEngine } = wasmModuleWrap;
-        this.engine = new PhysicsEngine(1.0, 0.0);
-
-        // Sync views to the correct buffer
-        // If worker is running, views MUST point to SharedArrayBuffer
-        // If no worker, views point to WASM memory
-        this.syncViews(
-          this.sab && this.worker ? this.sab : this.wasmModule.memory.buffer,
+        // Note: In Next.js, we need to handle both SSR and Client-side loading.
+        // The worker is the primary driver in production.
+        this.worker = new Worker(
+          new URL("../workers/physics.worker.ts", import.meta.url),
         );
 
-        console.log(
-          `Physics Bridge Initialized: ${this.worker ? "Worker + Local LUTs" : "Main Thread Only"}`,
-        );
+        // Setup SharedArrayBuffer (SAB) for Zero-Copy Sync
+        // 2MB is enough for headers + several 512x512 LUTs
+        this.sab = new SharedArrayBuffer(2 * 1024 * 1024);
+        this.initializeViews();
+
+        this.worker.postMessage({ type: "INIT", sab: this.sab });
+
+        return new Promise<void>((resolve, reject) => {
+          if (!this.worker) return reject("Worker failed to init");
+          this.worker.onmessage = (e) => {
+            if (e.data.type === "READY") {
+              console.log("PhysicsBridge: Worker Ready.");
+              resolve();
+            } else if (e.data.type === "ERROR") {
+              reject(e.data.error);
+            }
+          };
+        });
       } catch (err) {
-        console.error("Critical Physics Initialization Failure:", err);
-        this.initializationPromise = null;
-        throw err;
+        console.error("PhysicsBridge Fallback: Loading in main thread...", err);
+        // Fallback for environments where workers or SAB are disabled
+        const wasmModuleWrap = await import("../wasm/blackhole_physics");
+        await wasmModuleWrap.default();
+        this.engine = new wasmModuleWrap.PhysicsEngine(1.0, 0.9);
       }
     })();
 
     return this.initializationPromise;
   }
 
-  private syncViews(buffer: ArrayBuffer | SharedArrayBuffer): boolean {
-    if (buffer === this.lastBuffer && this._f32) return true;
-
-    // IMPORTANT: If we are using the worker (SharedArrayBuffer), the layout
-    // starts at 0. If we are using local fallback (WASM Buffer), we use the WASM pointer.
-    const startIdx =
-      this.worker && this.sab
-        ? 0
-        : this.engine
-          ? this.engine.get_sab_ptr() / 4
-          : 0;
-
-    this._f32 = new Float32Array(buffer);
-    this.controlView = this._f32.subarray(
-      startIdx + OFFSETS.CONTROL,
-      startIdx + OFFSETS.CAMERA,
-    );
-    this.cameraView = this._f32.subarray(
-      startIdx + OFFSETS.CAMERA,
-      startIdx + OFFSETS.PHYSICS,
-    );
-    this.physicsView = this._f32.subarray(
-      startIdx + OFFSETS.PHYSICS,
-      startIdx + OFFSETS.TELEMETRY,
-    );
-    this.telemetryView = this._f32.subarray(
-      startIdx + OFFSETS.TELEMETRY,
-      startIdx + OFFSETS.LUTS,
-    );
-
-    this.lastBuffer = buffer;
-    return true;
+  private initializeViews() {
+    if (!this.sab) return;
+    this.controlView = new Float32Array(this.sab, OFFSETS.CONTROL, 16);
+    this.cameraView = new Float32Array(this.sab, OFFSETS.CAMERA, 16);
+    this.physicsView = new Float32Array(this.sab, OFFSETS.PHYSICS, 16);
   }
 
   public isReady(): boolean {
-    // Both modes now require the local engine for LUTs and queries
-    if (!this.engine) return false;
-
-    // If worker exists, views were already synced to SAB
-    if (this.worker && this.sab) return true;
-
-    // Otherwise check fallback engine and its memory
-    if (this.wasmModule) {
-      return this.syncViews(this.wasmModule.memory.buffer);
-    }
-    return false;
+    return !!(this.engine || this.worker);
   }
 
+  public async ensureInitialized(): Promise<void> {
+    if (!this.initializationPromise) {
+      return this.initialize();
+    }
+    return this.initializationPromise;
+  }
+
+  /**
+   * Primary Telemetry Hook. Reads camera and physics state from SAB.
+   * This is called 60+ times per second in the animation loop.
+   */
   public tick(
     dt: number,
   ): { camera: Float32Array; physics: Float32Array } | null {
@@ -201,14 +139,61 @@ export class PhysicsBridge {
     }
   }
 
+  public setCameraState(
+    pos: { x: number; y: number; z: number },
+    lookAt: { x: number; y: number; z: number },
+  ) {
+    if (this.worker) {
+      this.worker.postMessage({
+        type: "SET_CAMERA_STATE",
+        data: { pos, lookAt },
+      });
+    }
+    if (this.engine) {
+      this.engine.set_camera_state(
+        pos.x,
+        pos.y,
+        pos.z,
+        lookAt.x,
+        lookAt.y,
+        lookAt.z,
+      );
+    }
+  }
+
+  public setAutoSpin(enabled: boolean) {
+    if (this.worker) {
+      this.worker.postMessage({ type: "SET_AUTO_SPIN", data: enabled });
+    }
+    if (this.engine) {
+      this.engine.set_auto_spin(enabled);
+    }
+  }
+
+  public updateInputs(inputs: {
+    dt: number;
+    orbitX: number;
+    orbitY: number;
+    zoom: number;
+  }) {
+    if (this.worker) {
+      this.worker.postMessage({ type: "UPDATE_INPUTS", data: inputs });
+    }
+    // Shared memory handles the actual update if using SAB, but we still trigger logic
+  }
+
   public getDiskLUT(): Float32Array | null {
     if (!this.isReady()) return null;
     return this.engine.generate_disk_lut();
   }
 
-  public getSpectrumLUT(width: number, maxTemp: number): Float32Array | null {
+  public getSpectrumLUT(
+    width: number,
+    height: number,
+    maxTemp: number,
+  ): Float32Array | null {
     if (!this.isReady()) return null;
-    return this.engine.generate_spectrum_lut(width, maxTemp);
+    return this.engine.generate_spectrum_lut(width, height, maxTemp);
   }
 
   public computeHorizon(): number {

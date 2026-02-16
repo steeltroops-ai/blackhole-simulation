@@ -82,6 +82,23 @@ self.onmessage = async (e: MessageEvent) => {
   if (type === "UPDATE_PARAMS" && engine) {
     engine.update_params(data.mass, data.spin);
   }
+
+  if (type === "SET_CAMERA_STATE" && engine) {
+    const { pos, lookAt } = data;
+    engine.set_camera_state(pos.x, pos.y, pos.z, lookAt.x, lookAt.y, lookAt.z);
+  }
+
+  if (type === "SET_AUTO_SPIN" && engine) {
+    engine.set_auto_spin(data);
+  }
+
+  if (type === "UPDATE_INPUTS" && sabControlView) {
+    // Write directly to shared memory
+    sabControlView[1] = data.orbitX;
+    sabControlView[2] = data.orbitY;
+    sabControlView[3] = data.zoom;
+    sabControlView[4] = data.dt;
+  }
 };
 
 // Persistent views to avoid GC pressure

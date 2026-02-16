@@ -167,7 +167,7 @@ export function useAnimation(
       }
 
       if (physicsBridge && !spectrumLUTTextureRef.current) {
-        const spectrumData = physicsBridge.getSpectrumLUT(512, 100000.0);
+        const spectrumData = physicsBridge.getSpectrumLUT(512, 1, 100000.0);
         if (spectrumData) {
           // Spectrum LUT is RGBA (r,g,b,a)
           const { createTextureFromData } = require("@/utils/webgl-utils");
