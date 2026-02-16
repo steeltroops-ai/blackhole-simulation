@@ -181,10 +181,13 @@ export function setupPositionAttribute(
 interface TextureOptions {
   width: number;
   height: number;
-  data: Uint8Array;
+  data: Uint8Array | Float32Array | null;
   minFilter?: number;
   magFilter?: number;
   wrap?: number;
+  internalFormat?: number;
+  format?: number;
+  type?: number;
 }
 
 /**
@@ -201,22 +204,42 @@ export function createTextureFromData(
     minFilter = gl.LINEAR,
     magFilter = gl.LINEAR,
     wrap = gl.REPEAT,
+    internalFormat = gl.RGBA,
+    format = gl.RGBA,
+    type = gl.UNSIGNED_BYTE,
   } = options;
+  
   const texture = gl.createTexture();
   if (!texture) return null;
 
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    width,
-    height,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    data,
-  );
+  
+  // Handle different data types
+  if (data instanceof Float32Array) {
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        internalFormat, // e.g. gl.R32F or gl.RGBA32F
+        width,
+        height,
+        0,
+        format, // e.g. gl.RED or gl.RGBA
+        gl.FLOAT,
+        data
+      );
+  } else {
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        internalFormat,
+        width,
+        height,
+        0,
+        format,
+        type,
+        data as Uint8Array // Cast needed or logic adjustment
+      );
+  }
 
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);

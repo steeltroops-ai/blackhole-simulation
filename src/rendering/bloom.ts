@@ -380,9 +380,10 @@ export class BloomManager {
 
     // Safety: If Framebuffer failed to initialize, fallback to screen to prevent black void
     if (!this.sceneFramebuffer) {
-      console.warn("Bloom FBO missing, falling back to direct screen render");
+      console.warn("Bloom FBO missing");
       return null;
     }
+
 
     // Safety: Unbind potential feedback textures
     this.gl.activeTexture(this.gl.TEXTURE0);
@@ -487,45 +488,34 @@ export class BloomManager {
 
     gl.uniform2f(this.locs.blur_resolution, blurWidth, blurHeight);
 
-    let sourceTexture = this.brightTexture;
-    let targetFramebuffer = this.blurFramebuffer1;
-    let targetTexture = this.blurTexture1;
+    let currentSourceTexture = this.brightTexture;
 
     for (let i = 0; i < this.config.blurPasses; i++) {
-      // Horizontal blur
-      gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
+      // Horizontal blur: Source -> Blur1
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.blurFramebuffer1);
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+      gl.bindTexture(gl.TEXTURE_2D, currentSourceTexture);
       gl.uniform1i(this.locs.blur_texture, 0);
       gl.uniform2f(this.locs.blur_direction, 1.0, 0.0);
-      gl.clear(gl.COLOR_BUFFER_BIT); // Clear buffer before drawing
+      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-      // Unbind texture immediately to prevent feedback
-      gl.bindTexture(gl.TEXTURE_2D, null);
-
-      // Vertical blur
-      sourceTexture = targetTexture;
-      targetFramebuffer =
-        i % 2 === 0 ? this.blurFramebuffer2 : this.blurFramebuffer1;
-      targetTexture = i % 2 === 0 ? this.blurTexture2 : this.blurTexture1;
-
-      gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
+      // Vertical blur: Blur1 -> Blur2
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.blurFramebuffer2);
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+      gl.bindTexture(gl.TEXTURE_2D, this.blurTexture1);
       gl.uniform1i(this.locs.blur_texture, 0);
       gl.uniform2f(this.locs.blur_direction, 0.0, 1.0);
-      gl.clear(gl.COLOR_BUFFER_BIT); // Clear buffer
+      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-      // Unbind texture immediately
-      gl.bindTexture(gl.TEXTURE_2D, null);
-
-      sourceTexture = targetTexture;
-      targetFramebuffer =
-        i % 2 === 0 ? this.blurFramebuffer1 : this.blurFramebuffer2;
-      targetTexture = i % 2 === 0 ? this.blurTexture1 : this.blurTexture2;
+      // For next iteration, source is Blur2
+      currentSourceTexture = this.blurTexture2;
     }
+
+    // Final source texture for combine pass is the result of vertical blur
+    const sourceTexture = currentSourceTexture;
+
 
     // === PASS 3: Combine with original scene ===
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);

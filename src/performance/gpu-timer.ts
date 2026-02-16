@@ -30,6 +30,7 @@ export class GPUTimer {
   private pendingQueries: WebGLQuery[] = [];
   private lastGpuTimeMs: number = 0;
   private _available: boolean = false;
+  public lastResolutionChange: number = 0;
 
   /**
    * Attempt to acquire the timer query extension.
@@ -46,12 +47,11 @@ export class GPUTimer {
     this._available = this.ext !== null;
 
     if (this._available) {
-      console.warn(
-        "GPU Timer: EXT_disjoint_timer_query_webgl2 acquired -- GPU timing enabled",
-      );
+      // Available
     } else {
-      console.warn("GPU Timer: Extension not available -- GPU timing disabled");
+      // Not available
     }
+
 
     return this._available;
   }
