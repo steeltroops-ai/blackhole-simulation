@@ -121,15 +121,18 @@ const App = () => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       const requested = urlParams.get("webgpu") === "true";
-      // Only enable if requested AND supported (or forced for testing?)
-      // Let's allow force if supported is unknown/true, but fallback if explicitly false?
-      // For now: require explicit URL param + browser support
       if (requested && isWebGPUSupported !== false) {
         setUseWebGPU(true);
       } else {
         setUseWebGPU(false);
       }
     }
+
+    // Trigger Physics Bridge Initialization
+    const { physicsBridge } = require("@/engine/physics-bridge");
+    physicsBridge.ensureInitialized().catch((err: any) => {
+      console.error("Critical Physics Initialization Failure:", err);
+    });
   }, [isWebGPUSupported]);
 
   return (

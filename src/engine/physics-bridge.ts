@@ -19,27 +19,52 @@ export class PhysicsBridge {
   private memory: WebAssembly.Memory | null = null;
   private f32: Float32Array | null = null;
   private u32: Uint32Array | null = null;
+  private initializationPromise: Promise<void> | null = null;
 
   // View into specific sections
-  public controlView!: Float32Array; // Changed to Float32Array to match Rust f32 reads
+  public controlView!: Float32Array;
   public cameraView!: Float32Array;
   public physicsView!: Float32Array;
   public telemetryView!: Float32Array;
 
   constructor() {}
 
-  async init(wasmModule: any) {
-    // Initialize the Rust WASM module
-    this.engine = new PhysicsEngine(1.0, 0.0); // Default mass=1, spin=0
+  /**
+   * Safe entry point to ensure physics is ready before use.
+   * Can be called multiple times; returns the same initialization promise.
+   */
+  public async ensureInitialized(): Promise<void> {
+    if (this.engine) return;
+    if (this.initializationPromise) return this.initializationPromise;
 
-    // Get the pointer to the internal SAB buffer in Rust memory
-    const sabPtr = this.engine.get_sab_ptr();
+    this.initializationPromise = (async () => {
+      try {
+        // Dynamic import of the WASM glue code
+        const wasmModule = await import("blackhole-physics");
+        // For 'web' target, we must call the default export (init)
+        const wasm = await wasmModule.default();
+        await this.init(wasm);
+      } catch (err) {
+        console.error("PhysicsBridge failed to initialize WASM:", err);
+        this.initializationPromise = null;
+        throw err;
+      }
+    })();
+
+    return this.initializationPromise;
+  }
+
+  public async init(wasmModule: any) {
+    if (this.engine) return;
+
+    // Initialize the Rust WASM module
+    this.engine = new PhysicsEngine(1.0, 0.0);
 
     // Access WASM linear memory
     this.memory = wasmModule.memory;
 
-    if (this.memory) {
-      // ... (buffer calc) ...
+    if (this.memory && this.engine) {
+      const sabPtr = this.engine.get_sab_ptr();
       const buffer = this.memory.buffer;
       const startIdx = sabPtr / 4;
 
@@ -47,26 +72,21 @@ export class PhysicsBridge {
       this.u32 = new Uint32Array(buffer);
 
       // Create Zero-Copy Subarray Views into the Rust-owned buffer
-
-      // Control Block (f32) - Rust reads these as f32
       this.controlView = this.f32.subarray(
         startIdx + OFFSETS.CONTROL,
         startIdx + OFFSETS.CAMERA,
       );
 
-      // Camera Block (f32)
       this.cameraView = this.f32.subarray(
         startIdx + OFFSETS.CAMERA,
         startIdx + OFFSETS.PHYSICS,
       );
 
-      // Physics Block (f32)
       this.physicsView = this.f32.subarray(
         startIdx + OFFSETS.PHYSICS,
         startIdx + OFFSETS.TELEMETRY,
       );
 
-      // Telemetry Block (f32)
       this.telemetryView = this.f32.subarray(
         startIdx + OFFSETS.TELEMETRY,
         startIdx + OFFSETS.LUTS,
@@ -76,15 +96,12 @@ export class PhysicsBridge {
     }
   }
 
-  // Helper validation (removed createViews as it is now integrated into init)
   public isReady(): boolean {
     return !!this.engine && !!this.f32;
   }
 
   public tick(dt: number) {
     if (this.engine) {
-      // In real zero-copy, we might just write to SAB and let Rust read it.
-      // But tick_sab triggers the update logic in Rust.
       this.engine.tick_sab(dt);
     }
   }
@@ -97,8 +114,6 @@ export class PhysicsBridge {
 
   public getDiskLUT(): Float32Array | null {
     if (!this.engine) return null;
-    // This returns a copy from Rust (via wasm-bindgen currently)
-    // Future optimization: Return a view into the WASM memory directly
     return this.engine.generate_disk_lut();
   }
 
