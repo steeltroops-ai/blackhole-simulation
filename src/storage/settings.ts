@@ -33,6 +33,10 @@ export class SettingsStorage {
    * Check if localStorage is available
    */
   private isLocalStorageAvailable(): boolean {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") {
+      return false;
+    }
+
     try {
       const test = "__localStorage_test__";
       localStorage.setItem(test, test);

@@ -25,6 +25,10 @@ export interface HardwareInfo {
  * @returns true if device is mobile, false otherwise
  */
 export function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
   // Check user agent for mobile device indicators
   const mobileUserAgentPattern =
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
