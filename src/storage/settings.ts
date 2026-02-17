@@ -87,11 +87,12 @@ export class SettingsStorage {
         return parsed;
       }
 
-      // Invalid data, return null to trigger fallback
       return null;
     } catch (error) {
+      // Data is corrupted, wipe it to stop recurring errors
+      localStorage.removeItem(this.storageKey);
       // eslint-disable-next-line no-console
-      console.warn("Failed to load features from localStorage:", error);
+      console.warn("Corrupted features cleared from localStorage:", error);
       return null;
     }
   }
