@@ -8,7 +8,9 @@ export const OFFSETS = {
 } as const;
 
 export class PhysicsBridge {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private engine: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private wasmModule: any = null;
   private worker: Worker | null = null;
   private initializationPromise: Promise<void> | null = null;
@@ -27,6 +29,7 @@ export class PhysicsBridge {
 
     this.initializationPromise = (async () => {
       try {
+        // eslint-disable-next-line no-console
         console.log("PhysicsBridge: Initializing WASM Kernel...");
 
         // Note: In Next.js, we need to handle both SSR and Client-side loading.
@@ -40,12 +43,13 @@ export class PhysicsBridge {
         this.sab = new SharedArrayBuffer(2 * 1024 * 1024);
         this.initializeViews();
 
-        this.worker.postMessage({ type: "INIT", sab: this.sab });
+        this.worker.postMessage({ type: "INIT", data: { sab: this.sab } });
 
         return new Promise<void>((resolve, reject) => {
           if (!this.worker) return reject("Worker failed to init");
           this.worker.onmessage = (e) => {
             if (e.data.type === "READY") {
+              // eslint-disable-next-line no-console
               console.log("PhysicsBridge: Worker Ready.");
               resolve();
             } else if (e.data.type === "ERROR") {
@@ -54,9 +58,10 @@ export class PhysicsBridge {
           };
         });
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error("PhysicsBridge Fallback: Loading in main thread...", err);
         // Fallback for environments where workers or SAB are disabled
-        const wasmModuleWrap = await import("../wasm/blackhole_physics");
+        const wasmModuleWrap = await import("blackhole-physics");
         await wasmModuleWrap.default();
         this.engine = new wasmModuleWrap.PhysicsEngine(1.0, 0.9);
       }
@@ -184,6 +189,7 @@ export class PhysicsBridge {
 
   public getDiskLUT(): Float32Array | null {
     if (!this.isReady()) return null;
+    if (!this.engine) return null; // Prevent crash when running in worker mode
     return this.engine.generate_disk_lut();
   }
 
@@ -193,6 +199,7 @@ export class PhysicsBridge {
     maxTemp: number,
   ): Float32Array | null {
     if (!this.isReady()) return null;
+    if (!this.engine) return null; // Prevent crash when running in worker mode
     return this.engine.generate_spectrum_lut(width, height, maxTemp);
   }
 

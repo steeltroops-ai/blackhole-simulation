@@ -79,7 +79,7 @@ export class GPUTimer {
     }
 
     // Reuse from pool if available, otherwise create
-    let query = this.queryPool.pop() || this.gl.createQuery();
+    const query = this.queryPool.pop() || this.gl.createQuery();
     if (query) {
       this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, query);
       this.pendingQueries.push(query);

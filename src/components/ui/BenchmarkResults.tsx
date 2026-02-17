@@ -1,7 +1,6 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Check, AlertCircle, Cpu, Activity, X } from "lucide-react";
-import type { BenchmarkReport, BenchmarkResult } from "@/performance/benchmark";
-import type { PresetName } from "@/types/features";
+import { motion } from "framer-motion";
+import { Zap, Check, Activity, X } from "lucide-react";
+import type { BenchmarkReport } from "@/performance/benchmark";
 
 interface BenchmarkResultsProps {
   report: BenchmarkReport;
@@ -33,21 +32,6 @@ const getTierInfo = (fps: number) => {
     color: "text-red-400",
     bg: "bg-red-500/20",
   };
-};
-
-const getPresetDescription = (preset: PresetName) => {
-  switch (preset) {
-    case "ultra-quality":
-      return "Full GR simulation with maximum volumetric steps.";
-    case "high-quality":
-      return "High fidelity with standard ray-tracing features.";
-    case "balanced":
-      return "Moderate quality, optimized for mobile & light laptops.";
-    case "maximum-performance":
-      return "Bare minimum features for extremely constrained hardware.";
-    default:
-      return "";
-  }
 };
 
 export const BenchmarkResults = ({

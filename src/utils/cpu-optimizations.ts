@@ -301,6 +301,7 @@ export class UniformBatcher {
   /**
    * Setup a vertex attribute pointer using the cached location.
    */
+  // eslint-disable-next-line max-params
   setupAttribute(
     name: string,
     buffer: WebGLBuffer | null,

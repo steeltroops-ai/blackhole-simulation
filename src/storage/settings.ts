@@ -60,6 +60,7 @@ export class SettingsStorage {
       const serialized = JSON.stringify(features);
       localStorage.setItem(this.storageKey, serialized);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn("Failed to save features to localStorage:", error);
     }
   }
@@ -89,6 +90,7 @@ export class SettingsStorage {
       // Invalid data, return null to trigger fallback
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn("Failed to load features from localStorage:", error);
       return null;
     }
@@ -106,6 +108,7 @@ export class SettingsStorage {
     try {
       localStorage.setItem(this.presetKey, preset);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn("Failed to save preset to localStorage:", error);
     }
   }
@@ -140,6 +143,7 @@ export class SettingsStorage {
 
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn("Failed to load preset from localStorage:", error);
       return null;
     }
@@ -171,6 +175,7 @@ export class SettingsStorage {
       localStorage.removeItem(this.storageKey);
       localStorage.removeItem(this.presetKey);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn("Failed to clear settings from localStorage:", error);
     }
   }

@@ -14,6 +14,7 @@ interface WebGPUCanvasProps {
   onTouchStart?: (e: React.TouchEvent | TouchEvent) => void;
   onTouchMove?: (e: React.TouchEvent | TouchEvent) => void;
   onTouchEnd?: (e: React.TouchEvent | TouchEvent) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMetricsUpdate?: (metrics: any) => void; // TODO: specific type
 }
 
@@ -22,6 +23,7 @@ import { SIMULATION_CONFIG } from "@/configs/simulation.config";
 export const WebGPUCanvas = ({
   params,
   mouse,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onMetricsUpdate,
   ...handlers
 }: WebGPUCanvasProps) => {
@@ -33,8 +35,11 @@ export const WebGPUCanvas = ({
     if (!canvasRef.current || rendererRef.current) return;
 
     const init = async () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
       const renderer = new WebGPURenderer();
-      const success = await renderer.init(canvasRef.current!);
+      const success = await renderer.init(canvas);
       if (success) {
         // Initial settings
         const quality = params.features?.rayTracingQuality || "high";
@@ -43,6 +48,7 @@ export const WebGPUCanvas = ({
         rendererRef.current = renderer;
         startLoop();
       } else {
+        // eslint-disable-next-line no-console
         console.error("Failed to init WebGPU renderer");
       }
     };
@@ -51,6 +57,7 @@ export const WebGPUCanvas = ({
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only init once, subsequent updates via other effects
 
   useEffect(() => {
@@ -72,27 +79,39 @@ export const WebGPUCanvas = ({
     requestRef.current = requestAnimationFrame(loop);
   };
 
+  // Resize Handling decoupled from render loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const dpr = window.devicePixelRatio || 1;
+        const width = entry.contentRect.width;
+        const height = entry.contentRect.height;
+
+        if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+          canvas.width = width * dpr;
+          canvas.height = height * dpr;
+          // Notify renderer about resize if needed (usually handled next frame by viewport)
+          if (rendererRef.current) {
+            // Optional: rendererRef.current.resize(width, height);
+            // WebGPU handles this via configure usually, but we set canvas size here.
+          }
+        }
+      }
+    });
+
+    resizeObserver.observe(canvas);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   const renderFrame = (timestamp: number) => {
-    const renderer = rendererRef.current!;
-    const canvas = canvasRef.current!;
+    const renderer = rendererRef.current;
+    const canvas = canvasRef.current;
+    if (!renderer || !canvas) return;
 
-    // Resize
-    const dpr = window.devicePixelRatio || 1;
-    // Use client dimensions
-    const displayWidth = canvas.clientWidth;
-    const displayHeight = canvas.clientHeight;
-
-    // Check if the canvas is not the same size.
-    const needResize =
-      canvas.width !== displayWidth * dpr ||
-      canvas.height !== displayHeight * dpr;
-
-    if (needResize) {
-      canvas.width = displayWidth * dpr;
-      canvas.height = displayHeight * dpr;
-      renderer.resize(canvas.width, canvas.height);
-    }
-
+    // Use current canvas dimensions (updated by ResizeObserver)
     const width = canvas.width;
     const height = canvas.height;
 

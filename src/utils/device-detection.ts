@@ -69,6 +69,7 @@ export function hasIntegratedGPU(gl?: WebGL2RenderingContext | null): boolean {
     }
   } catch (error) {
     // If detection fails, return conservative default
+    // eslint-disable-next-line no-console
     console.warn("Failed to detect GPU type:", error);
   }
 

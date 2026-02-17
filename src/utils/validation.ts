@@ -20,6 +20,7 @@ export function clampAndValidate(
 ): number {
   // Validate numeric inputs are not NaN or Infinity
   if (!isFinite(value) || isNaN(value)) {
+    // eslint-disable-next-line no-console
     console.warn(
       `Invalid numeric input detected: ${value}, using default: ${defaultValue}`,
     );

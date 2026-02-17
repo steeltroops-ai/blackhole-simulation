@@ -193,7 +193,7 @@ The system employs a multi-tiered architecture to balance precision, performance
 
 ---
 
-## 4. Zero-Copy Communication Protocol (SAB v2)
+## 4. Zero-Copy Communication Protocol (SAB)
 
 To eliminate Garbage Collection (GC) pauses, the system uses a rigid binary protocol over a `SharedArrayBuffer` shared between JS, Rust, and (via mapping) the GPU.
 

@@ -40,6 +40,7 @@ export function createShader(
       .map((l, i) => `${(i + 1).toString().padStart(4, " ")}: ${l}`)
       .join("\n");
 
+    // eslint-disable-next-line no-console
     console.error(
       `Shader Compilation Error (${typeStr}):\n${info}\n\nSource:\n${numberedSource}`,
     );
@@ -73,6 +74,7 @@ export function createProgram(
 ): WebGLProgram | null {
   const program = gl.createProgram();
   if (!program) {
+    // eslint-disable-next-line no-console
     console.error("Failed to create program");
     return null;
   }
@@ -83,6 +85,7 @@ export function createProgram(
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     const info = gl.getProgramInfoLog(program);
+    // eslint-disable-next-line no-console
     console.error(`Program link error: ${info}`);
     gl.deleteProgram(program);
     return null;

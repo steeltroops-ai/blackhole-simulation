@@ -40,6 +40,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // eslint-disable-next-line no-console
     console.error("Critical System Breach:", error, errorInfo);
     errorTracker.captureException(error, {
       componentStack: errorInfo.componentStack || undefined,

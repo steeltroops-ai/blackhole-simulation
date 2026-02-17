@@ -9,7 +9,7 @@ export interface TrackedErrorEvent {
   timestamp: number;
   type: string;
   message: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 class ErrorTracker {
@@ -42,12 +42,20 @@ class ErrorTracker {
     this.captureException(event.error, { type: "UNCAUGHT_EXCEPTION" });
   };
 
-  public captureException(error: any, context: Record<string, any> = {}) {
+  public captureException(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    error: any,
+    context: Record<string, unknown> = {},
+  ) {
+    // eslint-disable-next-line no-console
     console.error("[ErrorTracker] Captured:", error);
 
     const errorEvent: TrackedErrorEvent = {
       timestamp: Date.now(),
-      type: context.errorCategory || context.type || "ERROR",
+      type:
+        (context.errorCategory as string) ||
+        (context.type as string) ||
+        "ERROR",
       message: error?.message || String(error),
       context: {
         ...context,

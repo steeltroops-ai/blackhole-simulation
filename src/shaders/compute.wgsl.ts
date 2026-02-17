@@ -1,4 +1,4 @@
-export default `
+const computeShader = `
 // src/shaders/compute.wgsl
 
 // --- Bindings ---
@@ -409,3 +409,5 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     textureStore(output, vec2<i32>(i32(id.x), i32(id.y)), final_col);
 }
 `;
+
+export default computeShader;

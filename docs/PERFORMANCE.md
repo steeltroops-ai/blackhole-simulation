@@ -4,7 +4,7 @@ This document details the performance techniques used to achieve 60/120 FPS rend
 
 ---
 
-## 1. Zero-Copy Orchestration (SharedArrayBuffer v2)
+## 1. Zero-Copy Orchestration (SharedArrayBuffer)
 
 The most critical optimization is the elimination of per-frame Garbage Collection (GC) pauses and serialization overhead.
 

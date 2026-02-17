@@ -15,6 +15,7 @@ export function useScreenshot(
   const takeScreenshot = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
+      // eslint-disable-next-line no-console
       console.warn("Cannot take screenshot: canvas not available");
       return;
     }
@@ -33,6 +34,7 @@ export function useScreenshot(
       link.click();
       document.body.removeChild(link);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("Screenshot failed:", err);
     }
   }, [canvasRef]);

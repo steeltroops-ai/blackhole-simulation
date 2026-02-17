@@ -1,18 +1,47 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, Activity } from "lucide-react";
+import { ChevronUp } from "lucide-react";
 import { WebGLCanvas } from "@/components/canvas/WebGLCanvas";
 import { WebGPUCanvas } from "@/components/canvas/WebGPUCanvas";
 import ErrorBoundary from "@/components/debug/ErrorBoundary";
-import { ControlPanel } from "@/components/ui/ControlPanel";
-import { Telemetry } from "@/components/ui/Telemetry";
-import { SimulationInfo } from "@/components/ui/SimulationInfo";
 import { IdentityHUD } from "@/components/ui/IdentityHUD";
-import { BenchmarkResults } from "@/components/ui/BenchmarkResults";
-import { DebugOverlay, type DebugMetrics } from "@/components/ui/DebugOverlay";
-import { CinematicOverlay } from "@/components/ui/CinematicOverlay";
+
+// Dynamic Imports for Performance Optimization (SEO)
+const ControlPanel = dynamic(
+  () => import("@/components/ui/ControlPanel").then((mod) => mod.ControlPanel),
+  { ssr: false },
+);
+const Telemetry = dynamic(
+  () => import("@/components/ui/Telemetry").then((mod) => mod.Telemetry),
+  { ssr: false },
+);
+const SimulationInfo = dynamic(
+  () =>
+    import("@/components/ui/SimulationInfo").then((mod) => mod.SimulationInfo),
+  { ssr: false },
+);
+const BenchmarkResults = dynamic(
+  () =>
+    import("@/components/ui/BenchmarkResults").then(
+      (mod) => mod.BenchmarkResults,
+    ),
+  { ssr: false },
+);
+const DebugOverlay = dynamic(
+  () => import("@/components/ui/DebugOverlay").then((mod) => mod.DebugOverlay),
+  { ssr: false },
+);
+const CinematicOverlay = dynamic(
+  () =>
+    import("@/components/ui/CinematicOverlay").then(
+      (mod) => mod.CinematicOverlay,
+    ),
+  { ssr: false },
+);
+
 import { useCamera } from "@/hooks/useCamera";
 import { useBenchmark } from "@/hooks/useBenchmark";
 import { useKeyboard } from "@/hooks/useKeyboard";
@@ -23,6 +52,7 @@ import { useMobileOptimization } from "@/hooks/useMobileOptimization";
 import { usePresets } from "@/hooks/usePresets";
 import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
 import type { PerformanceMetrics } from "@/performance/monitor";
+import type { DebugMetrics } from "@/components/ui/DebugOverlay";
 import { DEFAULT_FEATURES, type PresetName } from "@/types/features";
 import { settingsStorage } from "@/storage/settings";
 import { useWebGPUSupport } from "@/hooks/useWebGPUSupport";
@@ -134,7 +164,9 @@ const App = () => {
     // Trigger Physics Bridge Initialization
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { physicsBridge } = require("@/engine/physics-bridge");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     physicsBridge.ensureInitialized().catch((err: any) => {
+      // eslint-disable-next-line no-console
       console.error("Critical Physics Initialization Failure:", err);
     });
   }, [isWebGPUSupported]);

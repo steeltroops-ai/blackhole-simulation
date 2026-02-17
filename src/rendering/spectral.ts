@@ -34,6 +34,7 @@ export class SpectralManager {
       );
 
       if (!data) {
+        // eslint-disable-next-line no-console
         console.warn(
           "SpectralManager: Failed to retrieve LUT from PhysicsBridge",
         );
@@ -53,11 +54,13 @@ export class SpectralManager {
         wrap: this.gl.CLAMP_TO_EDGE,
       });
 
+      // eslint-disable-next-line no-console
       console.log(
         `SpectralManager: Initialized ${this.width}x${this.height} RGBA16F LUT`,
       );
       return !!this.texture;
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("SpectralManager: Initialization error", err);
       return false;
     }

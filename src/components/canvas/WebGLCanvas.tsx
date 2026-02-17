@@ -44,7 +44,7 @@ export const WebGLCanvas = ({
     resolutionScale,
     setResolutionScale,
   } = useWebGL(canvasRef);
-  const { metrics } = useAnimation(
+  useAnimation(
     {
       glRef,
       programRef,
@@ -58,46 +58,42 @@ export const WebGLCanvas = ({
     params,
     mouse,
     setResolutionScale,
+    onMetricsUpdate,
   );
 
   useEffect(() => {
-    if (onMetricsUpdate && metrics) {
-      onMetricsUpdate(metrics);
-    }
-  }, [metrics, onMetricsUpdate]);
-
-  useEffect(() => {
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let debounceTimer: number | null = null;
 
     const handleResize = () => {
       const canvas = canvasRef.current;
       if (canvas) {
-        const dpr =
-          Math.min(window.devicePixelRatio || 1, 2.0) * resolutionScale;
-        const newWidth = window.innerWidth * dpr;
-        const newHeight = window.innerHeight * dpr;
+        requestAnimationFrame(() => {
+          const dpr =
+            Math.min(window.devicePixelRatio || 1, 2.0) * resolutionScale;
+          const newWidth = window.innerWidth * dpr;
+          const newHeight = window.innerHeight * dpr;
 
-        // Only resize if dimensions actually changed to prevent flicker
-        if (canvas.width !== newWidth || canvas.height !== newHeight) {
-          canvas.width = newWidth;
-          canvas.height = newHeight;
+          // Only resize if dimensions actually changed to prevent flicker
+          if (canvas.width !== newWidth || canvas.height !== newHeight) {
+            canvas.width = newWidth;
+            canvas.height = newHeight;
 
-          // Resize managers to match new canvas resolution
-          if (bloomManagerRef.current) {
-            bloomManagerRef.current.resize(newWidth, newHeight);
+            // Resize managers to match new canvas resolution
+            if (bloomManagerRef.current) {
+              bloomManagerRef.current.resize(newWidth, newHeight);
+            }
+            if (reprojectionManagerRef.current) {
+              reprojectionManagerRef.current.resize(newWidth, newHeight);
+            }
           }
-          if (reprojectionManagerRef.current) {
-            reprojectionManagerRef.current.resize(newWidth, newHeight);
-          }
-        }
+        });
       }
     };
 
-    // Debounce resize to prevent framebuffer thrashing during window dragging.
-    // Bloom/reprojection managers recreate GPU textures on resize, which is expensive.
+    // Debounce resize using requestAnimationFrame to avoid forced reflows and align with paint cycle.
     const debouncedResize = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(handleResize, 100);
+      if (debounceTimer) cancelAnimationFrame(debounceTimer);
+      debounceTimer = requestAnimationFrame(handleResize);
     };
 
     window.addEventListener("resize", debouncedResize);
@@ -106,7 +102,7 @@ export const WebGLCanvas = ({
 
     return () => {
       window.removeEventListener("resize", debouncedResize);
-      if (debounceTimer) clearTimeout(debounceTimer);
+      if (debounceTimer) cancelAnimationFrame(debounceTimer);
     };
   }, [resolutionScale, bloomManagerRef, reprojectionManagerRef]);
 

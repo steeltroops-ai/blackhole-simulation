@@ -56,6 +56,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
+      // eslint-disable-next-line no-console
       console.error("Canvas not available");
       return;
     }
@@ -83,6 +84,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         details:
           "Your browser or device does not support WebGL, which is required for GPU-accelerated graphics.",
       });
+      // eslint-disable-next-line no-console
       console.error(errorMsg);
       return;
     }
@@ -107,6 +109,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         details:
           "An unknown error occurred while trying to create the WebGL2 context.",
       });
+      // eslint-disable-next-line no-console
       console.error(errorMsg);
       return;
     }
@@ -121,12 +124,14 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         details:
           "The browser supports WebGL but failed to create a rendering context.",
       });
+      // eslint-disable-next-line no-console
       console.error(errorMsg);
       return;
     }
 
     const floatExt = gl.getExtension("EXT_color_buffer_float");
     if (!floatExt) {
+      // eslint-disable-next-line no-console
       console.warn(
         "EXT_color_buffer_float not supported. HDR rendering may be disabled or fallback to LDR.",
       );
@@ -201,6 +206,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       if (bloomInitialized) {
         bloomManagerRef.current = bloomManager;
       } else {
+        // eslint-disable-next-line no-console
         console.warn("Failed to initialize bloom post-processing");
       }
 
@@ -212,6 +218,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       if (noiseTex) {
         noiseTextureRef.current = noiseTex;
       } else {
+        // eslint-disable-next-line no-console
         console.warn("Failed to create noise texture");
       }
 
@@ -219,10 +226,12 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       if (blueNoiseTex) {
         blueNoiseTextureRef.current = blueNoiseTex;
       } else {
+        // eslint-disable-next-line no-console
         console.warn("Failed to create blue noise texture");
       }
     } catch (e) {
       const errorMsg = "GPU memory error detected";
+      // eslint-disable-next-line no-console
       console.error(errorMsg, e);
 
       // Reduce resolution on error
@@ -237,6 +246,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           details: `Reducing resolution to ${Math.round(newScale * 100)}% and retrying...`,
         });
 
+        // eslint-disable-next-line no-console
         console.warn(
           `Reducing resolution to ${Math.round(newScale * 100)}% due to GPU memory constraints`,
         );
@@ -255,6 +265,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     const handleContextLost = (e: Event) => {
       e.preventDefault();
+      // eslint-disable-next-line no-console
       console.warn("WebGL context lost -- invalidating all GPU resources");
       programRef.current = null;
       noiseTextureRef.current = null;
@@ -271,6 +282,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     };
 
     const handleContextRestored = () => {
+      // eslint-disable-next-line no-console
       console.warn("WebGL context restored -- re-initialization required");
       setError(null);
       setContextVersion((v) => v + 1); // Trigger RE-INIT
@@ -306,7 +318,7 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         reprojectionManagerRef.current = null;
       }
     };
-  }, [canvasRef, contextVersion]); // Initial Setup depends ONLY on Canvas + Manual Re-init Trigger
+  }, [canvasRef, contextVersion, resolutionScale]); // Initial Setup depends ONLY on Canvas + Manual Re-init Trigger
 
   // Effect 2: Handle Resolution Changes (LIGHTWEIGHT)
   useEffect(() => {
@@ -334,7 +346,13 @@ export function useWebGL(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         reprojectionManagerRef.current.resize(newWidth, newHeight);
       }
     }
-  }, [resolutionScale]);
+  }, [
+    resolutionScale,
+    canvasRef,
+    glRef,
+    bloomManagerRef,
+    reprojectionManagerRef,
+  ]);
 
   return {
     glRef,

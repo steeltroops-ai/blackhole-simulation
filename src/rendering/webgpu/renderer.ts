@@ -73,12 +73,14 @@ export class WebGPURenderer {
 
   async init(canvas: HTMLCanvasElement): Promise<boolean> {
     if (!navigator.gpu) {
+      // eslint-disable-next-line no-console
       console.error("WebGPU not supported.");
       return false;
     }
 
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) {
+      // eslint-disable-next-line no-console
       console.error("No WebGPU adapter found.");
       return false;
     }
@@ -87,6 +89,7 @@ export class WebGPURenderer {
     this.context = canvas.getContext("webgpu");
 
     if (!this.context || !this.device) {
+      // eslint-disable-next-line no-console
       console.error("Failed to initialize WebGPU context.");
       return false;
     }
@@ -243,27 +246,31 @@ export class WebGPURenderer {
       !this.computePipeline ||
       !this.renderPipeline ||
       !this.context ||
-      !this.computeTexture
+      !this.computeTexture ||
+      !this.cameraBuffer ||
+      !this.physicsBuffer ||
+      !this.rayBuffer ||
+      !this.sampler
     )
       return;
 
     // 1. Update Uniforms
     const cameraData = new Float32Array(CAMERA_UNIFORM_SIZE / 4);
     writeCameraUniforms(cameraData, camera);
-    this.device.queue.writeBuffer(this.cameraBuffer!, 0, cameraData);
+    this.device.queue.writeBuffer(this.cameraBuffer, 0, cameraData);
 
     const physData = new Float32Array(8);
     writePhysicsParams(physData, physics);
-    this.device.queue.writeBuffer(this.physicsBuffer!, 0, physData);
+    this.device.queue.writeBuffer(this.physicsBuffer, 0, physData);
 
     // 2. Create/Update Bind Groups (if needed)
     if (!this.computeBindGroup) {
       this.computeBindGroup = this.device.createBindGroup({
         layout: this.computePipeline.getBindGroupLayout(0),
         entries: [
-          { binding: 0, resource: { buffer: this.cameraBuffer! } },
-          { binding: 1, resource: { buffer: this.physicsBuffer! } },
-          { binding: 2, resource: { buffer: this.rayBuffer! } },
+          { binding: 0, resource: { buffer: this.cameraBuffer } },
+          { binding: 1, resource: { buffer: this.physicsBuffer } },
+          { binding: 2, resource: { buffer: this.rayBuffer } },
           { binding: 3, resource: this.computeTexture.createView() },
         ],
       });
@@ -273,7 +280,7 @@ export class WebGPURenderer {
       this.renderBindGroup = this.device.createBindGroup({
         layout: this.renderPipeline.getBindGroupLayout(0),
         entries: [
-          { binding: 0, resource: this.sampler! },
+          { binding: 0, resource: this.sampler },
           { binding: 1, resource: this.computeTexture.createView() },
         ],
       });

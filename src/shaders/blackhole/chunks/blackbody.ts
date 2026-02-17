@@ -1,5 +1,3 @@
-import { PHYSICS_CONSTANTS } from "@/configs/physics.config";
-
 export const BLACKBODY_CHUNK = `
   /**
    * Analytic Blackbody Approximation (Reverted Phase 1.1)

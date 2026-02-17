@@ -259,13 +259,19 @@ export const ControlPanel = ({
     [params, onParamsChange],
   );
 
-  const renderToggle = (
-    label: string,
-    isActive: boolean,
-    onClick: () => void,
-    icon?: React.ComponentType<{ className?: string }>,
-    key?: string,
-  ) => {
+  const renderToggle = ({
+    label,
+    isActive,
+    onClick,
+    icon,
+    key,
+  }: {
+    label: string;
+    isActive: boolean;
+    onClick: () => void;
+    icon?: React.ComponentType<{ className?: string }>;
+    key?: string;
+  }) => {
     const Icon = icon;
     return (
       <button
@@ -352,6 +358,7 @@ export const ControlPanel = ({
                 onClick={() => onCompactChange(false)}
                 className="text-white hover:text-white/80 transition-colors"
                 title="Open Settings"
+                aria-label="Open Settings"
               >
                 <Settings className="w-6 h-6 sm:w-7 h-7 lg:w-8 h-8 animate-[spin_8s_linear_infinite] opacity-80 hover:opacity-100" />
               </button>
@@ -393,11 +400,12 @@ export const ControlPanel = ({
                         </h2>
                         <div className="flex items-center gap-2">
                           <p className="text-white/60 text-[7px] font-mono tracking-[0.15em] font-medium uppercase">
-                            by Mayank _@steeltroops_ai
+                            by Mayank @steeltroops_ai
                           </p>
                           <button
                             onClick={() => onToggleUI(false)}
                             className="text-[9px] text-white/40 hover:text-white uppercase tracking-widest border border-white/10 px-1.5 rounded-sm hover:bg-white/10 transition-colors"
+                            aria-label="Hide Control Panel"
                           >
                             Hide
                           </button>
@@ -664,18 +672,19 @@ export const ControlPanel = ({
                                   icon: Disc,
                                 },
                               ].map((f) =>
-                                renderToggle(
-                                  f.label,
-                                  !!params.features?.[
-                                    f.key as keyof FeatureToggles
-                                  ],
-                                  () =>
+                                renderToggle({
+                                  label: f.label,
+                                  isActive:
+                                    !!params.features?.[
+                                      f.key as keyof FeatureToggles
+                                    ],
+                                  onClick: () =>
                                     toggleFeature(
                                       f.key as keyof FeatureToggles,
                                     ),
-                                  f.icon,
-                                  f.key,
-                                ),
+                                  icon: f.icon,
+                                  key: f.key,
+                                }),
                               )}
                             </div>
                           </div>

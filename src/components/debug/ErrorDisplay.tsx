@@ -15,12 +15,12 @@ import {
   ShieldAlert,
   FileJson,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import errorTracker, { type TrackedErrorEvent } from "@/utils/errorTracking";
+import { useState } from "react";
 
 interface ErrorDisplayProps {
   error: Error | null;
   reset: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errorInfo?: any;
   recoveryCount?: number;
 }
@@ -35,6 +35,7 @@ export const ErrorDisplay = ({
   const [copied, setCopied] = useState(false);
 
   // Error Classification Logic (extracted from ErrorBoundary)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const classifyError = (error: any) => {
     if (!error)
       return {
@@ -45,7 +46,7 @@ export const ErrorDisplay = ({
 
     let code: string | number | null = null;
     let category = "UNKNOWN";
-    let message = error.message || "An unexpected error occurred";
+    const message = error.message || "An unexpected error occurred";
 
     if (error.status || error.code) {
       code = error.status || error.code;
@@ -80,6 +81,7 @@ export const ErrorDisplay = ({
     } catch (err) {}
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CATEGORY_MAP: Record<string, any> = {
     HTTP_CLIENT: {
       color: "text-orange-400",

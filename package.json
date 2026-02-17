@@ -1,6 +1,7 @@
 {
   "name": "blackhole-simulation",
   "version": "1.0.0",
+  "author": "Mayank Pratap Singh <steeltroops_ai>",
   "private": true,
   "scripts": {
     "dev": "bun run build:wasm && next dev",

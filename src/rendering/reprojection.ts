@@ -157,6 +157,7 @@ export class ReprojectionManager {
     // Phase 1 Fix: Check framebuffer completeness
     const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
     if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      // eslint-disable-next-line no-console
       console.error(
         "ReprojectionManager: Framebuffer incomplete, status:",
         status,
@@ -221,15 +222,16 @@ export class ReprojectionManager {
     // 2. Bind Textures (using cached locations -- zero string lookups)
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-    gl.uniform1i(this.loc_currentFrame!, 0);
+    if (this.loc_currentFrame) gl.uniform1i(this.loc_currentFrame, 0);
 
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, readTex);
-    gl.uniform1i(this.loc_historyFrame!, 1);
+    if (this.loc_historyFrame) gl.uniform1i(this.loc_historyFrame, 1);
 
     // 3. Set Uniforms (cached locations)
-    gl.uniform1f(this.loc_blendFactor!, blendFactor);
-    gl.uniform1i(this.loc_cameraMoving!, cameraMoving ? 1 : 0);
+    if (this.loc_blendFactor) gl.uniform1f(this.loc_blendFactor, blendFactor);
+    if (this.loc_cameraMoving)
+      gl.uniform1i(this.loc_cameraMoving, cameraMoving ? 1 : 0);
     if (this.loc_textureScale)
       gl.uniform2f(this.loc_textureScale, renderScale, renderScale);
     if (this.loc_resolution)

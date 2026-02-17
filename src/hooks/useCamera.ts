@@ -210,7 +210,7 @@ export function useCamera(
       if (cinematicRef.current.active && cinematicRef.current.mode) {
         // --- CINEMATIC MODE: DIRECTOR'S CUT ---
         const t = (now - cinematicRef.current.startTime) * 0.001; // Total time
-        const { theta: startTheta } = cinematicRef.current.startParams;
+        // const { theta: startTheta } = cinematicRef.current.startParams;
 
         if (cinematicRef.current.mode === "orbit") {
           // === ORBIT DEMO: KEPLERIAN CINEMATIC TOUR ===
@@ -289,7 +289,7 @@ export function useCamera(
           cinematicRef.current.velocity += gravity * dt;
 
           // Update Position (r = r0 + v*dt)
-          let newR = r + cinematicRef.current.velocity * dt;
+          const newR = r + cinematicRef.current.velocity * dt;
 
           // 2. Angular Physics (Conservation of Momentum)
           // omega = L / r^2
@@ -433,27 +433,30 @@ export function useCamera(
       setIsCinematic(false);
       setCinematicMode(null);
     }
-  }, []);
+  }, [setParams]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isValidNumber(e.clientX) || !isValidNumber(e.clientY)) return;
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isValidNumber(e.clientX) || !isValidNumber(e.clientY)) return;
 
-    // Only stop cinematic if we are NOT in a controlled dive
-    // Actually, user wants to CONTROL the dive. So don't stop it.
-    if (cinematicRef.current.mode !== "dive") {
-      stopCinematic();
-    }
+      // Only stop cinematic if we are NOT in a controlled dive
+      // Actually, user wants to CONTROL the dive. So don't stop it.
+      if (cinematicRef.current.mode !== "dive") {
+        stopCinematic();
+      }
 
-    isDragging.current = true;
-    lastMousePos.current.x = e.clientX;
-    lastMousePos.current.y = e.clientY;
+      isDragging.current = true;
+      lastMousePos.current.x = e.clientX;
+      lastMousePos.current.y = e.clientY;
 
-    // Kill momentum on grab
-    physicsRef.current.thetaVelocity = 0;
-    physicsRef.current.phiVelocity = 0;
-  };
+      // Kill momentum on grab
+      physicsRef.current.thetaVelocity = 0;
+      physicsRef.current.phiVelocity = 0;
+    },
+    [stopCinematic],
+  );
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isValidNumber(e.clientX) || !isValidNumber(e.clientY)) return;
     if (isDragging.current) {
       const deltaX = e.clientX - lastMousePos.current.x;
@@ -475,17 +478,20 @@ export function useCamera(
       // Force immediate sync to React for responsive drag
       setCameraState({ ...physicsRef.current });
     }
-  };
+  }, []);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     isDragging.current = false;
-  };
+  }, []);
 
-  const nudgeCamera = (dTheta: number, dPhi: number) => {
-    stopCinematic();
-    physicsRef.current.thetaVelocity += dTheta;
-    physicsRef.current.phiVelocity += dPhi;
-  };
+  const nudgeCamera = useCallback(
+    (dTheta: number, dPhi: number) => {
+      stopCinematic();
+      physicsRef.current.thetaVelocity += dTheta;
+      physicsRef.current.phiVelocity += dPhi;
+    },
+    [stopCinematic],
+  );
 
   const startCinematic = useCallback(
     (mode: "orbit" | "dive") => {
@@ -546,133 +552,142 @@ export function useCamera(
         setParams((p) => ({ ...p, autoSpin: 0 })); // Disable artificial spin
       }
     },
+    [setParams, stopCinematic],
+  );
+
+  const handleWheel = useCallback(
+    (e: React.WheelEvent | WheelEvent) => {
+      e.preventDefault();
+      if (!isValidNumber(e.deltaY)) return;
+
+      // Wheel interrupts cinematic?
+      // User wants control. Let's allowing wheel to influence zoom MIGHT break physics.
+      // For now, allow it but it might fight the gravity.
+      // Actually, in "dive", gravity sets param.zoom directly.
+      // So wheel won't do much unless we change how dive works.
+      if (cinematicRef.current.mode !== "dive") {
+        stopCinematic();
+      }
+
+      const sensitivity = 0.005;
+      const zoomDelta = e.deltaY * sensitivity;
+
+      // Direct param update for Zoom (it's less physics-dependent in this logic)
+      setParams((prev) => ({
+        ...prev,
+        zoom: clampAndValidate(
+          prev.zoom + zoomDelta,
+          MIN_ZOOM,
+          MAX_ZOOM,
+          prev.zoom,
+        ),
+      }));
+      // Add velocity for "feel"
+      physicsRef.current.zoomVelocity = zoomDelta * 0.3;
+    },
+    [setParams, stopCinematic],
+  );
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent | TouchEvent) => {
+      e.preventDefault();
+
+      // Only stop cinematic if we are NOT in a controlled dive
+      // Match Desktop behavior: Allow user to look around while falling.
+      if (cinematicRef.current.mode !== "dive") {
+        stopCinematic();
+      }
+
+      const touches = Array.from(e.touches) as React.Touch[];
+      if (touches.length === 0) return;
+      touchState.current.touches = touches;
+
+      const isValidTouch = (t: React.Touch) =>
+        !isNaN(t.clientX) && !isNaN(t.clientY);
+
+      if (touches.length === 2) {
+        if (!touches.every(isValidTouch)) return;
+        const dx = touches[1].clientX - touches[0].clientX;
+        const dy = touches[1].clientY - touches[0].clientY;
+        touchState.current.initialDistance = Math.sqrt(dx * dx + dy * dy);
+        touchState.current.initialAngle = Math.atan2(dy, dx);
+        touchState.current.initialCenter = {
+          x: (touches[0].clientX + touches[1].clientX) / 2,
+          y: (touches[0].clientY + touches[1].clientY) / 2,
+        };
+      } else if (touches.length === 1) {
+        if (!isValidTouch(touches[0])) return;
+        lastMousePos.current.x = touches[0].clientX;
+        lastMousePos.current.y = touches[0].clientY;
+        physicsRef.current.thetaVelocity = 0;
+        physicsRef.current.phiVelocity = 0;
+      }
+    },
+    [stopCinematic],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent | TouchEvent) => {
+      e.preventDefault();
+      const touches = Array.from(e.touches) as React.Touch[];
+      if (touches.length === 0) return;
+
+      if (touches.length === 2) {
+        // Pinch/Pan Logic
+        const dx = touches[1].clientX - touches[0].clientX;
+        const dy = touches[1].clientY - touches[0].clientY;
+        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+        const currentCenter = {
+          x: (touches[0].clientX + touches[1].clientX) / 2,
+          y: (touches[0].clientY + touches[1].clientY) / 2,
+        };
+
+        // Zoom
+        if (touchState.current.initialDistance > 0) {
+          const ratio = currentDistance / touchState.current.initialDistance;
+          const zoomDelta = (1 - ratio) * 2.0;
+          setParams((prev) => ({
+            ...prev,
+            zoom: clampAndValidate(
+              prev.zoom + zoomDelta,
+              MIN_ZOOM,
+              MAX_ZOOM,
+              prev.zoom,
+            ),
+          }));
+          touchState.current.initialDistance = currentDistance;
+        }
+
+        // Pan (Move Camera)
+        const panX = currentCenter.x - touchState.current.initialCenter.x;
+        const panY = currentCenter.y - touchState.current.initialCenter.y;
+
+        if (Math.abs(panX) > 2 || Math.abs(panY) > 2) {
+          const sensitivity = 0.003;
+          physicsRef.current.theta += panX * sensitivity;
+          physicsRef.current.phi += panY * sensitivity;
+          touchState.current.initialCenter = currentCenter;
+        }
+      } else if (touches.length === 1) {
+        // Rotate
+        const deltaX = touches[0].clientX - lastMousePos.current.x;
+        const deltaY = touches[0].clientY - lastMousePos.current.y;
+        const sensitivity = 0.005;
+
+        physicsRef.current.theta += deltaX * sensitivity;
+        physicsRef.current.phi += deltaY * sensitivity;
+        physicsRef.current.thetaVelocity = deltaX * sensitivity * 0.5;
+        physicsRef.current.phiVelocity = deltaY * sensitivity * 0.5;
+
+        lastMousePos.current.x = touches[0].clientX;
+        lastMousePos.current.y = touches[0].clientY;
+      }
+      setCameraState({ ...physicsRef.current });
+    },
     [setParams],
   );
 
-  const handleWheel = (e: React.WheelEvent | WheelEvent) => {
-    e.preventDefault();
-    if (!isValidNumber(e.deltaY)) return;
-
-    // Wheel interrupts cinematic?
-    // User wants control. Let's allowing wheel to influence zoom MIGHT break physics.
-    // For now, allow it but it might fight the gravity.
-    // Actually, in "dive", gravity sets param.zoom directly.
-    // So wheel won't do much unless we change how dive works.
-    if (cinematicRef.current.mode !== "dive") {
-      stopCinematic();
-    }
-
-    const sensitivity = 0.005;
-    const zoomDelta = e.deltaY * sensitivity;
-
-    // Direct param update for Zoom (it's less physics-dependent in this logic)
-    setParams((prev) => ({
-      ...prev,
-      zoom: clampAndValidate(
-        prev.zoom + zoomDelta,
-        MIN_ZOOM,
-        MAX_ZOOM,
-        prev.zoom,
-      ),
-    }));
-    // Add velocity for "feel"
-    physicsRef.current.zoomVelocity = zoomDelta * 0.3;
-  };
-
-  const handleTouchStart = (e: React.TouchEvent | TouchEvent) => {
-    e.preventDefault();
-
-    // Only stop cinematic if we are NOT in a controlled dive
-    // Match Desktop behavior: Allow user to look around while falling.
-    if (cinematicRef.current.mode !== "dive") {
-      stopCinematic();
-    }
-
-    const touches = Array.from(e.touches) as React.Touch[];
-    if (touches.length === 0) return;
-    touchState.current.touches = touches;
-
-    const isValidTouch = (t: React.Touch) =>
-      !isNaN(t.clientX) && !isNaN(t.clientY);
-
-    if (touches.length === 2) {
-      if (!touches.every(isValidTouch)) return;
-      const dx = touches[1].clientX - touches[0].clientX;
-      const dy = touches[1].clientY - touches[0].clientY;
-      touchState.current.initialDistance = Math.sqrt(dx * dx + dy * dy);
-      touchState.current.initialAngle = Math.atan2(dy, dx);
-      touchState.current.initialCenter = {
-        x: (touches[0].clientX + touches[1].clientX) / 2,
-        y: (touches[0].clientY + touches[1].clientY) / 2,
-      };
-    } else if (touches.length === 1) {
-      if (!isValidTouch(touches[0])) return;
-      lastMousePos.current.x = touches[0].clientX;
-      lastMousePos.current.y = touches[0].clientY;
-      physicsRef.current.thetaVelocity = 0;
-      physicsRef.current.phiVelocity = 0;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent | TouchEvent) => {
-    e.preventDefault();
-    const touches = Array.from(e.touches) as React.Touch[];
-    if (touches.length === 0) return;
-
-    if (touches.length === 2) {
-      // Pinch/Pan Logic
-      const dx = touches[1].clientX - touches[0].clientX;
-      const dy = touches[1].clientY - touches[0].clientY;
-      const currentDistance = Math.sqrt(dx * dx + dy * dy);
-      const currentCenter = {
-        x: (touches[0].clientX + touches[1].clientX) / 2,
-        y: (touches[0].clientY + touches[1].clientY) / 2,
-      };
-
-      // Zoom
-      if (touchState.current.initialDistance > 0) {
-        const ratio = currentDistance / touchState.current.initialDistance;
-        const zoomDelta = (1 - ratio) * 2.0;
-        setParams((prev) => ({
-          ...prev,
-          zoom: clampAndValidate(
-            prev.zoom + zoomDelta,
-            MIN_ZOOM,
-            MAX_ZOOM,
-            prev.zoom,
-          ),
-        }));
-        touchState.current.initialDistance = currentDistance;
-      }
-
-      // Pan (Move Camera)
-      const panX = currentCenter.x - touchState.current.initialCenter.x;
-      const panY = currentCenter.y - touchState.current.initialCenter.y;
-
-      if (Math.abs(panX) > 2 || Math.abs(panY) > 2) {
-        const sensitivity = 0.003;
-        physicsRef.current.theta += panX * sensitivity;
-        physicsRef.current.phi += panY * sensitivity;
-        touchState.current.initialCenter = currentCenter;
-      }
-    } else if (touches.length === 1) {
-      // Rotate
-      const deltaX = touches[0].clientX - lastMousePos.current.x;
-      const deltaY = touches[0].clientY - lastMousePos.current.y;
-      const sensitivity = 0.005;
-
-      physicsRef.current.theta += deltaX * sensitivity;
-      physicsRef.current.phi += deltaY * sensitivity;
-      physicsRef.current.thetaVelocity = deltaX * sensitivity * 0.5;
-      physicsRef.current.phiVelocity = deltaY * sensitivity * 0.5;
-
-      lastMousePos.current.x = touches[0].clientX;
-      lastMousePos.current.y = touches[0].clientY;
-    }
-    setCameraState({ ...physicsRef.current });
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent | TouchEvent) => {
+  const handleTouchEnd = useCallback((e: React.TouchEvent | TouchEvent) => {
     e.preventDefault();
     const touches = Array.from(e.touches) as React.Touch[];
     touchState.current.touches = touches;
@@ -680,7 +695,7 @@ export function useCamera(
       touchState.current.initialDistance = 0;
       touchState.current.initialAngle = 0;
     }
-  };
+  }, []);
 
   const resetCamera = useCallback(() => {
     // 1. Force Stop Cinematic

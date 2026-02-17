@@ -1,4 +1,4 @@
-export default `
+const typesShader = `
 // --- WebGPU Data Layouts (WGSL) ---
 // Must match src/types/webgpu.ts and physics-engine/src/structs.rs exactly.
 
@@ -48,3 +48,5 @@ struct TiledRayBatch {
     rays: array<RayPayload>,        // Variable length
 };
 `;
+
+export default typesShader;

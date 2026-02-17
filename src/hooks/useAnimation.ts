@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { SimulationParams, MouseState } from "@/types/simulation";
 import { getMaxRaySteps, DEFAULT_FEATURES } from "@/types/features";
 import { PerformanceMonitor } from "@/performance/monitor";
@@ -8,10 +8,7 @@ import type { BloomManager } from "@/rendering/bloom";
 import type { ReprojectionManager } from "@/rendering/reprojection"; // Added import
 import { SIMULATION_CONFIG } from "@/configs/simulation.config";
 import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
-import {
-  getSharedQuadBuffer,
-  setupPositionAttribute,
-} from "@/utils/webgl-utils";
+import { getSharedQuadBuffer } from "@/utils/webgl-utils";
 import { GPUTimer } from "@/performance/gpu-timer";
 
 import { physicsBridge } from "@/engine/physics-bridge";
@@ -27,6 +24,7 @@ interface AnimationRefs {
   spectrumLUTTextureRef: React.MutableRefObject<WebGLTexture | null>;
 }
 
+// eslint-disable-next-line max-params
 export function useAnimation(
   {
     glRef,
@@ -41,6 +39,7 @@ export function useAnimation(
   params: SimulationParams,
   mouse: MouseState,
   setResolutionScale?: (scale: number) => void,
+  onMetricsUpdate?: (metrics: PerformanceMetrics) => void,
 ) {
   const requestRef = useRef<number | null>(null);
   const timeRef = useRef(0);
@@ -62,8 +61,6 @@ export function useAnimation(
   };
 
   const metricsRef = useRef<PerformanceMetrics>(initialMetrics);
-
-  const [metrics, setMetrics] = useState<PerformanceMetrics>(initialMetrics);
 
   const lastFrameTime = useRef(0);
   const smoothedDeltaTime = useRef(16.67); // 60 FPS default
@@ -138,7 +135,7 @@ export function useAnimation(
   useEffect(() => {
     // Poll for physics engine readiness
     // In a real app, use a proper loading state context
-    const initTextures = () => {
+    const initTextures = async () => {
       if (!glRef.current) return;
       const gl = glRef.current;
 
@@ -146,12 +143,15 @@ export function useAnimation(
       // but here we use the global instance.
       // Using top-level imported physicsBridge
 
+      // Dynamic import to avoid no-var-requires
+      const { createTextureFromData } = await import("@/utils/webgl-utils");
+
       if (physicsBridge && !diskLUTTextureRef.current) {
-        const diskData = physicsBridge.getDiskLUT();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const diskData = (physicsBridge as any).getDiskLUT();
         if (diskData) {
           // Disk LUT is 1D array of temperatures. 512x1
           // We use R32F format
-          const { createTextureFromData } = require("@/utils/webgl-utils");
           diskLUTTextureRef.current = createTextureFromData(gl, {
             width: 512,
             height: 1,
@@ -167,10 +167,14 @@ export function useAnimation(
       }
 
       if (physicsBridge && !spectrumLUTTextureRef.current) {
-        const spectrumData = physicsBridge.getSpectrumLUT(512, 1, 100000.0);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const spectrumData = (physicsBridge as any).getSpectrumLUT(
+          512,
+          1,
+          100000.0,
+        );
         if (spectrumData) {
           // Spectrum LUT is RGBA (r,g,b,a)
-          const { createTextureFromData } = require("@/utils/webgl-utils");
           spectrumLUTTextureRef.current = createTextureFromData(gl, {
             width: 512,
             height: 1,
@@ -190,10 +194,11 @@ export function useAnimation(
     initTextures();
     const timer = setTimeout(initTextures, 1000);
     return () => clearTimeout(timer);
-  }, [glRef]);
+  }, [glRef, diskLUTTextureRef, spectrumLUTTextureRef]);
 
   useEffect(() => {
-    const animate = (currentTime: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const animate = async (currentTime: number) => {
       if (!isVisible.current) {
         requestRef.current = requestAnimationFrame(animate);
         return;
@@ -240,24 +245,6 @@ export function useAnimation(
       const updatedMetrics =
         performanceMonitor.current.updateMetrics(deltaTimeMs);
 
-      // --- Zero-Copy Physics Integration ---
-      const physicsResult =
-        physicsBridge && physicsBridge.isReady()
-          ? physicsBridge.tick(deltaTimeMs / 1000.0)
-          : null;
-
-      if (physicsResult) {
-        // Layout: [0..2: pos, 8..11: orientation]
-        const cam = physicsResult.camera;
-        uniformBatcher.current.set3f("u_camPos", cam[0], cam[1], cam[2]);
-        uniformBatcher.current.set4f(
-          "u_camQuat",
-          cam[8],
-          cam[9],
-          cam[10],
-          cam[11],
-        );
-      }
       // -------------------------------------
 
       // PAUSE LOGIC
@@ -290,12 +277,35 @@ export function useAnimation(
 
           // Phase 4.3: Shader Warmup
           // Perform 1x1 dummy draw to prime the driver
-          const { warmupShader } = require("@/utils/webgl-utils");
+          // Perform 1x1 dummy draw to prime the driver
+          const { warmupShader } = await import("@/utils/webgl-utils");
           const qb = getSharedQuadBuffer(gl);
           if (qb) {
             warmupShader(gl, program, qb);
           }
         }
+
+        gl.useProgram(program); // Ensure program is active before setting uniforms
+
+        // --- Zero-Copy Physics Integration ---
+        const physicsResult =
+          physicsBridge && physicsBridge.isReady()
+            ? physicsBridge.tick(deltaTimeMs / 1000.0)
+            : null;
+
+        if (physicsResult) {
+          // Layout: [0..2: pos, 8..11: orientation]
+          const cam = physicsResult.camera;
+          uniformBatcher.current.set3f("u_camPos", cam[0], cam[1], cam[2]);
+          uniformBatcher.current.set4f(
+            "u_camQuat",
+            cam[8],
+            cam[9],
+            cam[10],
+            cam[11],
+          );
+        }
+        // -------------------------------------
 
         const features = currentParams.features || DEFAULT_FEATURES;
 
@@ -311,11 +321,13 @@ export function useAnimation(
           lastMetricsUpdate.current = currentTime;
 
           // Sync refs to state for UI (Visual Only)
-          setMetrics({
-            ...updatedMetrics,
-            quality: metricsRef.current.quality,
-            renderResolution: metricsRef.current.renderResolution,
-          });
+          if (onMetricsUpdate) {
+            onMetricsUpdate({
+              ...updatedMetrics,
+              quality: metricsRef.current.quality,
+              renderResolution: metricsRef.current.renderResolution,
+            });
+          }
         }
 
         // Throttle Resolution Changes (0.5Hz / 2000ms) to prevent context thrashing
@@ -528,8 +540,10 @@ export function useAnimation(
     diskLUTTextureRef,
     spectrumLUTTextureRef,
     setResolutionScale,
-    params.renderScale,
+    onMetricsUpdate,
   ]);
 
-  return { metrics, timeRef };
+  return {
+    metrics: metricsRef.current,
+  };
 }

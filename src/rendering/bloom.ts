@@ -163,6 +163,7 @@ export class BloomManager {
 
       return true;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to initialize bloom:", error);
       this.cleanup();
       return false;
@@ -251,6 +252,7 @@ export class BloomManager {
     // Check framebuffer status
     const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
     if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      // eslint-disable-next-line no-console
       console.error("Framebuffer incomplete:", status);
       return null;
     }
@@ -284,6 +286,7 @@ export class BloomManager {
     gl.linkProgram(program);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      // eslint-disable-next-line no-console
       console.error("Program link error:", gl.getProgramInfoLog(program));
       return null;
     }
@@ -304,6 +307,7 @@ export class BloomManager {
     gl.compileShader(shader);
 
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      // eslint-disable-next-line no-console
       console.error("Shader compile error:", gl.getShaderInfoLog(shader));
       return null;
     }
@@ -395,6 +399,7 @@ export class BloomManager {
 
     // Safety: If Framebuffer failed to initialize, fallback to screen to prevent black void
     if (!this.sceneFramebuffer) {
+      // eslint-disable-next-line no-console
       console.warn("Bloom FBO missing");
       return null;
     }

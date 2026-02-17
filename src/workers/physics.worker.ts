@@ -10,7 +10,7 @@ interface WorkerInitialData {
 }
 
 // State
-let engine: any = null;
+let engine: import("blackhole-physics").PhysicsEngine | null = null;
 let sab: SharedArrayBuffer | null = null;
 let lastTickTime = 0;
 
@@ -64,17 +64,20 @@ self.onmessage = async (e: MessageEvent) => {
       engine = new PhysicsEngine(mass, spin);
 
       // Store reference to memory for calculation copies
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (self as any).wasmMemory = wasmModule.memory;
 
       lastTickTime = performance.now();
       calculate();
 
       self.postMessage({ type: "READY" });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      // eslint-disable-next-line no-console
       console.error("Physics Worker Initialization Failed:", err);
+      const message = err instanceof Error ? err.message : "Unknown error";
       self.postMessage({
         type: "ERROR",
-        error: err?.message || "Unknown error",
+        error: message,
       });
     }
   }
@@ -113,7 +116,9 @@ function calculate() {
   lastTickTime = currentTime;
 
   // 1. REBIND PERSISTENT VIEWS (Phase 2.1: Memory Guard)
-  const currentBuffer = (self as any).wasmMemory.buffer;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const memory = (self as any).wasmMemory as WebAssembly.Memory;
+  const currentBuffer = memory.buffer;
   if (!wasmF32 || currentBuffer.byteLength !== lastBufferLength) {
     wasmF32 = new Float32Array(currentBuffer);
     lastBufferLength = currentBuffer.byteLength;

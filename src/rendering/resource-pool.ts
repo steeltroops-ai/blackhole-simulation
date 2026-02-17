@@ -40,7 +40,8 @@ export class GPUResourcePool {
     const pool = this.texturePool.get(key);
 
     if (pool && pool.length > 0) {
-      return pool.pop()!;
+      const tex = pool.pop();
+      if (tex) return tex;
     }
 
     // Create new texture if pool is empty
@@ -82,10 +83,12 @@ export class GPUResourcePool {
    */
   public releaseTexture(texture: WebGLTexture, desc: TextureDescriptor): void {
     const key = this.getDescriptorKey(desc);
-    if (!this.texturePool.has(key)) {
-      this.texturePool.set(key, []);
+    let pool = this.texturePool.get(key);
+    if (!pool) {
+      pool = [];
+      this.texturePool.set(key, pool);
     }
-    this.texturePool.get(key)!.push(texture);
+    pool.push(texture);
   }
 
   /**
