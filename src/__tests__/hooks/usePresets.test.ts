@@ -24,6 +24,7 @@ describe("Preset Application Logic", () => {
     zoom: 14.0,
     autoSpin: 0.005,
     diskSize: 4.5,
+    diskScaleHeight: 0.1,
     features: PERFORMANCE_PRESETS["ultra-quality"],
     performancePreset: "ultra-quality",
     adaptiveResolution: false,

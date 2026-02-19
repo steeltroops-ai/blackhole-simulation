@@ -13,6 +13,7 @@ mod camera; // Camera EKF
 mod metric; // Spacetime Fabric (Geodesics)
 mod matter; // Stress-Energy Fields (T_mu_nu)
 mod quantum; // Hawking & Planck Effects
+pub(crate) mod audit; // Numerical derivatives audit
 
 mod tiling; // Tiled Rendering
 mod structs; // WebGPU Data Layouts
@@ -81,6 +82,17 @@ impl PhysicsEngine {
         kerr::isco(self.mass, self.spin, true)
     }
 
+    pub fn compute_photon_sphere(&self) -> f64 {
+        kerr::photon_sphere(self.mass, self.spin)
+    }
+
+    pub fn compute_dilation(&self, r: f64) -> f64 {
+        // Observer at rest at radius r on equator
+        let g = kerr::metric_tensor_bl(r, std::f64::consts::FRAC_PI_2, self.mass, self.spin);
+        let g_tt = g[0];
+        if g_tt >= 0.0 { 100.0 } else { 1.0 / (-g_tt).sqrt() }
+    }
+
     pub fn generate_disk_lut(&mut self) -> Vec<f32> {
         self.lut_buffer = disk::generate_lut(self.mass, self.spin, self.lut_width);
         self.lut_buffer.clone()
@@ -94,10 +106,8 @@ impl PhysicsEngine {
         self.sab_buffer.as_ptr()
     }
 
-    pub fn set_camera_state(&mut self, px: f64, py: f64, pz: f64, lx: f64, ly: f64, lz: f64) {
+    pub fn set_camera_state(&mut self, px: f64, py: f64, pz: f64, _lx: f64, _ly: f64, _lz: f64) {
         self.camera.position = glam::DVec3::new(px, py, pz);
-        // orientation is derived from lookAt in JS and passed, but here we just update position for now
-        // A full conversion would use Quat::from_lookat
     }
 
     pub fn set_auto_spin(&mut self, enabled: bool) {
@@ -198,7 +208,8 @@ impl PhysicsEngine {
         &self, 
         initial_state: Vec<f64>, // [t, r, theta, phi, pt, pr, ptheta, pphi]
         steps: usize,
-        tolerance: f64
+        tolerance: f64,
+        use_kerr_schild: bool
     ) -> Vec<f64> {
         if initial_state.len() < 8 { return initial_state; }
         
@@ -215,17 +226,26 @@ impl PhysicsEngine {
         let horizon = self.compute_horizon();
 
         // 3. Integration Loop
-        for _ in 0..steps {
-            // Adaptive Step
-            h = stepper.step(&mut state, self.mass, self.spin, h);
-            
-            // Numerical Regularization (Phase 5.1)
-            invariants::renormalize_momentum(&mut state, self.mass, self.spin);
-            
-            // Check termination conditions
-            let r = state.x[1];
-            if r < horizon * 1.001 { break; } // Hit Horizon
-            if r > 1000.0 { break; } // Escaped
+        if use_kerr_schild {
+            let metric = metric::KerrSchild { mass: self.mass, spin: self.spin };
+            for _ in 0..steps {
+                h = stepper.step(&mut state, &metric, h);
+                invariants::renormalize_momentum(&mut state, &metric);
+                
+                // Termination: Hit central singularity (r -> 0)
+                if state.x[1] < 0.1 { break; }
+                if state.x[1] > 1000.0 { break; }
+            }
+        } else {
+            let metric = metric::KerrBL { mass: self.mass, spin: self.spin };
+            for _ in 0..steps {
+                h = stepper.step(&mut state, &metric, h);
+                invariants::renormalize_momentum(&mut state, &metric);
+                
+                // Termination: Stop at Horizon
+                if state.x[1] < horizon * 1.001 { break; }
+                if state.x[1] > 1000.0 { break; }
+            }
         }
         
         // 4. Return Final State

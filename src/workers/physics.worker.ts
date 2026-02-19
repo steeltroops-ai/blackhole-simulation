@@ -26,7 +26,7 @@ const OFFSETS = {
 let sabControlView: Float32Array;
 let sabCameraView: Float32Array;
 let sabPhysicsView: Float32Array;
-let sabTelemetryView: Float32Array;
+let sabSequenceView: Int32Array; // Used for Atomic synchronization
 
 const IDLE_THRESHOLD_MS = 3000;
 let isIdle = false;
@@ -54,7 +54,7 @@ self.onmessage = async (e: MessageEvent) => {
       OFFSETS.PHYSICS * 4,
       OFFSETS.TELEMETRY - OFFSETS.PHYSICS,
     );
-    sabTelemetryView = new Float32Array(sab, OFFSETS.TELEMETRY * 4, 16);
+    sabSequenceView = new Int32Array(sab);
 
     try {
       const wasmModuleWrap = await import("blackhole-physics");
@@ -148,7 +148,7 @@ function calculate() {
 
   // 5. SYNC TO SHARED BUFFER (Anti-Tearing)
   // Primary Sequence increment (Signals "Write Started")
-  sabTelemetryView[0] += 1.0;
+  Atomics.add(sabSequenceView, OFFSETS.TELEMETRY, 1);
 
   const wasmSABPtr = engine.get_sab_ptr();
   const startIdx = wasmSABPtr / 4;
@@ -162,7 +162,7 @@ function calculate() {
   );
 
   // Secondary Sequence increment (Signals "Write Complete")
-  sabTelemetryView[0] += 1.0;
+  Atomics.add(sabSequenceView, OFFSETS.TELEMETRY, 1);
 
   // High-Precision Loop Control
   const targetDelay = isIdle ? 1000 : 1000 / 120;

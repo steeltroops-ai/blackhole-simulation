@@ -20,6 +20,7 @@ export interface SimulationParams {
   zoom: number;
   autoSpin: number;
   diskSize: number;
+  diskScaleHeight: number;
   adaptiveResolution?: boolean;
   renderScale: number;
   features?: FeatureToggles;
@@ -37,6 +38,7 @@ export const DEFAULT_PARAMS: SimulationParams = {
   zoom: SIMULATION_CONFIG.zoom.default,
   autoSpin: SIMULATION_CONFIG.autoSpin.default,
   diskSize: SIMULATION_CONFIG.diskSize.default,
+  diskScaleHeight: SIMULATION_CONFIG.diskScaleHeight.default,
   renderScale: SIMULATION_CONFIG.renderScale.default,
   features: SIMULATION_CONFIG.features.default,
   performancePreset: DEFAULT_PRESET_MODE,

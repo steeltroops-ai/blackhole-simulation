@@ -1,4 +1,7 @@
 // Memory Protocol v2 Offsets (Must match Rust lib.rs)
+// These are F32 ELEMENT indices, NOT byte offsets.
+// To get byte offset: multiply by 4.
+// To get Int32Array index: same as f32 index (both are 4-byte elements).
 export const OFFSETS = {
   CONTROL: 0,
   CAMERA: 64,
@@ -13,6 +16,7 @@ export class PhysicsBridge {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private wasmModule: any = null;
   private worker: Worker | null = null;
+  private workerReady = false; // BUG FIX: Only true after WASM loads inside worker
   private initializationPromise: Promise<void> | null = null;
   private lastBuffer: ArrayBuffer | SharedArrayBuffer | null = null;
   private sab: SharedArrayBuffer | null = null;
@@ -23,6 +27,12 @@ export class PhysicsBridge {
   private controlView: Float32Array = new Float32Array(0);
   private cameraView: Float32Array = new Float32Array(0);
   private physicsView: Float32Array = new Float32Array(0);
+
+  // Fallback views (Map to WASM memory directly)
+  private wasmMemory: WebAssembly.Memory | null = null;
+  private wasmControlView: Float32Array = new Float32Array(0);
+  private wasmCameraView: Float32Array = new Float32Array(0);
+  private wasmPhysicsView: Float32Array = new Float32Array(0);
 
   public async initialize(): Promise<void> {
     if (this.initializationPromise) return this.initializationPromise;
@@ -36,6 +46,7 @@ export class PhysicsBridge {
         // The worker is the primary driver in production.
         this.worker = new Worker(
           new URL("../workers/physics.worker.ts", import.meta.url),
+          { type: "module" },
         );
 
         // Setup SharedArrayBuffer (SAB) for Zero-Copy Sync
@@ -43,7 +54,11 @@ export class PhysicsBridge {
         this.sab = new SharedArrayBuffer(2 * 1024 * 1024);
         this.initializeViews();
 
-        this.worker.postMessage({ type: "INIT", data: { sab: this.sab } });
+        // BUG FIX: Must send mass and spin, otherwise Rust receives NaN
+        this.worker.postMessage({
+          type: "INIT",
+          data: { sab: this.sab, mass: 1.0, spin: 0.9 },
+        });
 
         return new Promise<void>((resolve, reject) => {
           if (!this.worker) return reject("Worker failed to init");
@@ -51,6 +66,7 @@ export class PhysicsBridge {
             if (e.data.type === "READY") {
               // eslint-disable-next-line no-console
               console.log("PhysicsBridge: Worker Ready.");
+              this.workerReady = true;
               resolve();
             } else if (e.data.type === "ERROR") {
               reject(e.data.error);
@@ -62,8 +78,10 @@ export class PhysicsBridge {
         console.error("PhysicsBridge Fallback: Loading in main thread...", err);
         // Fallback for environments where workers or SAB are disabled
         const wasmModuleWrap = await import("blackhole-physics");
-        await wasmModuleWrap.default();
+        const wasmModule = await wasmModuleWrap.default();
+        this.wasmMemory = wasmModule.memory;
         this.engine = new wasmModuleWrap.PhysicsEngine(1.0, 0.9);
+        this.initializeFallbackViews();
       }
     })();
 
@@ -72,13 +90,37 @@ export class PhysicsBridge {
 
   private initializeViews() {
     if (!this.sab) return;
-    this.controlView = new Float32Array(this.sab, OFFSETS.CONTROL, 16);
-    this.cameraView = new Float32Array(this.sab, OFFSETS.CAMERA, 16);
-    this.physicsView = new Float32Array(this.sab, OFFSETS.PHYSICS, 16);
+    this.controlView = new Float32Array(this.sab, OFFSETS.CONTROL * 4, 16);
+    this.cameraView = new Float32Array(this.sab, OFFSETS.CAMERA * 4, 16);
+    this.physicsView = new Float32Array(this.sab, OFFSETS.PHYSICS * 4, 16);
+  }
+
+  private initializeFallbackViews() {
+    if (!this.engine || !this.wasmMemory) return;
+    const ptr = this.engine.get_sab_ptr();
+    const startIdx = ptr / 4;
+    this.wasmControlView = new Float32Array(
+      this.wasmMemory.buffer,
+      ptr + OFFSETS.CONTROL * 4,
+      16,
+    );
+    this.wasmCameraView = new Float32Array(
+      this.wasmMemory.buffer,
+      ptr + OFFSETS.CAMERA * 4,
+      16,
+    );
+    this.wasmPhysicsView = new Float32Array(
+      this.wasmMemory.buffer,
+      ptr + OFFSETS.PHYSICS * 4,
+      16,
+    );
   }
 
   public isReady(): boolean {
-    return !!(this.engine || this.worker);
+    // BUG FIX: Previously returned !!(this.engine || this.worker), which was
+    // true immediately after Worker() constructor -- before WASM loaded.
+    // Now we wait for the actual READY ack from the worker.
+    return !!(this.engine || this.workerReady);
   }
 
   public async ensureInitialized(): Promise<void> {
@@ -91,6 +133,11 @@ export class PhysicsBridge {
   /**
    * Primary Telemetry Hook. Reads camera and physics state from SAB.
    * This is called 60+ times per second in the animation loop.
+   *
+   * MEMORY LAYOUT REMINDER:
+   *   OFFSETS are f32 element indices.  Int32Array also uses 4-byte elements,
+   *   so the element index into Int32Array is the SAME as the f32 index.
+   *   DO NOT divide by 4 -- that was the original Bug #2.
    */
   public tick(
     dt: number,
@@ -102,21 +149,30 @@ export class PhysicsBridge {
       // 2. CONSISTENCY CHECK (Anti-Tearing)
       // Read sequence -> Read Data -> Read sequence
       // If sequence changed, the worker was writing during our read.
-      const seq1 = Atomics.load(
-        new Int32Array(this.sab),
-        OFFSETS.TELEMETRY / 4,
-      );
+      //
+      // BUG FIX: OFFSETS.TELEMETRY is already the element index (256).
+      // Int32Array elements are 4 bytes each, same as Float32Array.
+      // Element 256 is at byte 1024 in both views.  The old code used
+      // OFFSETS.TELEMETRY / 4 = 64, which pointed into the CAMERA block!
+      const seqView = new Int32Array(this.sab);
+      const seq1 = Atomics.load(seqView, OFFSETS.TELEMETRY);
 
       // Perform very fast copy/reads here...
       const camera = this.cameraView;
       const physics = this.physicsView;
 
-      const seq2 = Atomics.load(
-        new Int32Array(this.sab),
-        OFFSETS.TELEMETRY / 4,
-      );
+      const seq2 = Atomics.load(seqView, OFFSETS.TELEMETRY);
       if (seq1 !== seq2) {
         // Data might be torn. Return last good state.
+        return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
+      }
+
+      // NaN Guard: If the physics engine produced garbage, don't propagate it
+      if (
+        !Number.isFinite(camera[0]) ||
+        !Number.isFinite(camera[1]) ||
+        !Number.isFinite(camera[2])
+      ) {
         return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
       }
 
@@ -127,9 +183,15 @@ export class PhysicsBridge {
       return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
     }
 
-    if (this.isReady()) {
+    if (this.isReady() && this.engine) {
+      // Main Thread Fallback path
       this.engine.tick_sab(dt);
-      return { camera: this.cameraView, physics: this.physicsView };
+
+      // Update shadowing caches from WASM memory
+      this._lastGoodCamera.set(this.wasmCameraView);
+      this._lastGoodPhysics.set(this.wasmPhysicsView);
+
+      return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
     }
     return null;
   }
@@ -188,8 +250,7 @@ export class PhysicsBridge {
   }
 
   public getDiskLUT(): Float32Array | null {
-    if (!this.isReady()) return null;
-    if (!this.engine) return null; // Prevent crash when running in worker mode
+    if (!this.engine) return null;
     return this.engine.generate_disk_lut();
   }
 
@@ -198,8 +259,7 @@ export class PhysicsBridge {
     height: number,
     maxTemp: number,
   ): Float32Array | null {
-    if (!this.isReady()) return null;
-    if (!this.engine) return null; // Prevent crash when running in worker mode
+    if (!this.engine) return null;
     return this.engine.generate_spectrum_lut(width, height, maxTemp);
   }
 
@@ -209,6 +269,14 @@ export class PhysicsBridge {
 
   public computeISCO(): number {
     return this.engine ? this.engine.compute_isco() : 6.0;
+  }
+
+  public computePhotonSphere(): number {
+    return this.engine ? this.engine.compute_photon_sphere() : 3.0;
+  }
+
+  public computeDilation(r: number): number {
+    return this.engine ? this.engine.compute_dilation(r) : 1.0;
   }
 }
 
