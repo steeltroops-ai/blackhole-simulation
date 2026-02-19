@@ -18,6 +18,8 @@ export class PhysicsBridge {
   private worker: Worker | null = null;
   private workerReady = false; // BUG FIX: Only true after WASM loads inside worker
   private initializationPromise: Promise<void> | null = null;
+  private currentMass = 1.0;
+  private currentSpin = 0.0;
   private lastBuffer: ArrayBuffer | SharedArrayBuffer | null = null;
   private sab: SharedArrayBuffer | null = null;
   private _lastGoodCamera = new Float32Array(64);
@@ -197,6 +199,9 @@ export class PhysicsBridge {
   }
 
   public updateParameters(mass: number, spin: number) {
+    this.currentMass = mass;
+    this.currentSpin = spin;
+
     if (this.worker) {
       this.worker.postMessage({ type: "UPDATE_PARAMS", data: { mass, spin } });
     }
@@ -276,7 +281,12 @@ export class PhysicsBridge {
   }
 
   public computeDilation(r: number): number {
-    return this.engine ? this.engine.compute_dilation(r) : 1.0;
+    if (this.engine) return this.engine.compute_dilation(r);
+
+    // Fallback: Schwarzschild approximation (r > 2M)
+    const rs = 2.0 * this.currentMass;
+    if (r <= rs) return 100.0;
+    return 1.0 / Math.sqrt(1.0 - rs / r);
   }
 }
 
