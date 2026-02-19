@@ -73,6 +73,15 @@ export const metadata: Metadata = {
     siteName: "Black Hole Simulation Lab",
     locale: "en_US",
     type: "website",
+    images: [
+      {
+        url: "/opengraph-image.webp",
+        width: 1200,
+        height: 630,
+        alt: "Black Hole Simulation - Event Horizon Visualization",
+        type: "image/webp",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
@@ -81,6 +90,7 @@ export const metadata: Metadata = {
       "Visualize General Relativity in real-time. Experience gravitational lensing and the event horizon directly in your browser.",
     creator: "@steeltroops_ai",
     site: "@steeltroops_ai",
+    images: ["/twitter-image.webp"],
   },
   robots: {
     index: true,

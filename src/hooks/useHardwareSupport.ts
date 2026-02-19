@@ -27,15 +27,12 @@ export function useHardwareSupport() {
           ua,
         );
 
-      // 2. Check WebGL
+      // 2. Check WebGL 2 (Required for 3D textures and float buffers)
       let webgl = false;
       try {
         const canvas = document.createElement("canvas");
-        webgl = !!(
-          window.WebGLRenderingContext &&
-          (canvas.getContext("webgl") ||
-            canvas.getContext("experimental-webgl"))
-        );
+        const gl = canvas.getContext("webgl2");
+        webgl = !!gl;
       } catch (e) {
         webgl = false;
       }

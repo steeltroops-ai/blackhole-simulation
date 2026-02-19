@@ -149,12 +149,21 @@
       inset 0 0 80px rgba(0, 0, 0, 0.2),
       0 25px 60px rgba(0, 0, 0, 0.5);
   }
+
+  .glass-subtle-frost {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(3px) saturate(140%);
+    -webkit-backdrop-filter: blur(3px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  }
 }
 
 /* Custom Scrollbar */
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
+    background: transparent;
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {

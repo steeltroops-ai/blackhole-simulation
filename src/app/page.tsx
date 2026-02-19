@@ -169,7 +169,19 @@ const App = () => {
         setUseWebGPU(false);
       }
     }
+  }, [isWebGPUSupported]);
 
+  // SELF-HEALING: If hardware IS supported, force-hide the HUD and clean URL
+  useEffect(() => {
+    if (hardwareSupport.webgl && forceShowCompat) {
+      setForceShowCompat(false);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("debug_hud");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [hardwareSupport.webgl, forceShowCompat]);
+
+  useEffect(() => {
     // Trigger Physics Bridge Initialization
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { physicsBridge } = require("@/engine/physics-bridge");
@@ -183,8 +195,7 @@ const App = () => {
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans text-white">
       {(forceShowCompat ||
-        (hardwareSupport.isReady &&
-          (!hardwareSupport.webgl || hardwareSupport.isInApp))) && (
+        (hardwareSupport.isReady && !hardwareSupport.webgl)) && (
         <CompatibilityHUD />
       )}
 

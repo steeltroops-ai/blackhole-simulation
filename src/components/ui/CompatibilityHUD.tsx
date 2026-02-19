@@ -77,7 +77,7 @@ export const CompatibilityHUD = () => {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative max-w-lg w-full px-8 flex flex-col items-center text-center"
+        className="relative max-w-lg w-full px-8 pt-16 flex flex-col items-center text-center"
       >
         {/* Top Status */}
         <div className="flex flex-col items-center gap-1 mb-16">

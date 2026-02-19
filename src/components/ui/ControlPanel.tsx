@@ -418,13 +418,13 @@ export const ControlPanel = ({
               transition={{ type: "spring", stiffness: 150, damping: 25 }}
               className="w-[98%] sm:w-[94%] lg:max-w-4xl xl:max-w-5xl pointer-events-auto"
             >
-              <div className="relative group overflow-hidden rounded-3xl liquid-glass border border-white/10 shadow-2xl">
+              <div className="relative group overflow-hidden rounded-3xl glass-subtle-frost border border-white/10 shadow-2xl">
                 {/* Liquid Glass Infrastructure */}
                 <div className="absolute inset-0 liquid-glass-highlight z-1 pointer-events-none" />
                 <div className="absolute inset-x-0 top-0 liquid-glass-top-line z-30" />
 
                 {/* CONTENT LAYER: High-Density Active Manifold */}
-                <div className="relative z-40 p-5 md:p-8">
+                <div className="relative z-40 p-5 md:p-8 pt-16">
                   {/* Header Anchor: Identity & Responsive Telemetry */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                     <div className="flex items-center gap-4 w-full sm:w-auto">
