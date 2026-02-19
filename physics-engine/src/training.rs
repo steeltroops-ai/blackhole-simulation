@@ -50,7 +50,7 @@ impl NrsTrainer {
         
         // 1. Generate Random Ray (Batch Size 1 for interactivity)
         // Impact parameter b in [3M, 20M]
-        let b = 5.0 * mass + (spin * 0.5); 
+        let _b = 5.0 * mass + (spin * 0.5); 
         
         // 2. Ground Truth: Geodesic Integration
         // Use the high-precision integrator from geodesic.rs

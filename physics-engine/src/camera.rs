@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // Camera State for EKF
 #[derive(Clone, Copy)]
 pub struct CameraState {
@@ -19,9 +20,12 @@ pub struct CameraInput {
 impl CameraState {
     pub fn new() -> Self {
         Self {
-            position: glam::DVec3::new(0.0, 0.0, -10.0), // Start at 10 radii back
+            // Start 20 units from origin on +Z axis, matching WebGL fallback
+            position: glam::DVec3::new(0.0, 0.0, 20.0),
             velocity: glam::DVec3::ZERO,
-            orientation: glam::DQuat::IDENTITY,
+            // 180-degree Y rotation so the camera faces back toward the origin (-Z)
+            // This quaternion is (x=0, y=1, z=0, w=0)
+            orientation: glam::DQuat::from_xyzw(0.0, 1.0, 0.0, 0.0),
             auto_spin: false,
         }
     }

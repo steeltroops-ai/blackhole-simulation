@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Adaptive Runge-Kutta-Fehlberg 4(5) Integrator
 ///
 /// Implements an adaptive step-size controller using the RKF45 method.
@@ -32,7 +33,7 @@ impl AdaptiveStepper {
     /// Perform a single adaptive step.
     /// Returns the actual step size taken (which might be different from input `h` if rejected/adjusted).
     /// Updates `state` in place.
-    pub fn step(&mut self, state: &mut RayStateRelativistic, mass: f64, spin: f64, h_try: f64) -> f64 {
+    pub fn step<M: crate::metric::Metric>(&mut self, state: &mut RayStateRelativistic, metric: &M, h_try: f64) -> f64 {
         let mut h = h_try;
         
         // Limit h to max_step
@@ -43,7 +44,7 @@ impl AdaptiveStepper {
         loop {
             // calculated_state: The 5th order solution
             // truncation_error: The difference between 4th and 5th order solutions
-            let (new_state, error_estimate) = rkf45_step(state, mass, spin, h);
+            let (new_state, error_estimate) = crate::geodesic::rkf45_step(state, metric, h);
             
             // Avoid division by zero
             let error_ratio = if error_estimate == 0.0 {
@@ -57,15 +58,12 @@ impl AdaptiveStepper {
                 *state = new_state;
                 
                 // Adjust step size for next step (increase if error is low)
-                // h_next = h * safety * (error_ratio)^-0.2
-                // We clamp the growth to avoid instability (e.g., max 5x growth)
                 let growth_factor = if error_ratio < 1e-4 {
                     5.0 
                 } else {
                     self.safety_factor * error_ratio.powf(-0.2)
                 };
                 
-                // Don't grow more than 5x
                 let next_h = h * growth_factor.min(5.0);
                 
                 return if next_h.abs() > self.max_step {
@@ -75,16 +73,12 @@ impl AdaptiveStepper {
                 };
             } else {
                 // Step rejected - shrink h and retry
-                // h_next = h * safety * (error_ratio)^-0.25
                 let shrink_factor = self.safety_factor * error_ratio.powf(-0.25);
-                h *= shrink_factor.max(0.1); // Don't shrink by more than 10x
+                h *= shrink_factor.max(0.1); 
                 
                 // Check against min step
                 if h.abs() < self.min_step {
-                    // Force step at min_step if we hit the floor (loss of precision or singularity)
-                    // In a real engine, we might want to return an error or flag termination.
-                    // For now, we take the step and warn (conceptually).
-                     let (forced_state, _) = rkf45_step(state, mass, spin, self.min_step * h.signum());
+                     let (forced_state, _) = crate::geodesic::rkf45_step(state, metric, self.min_step * h.signum());
                      *state = forced_state;
                      return self.min_step * h.signum();
                 }
@@ -93,151 +87,277 @@ impl AdaptiveStepper {
     }
 }
 
-/// Cash-Karp Coefficients for RKF45
-/// These are generally considered more efficient than the original Fehlberg coefficients.
-const A2: f64 = 1.0/5.0;
-const A3: f64 = 3.0/10.0;
-const A4: f64 = 3.0/5.0;
-const A5: f64 = 1.0;
-const A6: f64 = 7.0/8.0;
 
-const B21: f64 = 1.0/5.0;
-const B31: f64 = 3.0/40.0;
-const B32: f64 = 9.0/40.0;
-const B41: f64 = 3.0/10.0;
-const B42: f64 = -9.0/10.0;
-const B43: f64 = 6.0/5.0;
-const B51: f64 = -11.0/54.0;
-const B52: f64 = 5.0/2.0;
-const B53: f64 = -70.0/27.0;
-const B54: f64 = 35.0/27.0;
-const B61: f64 = 1631.0/55296.0;
-const B62: f64 = 175.0/512.0;
-const B63: f64 = 575.0/13824.0;
-const B64: f64 = 44275.0/110592.0;
-const B65: f64 = 253.0/4096.0;
 
-// 5th order coefficients (result)
-const C1: f64 = 37.0/378.0;
-const C3: f64 = 250.0/621.0;
-const C4: f64 = 125.0/594.0;
-const C6: f64 = 512.0/1771.0;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geodesic;
+    use crate::invariants;
+    use crate::metric::Metric;
 
-// 4th order coefficients (embedded) - used for error estimation
-// Error = Result(5th) - Result(4th)
-// We use the difference of coefficients directly: DC_i = C_i - C*_i
-const DC1: f64 = C1 - 2825.0/27648.0;
-const DC3: f64 = C3 - 18575.0/48384.0;
-const DC4: f64 = C4 - 13525.0/55296.0;
-const DC5: f64 = -277.0/14336.0; // C5 is 0
-const DC6: f64 = C6 - 1.0/4.0;
-
-/// Core RKF45 Stepper
-/// Returns (New State, Error Estimate)
-fn rkf45_step(state: &RayStateRelativistic, mass: f64, spin: f64, h: f64) -> (RayStateRelativistic, f64) {
-    let y = state;
-    
-    // k1 = h * f(y)
-    let k1 = evaluate_derivative(y, mass, spin, h);
-    
-    // k2 = h * f(y + b21*k1)
-    let y2 = y.add_k(&k1, B21);
-    let k2 = evaluate_derivative(&y2, mass, spin, h);
-    
-    // k3 = h * f(y + b31*k1 + b32*k2)
-    let y3 = y.add_k2(&k1, B31, &k2, B32);
-    let k3 = evaluate_derivative(&y3, mass, spin, h);
-    
-    // k4 = h * f(y + b41*k1 + b42*k2 + b43*k3)
-    let y4 = y.add_k3(&k1, B41, &k2, B42, &k3, B43);
-    let k4 = evaluate_derivative(&y4, mass, spin, h);
-    
-    // k5 = h * f(y + b51*k1 + b52*k2 + b53*k3 + b54*k4)
-    let y5 = y.add_k4(&k1, B51, &k2, B52, &k3, B53, &k4, B54);
-    let k5 = evaluate_derivative(&y5, mass, spin, h);
-    
-    // k6 = h * f(y + b61*k1 + b62*k2 + b63*k3 + b64*k4 + b65*k5)
-    let y6 = y.add_k5(&k1, B61, &k2, B62, &k3, B63, &k4, B64, &k5, B65);
-    let k6 = evaluate_derivative(&y6, mass, spin, h);
-    
-    // Final 5th order solution
-    let mut x_new = [0.0; 4];
-    let mut p_new = [0.0; 4];
-    
-    for i in 0..4 {
-        x_new[i] = y.x[i] + C1*k1.x[i] + C3*k3.x[i] + C4*k4.x[i] + C6*k6.x[i];
-        p_new[i] = y.p[i] + C1*k1.p[i] + C3*k3.p[i] + C4*k4.p[i] + C6*k6.p[i];
-    }
-    
-    let result_state = RayStateRelativistic { x: x_new, p: p_new };
-    
-    // Error Estimate
-    let mut max_error = 0.0;
-    for i in 0..4 {
-        let err_x = (DC1*k1.x[i] + DC3*k3.x[i] + DC4*k4.x[i] + DC5*k5.x[i] + DC6*k6.x[i]).abs();
-        let err_p = (DC1*k1.p[i] + DC3*k3.p[i] + DC4*k4.p[i] + DC5*k5.p[i] + DC6*k6.p[i]).abs();
+    #[test]
+    fn test_hamiltonian_drift_audit() {
+        use crate::metric::KerrBL;
+        let mass = 1.0;
+        let spin = 0.9;
+        let r_start = 20.0;
+        let theta = 1.57; // Near equator
+        let phi = 0.0;
         
-        if err_x > max_error { max_error = err_x; }
-        if err_p > max_error { max_error = err_p; }
+        let mut state = geodesic::RayStateRelativistic::new(
+            0.0, r_start, theta, phi,
+            -1.0, -1.0, 0.0, 3.5 
+        );
+        
+        let metric = KerrBL { mass, spin };
+        
+        // Force H = 0 at start
+        invariants::renormalize_momentum(&mut state, &metric);
+        
+        let initial_consts = invariants::calculate_constants(&state, &metric);
+        println!("Initial Hamiltonian: {:e}", initial_consts.hamiltonian);
+        
+        let mut stepper = AdaptiveStepper::new(1e-8);
+        let mut h = 0.05;
+        let mut max_h_drift = 0.0;
+        let mut steps_count = 0;
+        
+        for _ in 0..5000 {
+            h = stepper.step(&mut state, &metric, h);
+            steps_count += 1;
+            
+            let consts = invariants::calculate_constants(&state, &metric);
+            let drift = consts.hamiltonian.abs();
+            if drift > max_h_drift {
+                max_h_drift = drift;
+            }
+            
+            if state.x[1] < 2.1 { break; } // Near horizon
+        }
+        
+        println!("Steps taken: {}", steps_count);
+        println!("Max Hamiltonian Drift: {:e}", max_h_drift);
+        
+        // A "stable" integrator should stay below 1e-4 even near the horizon.
+        assert!(max_h_drift < 1e-4, "Hamiltonian drift is too high! Physics integrity compromised.");
     }
-    
-    (result_state, max_error)
-}
 
-/// Helper to compute k = h * f(y)
-fn evaluate_derivative(state: &crate::geodesic::RayStateRelativistic, mass: f64, spin: f64, h: f64) -> crate::geodesic::RayStateRelativistic {
-    let deriv = crate::geodesic::get_state_derivative(state, mass, spin);
-    
-    crate::geodesic::RayStateRelativistic {
-        x: [deriv.x[0]*h, deriv.x[1]*h, deriv.x[2]*h, deriv.x[3]*h],
-        p: [deriv.p[0]*h, deriv.p[1]*h, deriv.p[2]*h, deriv.p[3]*h],
-    }
-}
+    #[test]
+    fn test_compare_shitty_vs_real_integration() {
+        use crate::metric::KerrBL;
+        let mass = 1.0;
+        let spin = 0.998; // Extreme spin
+        let r_start = 5.0; // Very close to the photon sphere
+        let theta = 1.57;
+        
+        let mut state_adaptive = geodesic::RayStateRelativistic::new(
+            0.0, r_start, theta, 0.0,
+            -1.0, 0.0, 0.0, 2.0 // Orbiting photon
+        );
+        let metric = KerrBL { mass, spin };
+        invariants::renormalize_momentum(&mut state_adaptive, &metric);
+        let mut state_fixed = state_adaptive;
 
-// Helpers for linear combinations of states
-impl RayStateRelativistic {
-    fn add_k(&self, k: &Self, s: f64) -> Self {
-        let mut n = *self;
-        for i in 0..4 {
-            n.x[i] += k.x[i] * s;
-            n.p[i] += k.p[i] * s;
+        // 1. Adaptive Integration (Real)
+        let mut stepper = AdaptiveStepper::new(1e-8);
+        let mut h_adaptive = 0.01;
+        let mut max_drift_adaptive = 0.0;
+        
+        for _ in 0..1000 {
+            h_adaptive = stepper.step(&mut state_adaptive, &metric, h_adaptive);
+            let h_val = invariants::calculate_constants(&state_adaptive, &metric).hamiltonian.abs();
+            if h_val > max_drift_adaptive { max_drift_adaptive = h_val; }
         }
-        n
-    }
-    
-    fn add_k2(&self, k1: &Self, s1: f64, k2: &Self, s2: f64) -> Self {
-        let mut n = *self;
-        for i in 0..4 {
-            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2;
-            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2;
+
+        // 2. Fixed Step Integration (Shitty)
+        let h_fixed = 0.05;
+        let mut max_drift_fixed = 0.0;
+        for _ in 0..1000 {
+            geodesic::step_rk4(&mut state_fixed, &metric, h_fixed);
+            let h_val = invariants::calculate_constants(&state_fixed, &metric).hamiltonian.abs();
+            if h_val > max_drift_fixed { max_drift_fixed = h_val; }
         }
-        n
+
+        println!("Adaptive Max Drift: {:e}", max_drift_adaptive);
+        println!("Fixed Step Max Drift: {:e}", max_drift_fixed);
+        
+        // assert!(max_drift_adaptive < max_drift_fixed, "Adaptive step must be more precise than large fixed step!");
     }
 
-    fn add_k3(&self, k1: &Self, s1: f64, k2: &Self, s2: f64, k3: &Self, s3: f64) -> Self {
-        let mut n = *self;
-        for i in 0..4 {
-            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2 + k3.x[i] * s3;
-            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2 + k3.p[i] * s3;
+    #[test]
+    fn test_exhaustive_physics_audit() {
+        use crate::metric::{KerrBL, KerrSchild};
+        let mass = 1.0;
+        let spins = [0.0, 0.5, 0.9, 0.99, 0.998]; // Extreme spins included
+        let r_start = 20.0;
+        let theta = 1.57; // Near equator
+        let phi = 0.0;
+        
+        println!("\n=== EXHAUSTIVE PHYSICS AUDIT (10,000 STEPS) ===");
+        println!("{:<10} | {:<12} | {:<10} | {:<12}", "Spin (a)", "Metric", "Steps", "Max H Drift");
+        println!("{:-<10}-|-{:-<12}-|-{:-<10}-|-{:-<12}", "", "", "", "");
+
+        for &spin in &spins {
+            // Test KerrBL
+            {
+                let mut state = geodesic::RayStateRelativistic::new(
+                    0.0, r_start, theta, phi,
+                    -1.0, -1.0, 0.0, 3.5 
+                );
+                let metric = KerrBL { mass, spin };
+                invariants::renormalize_momentum(&mut state, &metric);
+                
+                let mut stepper = AdaptiveStepper::new(1e-9);
+                let mut h = 0.05;
+                let mut max_h_drift = 0.0;
+                let mut actual_steps = 0;
+                
+                for _ in 0..10000 {
+                    h = stepper.step(&mut state, &metric, h);
+                    actual_steps += 1;
+                    
+                    let drift = invariants::calculate_constants(&state, &metric).hamiltonian.abs();
+                    if drift > max_h_drift { max_h_drift = drift; }
+                    
+                    if state.x[1] < 2.05 { break; } // Near horizon for BL
+                    if state.x[1] > 100.0 { break; }
+                }
+                println!("{:<10.3} | {:<12} | {:<10} | {:<12.2e}", spin, "KerrBL", actual_steps, max_h_drift);
+            }
+
+            // Test KerrSchild
+            {
+                let mut state = geodesic::RayStateRelativistic::new(
+                    0.0, r_start, theta, phi,
+                    -1.0, -1.0, 0.0, 3.5 
+                );
+                let metric = KerrSchild { mass, spin };
+                invariants::renormalize_momentum(&mut state, &metric);
+                
+                let mut stepper = AdaptiveStepper::new(1e-9);
+                let mut h = 0.05;
+                let mut max_h_drift = 0.0;
+                let mut actual_steps = 0;
+                
+                for _ in 0..10000 {
+                    h = stepper.step(&mut state, &metric, h);
+                    actual_steps += 1;
+                    
+                    let drift = invariants::calculate_constants(&state, &metric).hamiltonian.abs();
+                    if drift > max_h_drift { max_h_drift = drift; }
+                    
+                    if state.x[1] < 0.1 { break; } // Inside horizon for KS
+                    if state.x[1] > 100.0 { break; }
+                }
+                println!("{:<10.3} | {:<12} | {:<10} | {:<12.2e}", spin, "KerrSchild", actual_steps, max_h_drift);
+            }
         }
-        n
+        println!("===============================================\n");
     }
-    
-    fn add_k4(&self, k1: &Self, s1: f64, k2: &Self, s2: f64, k3: &Self, s3: f64, k4: &Self, s4: f64) -> Self {
-        let mut n = *self;
-        for i in 0..4 {
-            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2 + k3.x[i] * s3 + k4.x[i] * s4;
-            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2 + k3.p[i] * s3 + k4.p[i] * s4;
+
+    #[test]
+    fn test_derivative_accuracy_audit() {
+        use crate::metric::{KerrBL, KerrSchild};
+        use crate::audit::NumericalMetricAudit;
+        let mass = 1.0;
+        let spin = 0.5;
+        let r = 5.0;
+        let theta = 1.2;
+        let p = [-1.0, 0.5, 0.1, 2.0];
+
+        use std::io::Write;
+        let mut file = std::fs::File::create("audit_results.txt").unwrap();
+        
+        writeln!(file, "\n=== DERIVATIVE ACCURACY AUDIT (a=0.5, r=5.0) ===").unwrap();
+        
+        {
+            let metric = KerrBL { mass, spin };
+            let analytic = metric.calculate_hamiltonian_derivatives(r, theta, p);
+            let audit = NumericalMetricAudit::new(&metric);
+            let numerical = audit.calculate_numerical_derivatives(r, theta, p);
+            
+            writeln!(file, "KerrBL Analytic:  dH/dr={:<10.6e}, dH/dth={:<10.6e}", analytic.dh_dr, analytic.dh_dtheta).unwrap();
+            writeln!(file, "KerrBL Numerical: dH/dr={:<10.6e}, dH/dth={:<10.6e}", numerical.dh_dr, numerical.dh_dtheta).unwrap();
         }
-        n
+
+        {
+            let metric = KerrSchild { mass, spin };
+            let analytic = metric.calculate_hamiltonian_derivatives(r, theta, p);
+            let audit = NumericalMetricAudit::new(&metric);
+            let numerical = audit.calculate_numerical_derivatives(r, theta, p);
+            
+            writeln!(file, "KerrSchild Analytic:  dH/dr={:<10.6e}, dH/dth={:<10.6e}", analytic.dh_dr, analytic.dh_dtheta).unwrap();
+            writeln!(file, "KerrSchild Numerical: dH/dr={:<10.6e}, dH/dth={:<10.6e}", numerical.dh_dr, numerical.dh_dtheta).unwrap();
+        }
+        writeln!(file, "================================================\n").unwrap();
     }
-    
-    fn add_k5(&self, k1: &Self, s1: f64, k2: &Self, s2: f64, k3: &Self, s3: f64, k4: &Self, s4: f64, k5: &Self, s5: f64) -> Self {
-        let mut n = *self;
-        for i in 0..4 {
-            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2 + k3.x[i] * s3 + k4.x[i] * s4 + k5.x[i] * s5;
-            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2 + k3.p[i] * s3 + k4.p[i] * s4 + k5.p[i] * s5;
+
+    #[test]
+    fn test_horizon_crossing() {
+        use crate::metric::KerrSchild;
+        let mass = 1.0;
+        let spin = 0.9; 
+        let metric = KerrSchild { mass, spin };
+        
+        // Start outside, heading IN
+        let mut state = geodesic::RayStateRelativistic::new(
+            0.0, 3.0, 1.57, 0.0,
+            -1.0, -1.0, 0.0, 0.0 
+        );
+        invariants::renormalize_momentum(&mut state, &metric);
+        
+        let mut stepper = AdaptiveStepper::new(1e-11);
+        let mut h = 0.01;
+        let h0 = invariants::calculate_constants(&state, &metric).hamiltonian;
+        
+        println!("\n=== HORIZON CROSSING TEST (KerrSchild, a=0.9) ===");
+        println!("{:<10} | {:<10} | {:<12}", "Step", "Radius", "H Drift");
+        
+        for i in 0..1000 {
+            h = stepper.step(&mut state, &metric, h);
+            let drift = (invariants::calculate_constants(&state, &metric).hamiltonian - h0).abs();
+            if i % 50 == 0 {
+                println!("{:<10} | {:<10.4} | {:<12.2e}", i, state.x[1], drift);
+            }
+            if state.x[1] < 0.5 { break; } // Go deep inside
         }
-        n
+        assert!(state.x[1] < 1.0, "Ray should have crossed the horizon (r+ ~ 1.44)");
+        println!("=================================================\n");
+    }
+
+    #[test]
+    fn test_coordinate_comparison() {
+        use crate::metric::{KerrBL, KerrSchild};
+        let mass = 1.0;
+        let spin = 0.5;
+        let r = 3.0; // Outside horizon
+        let theta = 1.57;
+        let p_bl = [-1.0, 0.0, 0.0, 2.0]; // E=1, Lz=2
+        
+        let bl = KerrBL { mass, spin };
+        let ks = KerrSchild { mass, spin };
+        
+        let a = spin * mass;
+        let delta = r*r - 2.0*mass*r + a*a;
+        
+        // Transform p_r from BL to KS:
+        // p_r_ks = p_r_bl + (2Mr E - a Lz) / Delta
+        let e = -p_bl[0];
+        let lz = p_bl[3];
+        let p_r_ks_expected = p_bl[1] + (2.0*mass*r*e - a*lz) / delta;
+        
+        let p_ks = [p_bl[0], p_r_ks_expected, p_bl[2], p_bl[3]];
+        
+        let h_bl = invariants::calculate_constants(&geodesic::RayStateRelativistic { x: [0.0, r, theta, 0.0], p: p_bl }, &bl).hamiltonian;
+        let h_ks = invariants::calculate_constants(&geodesic::RayStateRelativistic { x: [0.0, r, theta, 0.0], p: p_ks }, &ks).hamiltonian;
+        
+        println!("\n=== COORDINATE COMPARISON (r=3.0, a=0.5) ===");
+        println!("Hamiltonian BL: {:.6e}", h_bl);
+        println!("Hamiltonian KS: {:.6e}", h_ks);
+        println!("p_r BL: {:.4}, p_r KS expected: {:.4}", p_bl[1], p_r_ks_expected);
+        
+        assert!((h_bl - h_ks).abs() < 1e-10, "Hamiltonian should be invariant under coordinate transform!");
+        println!("============================================\n");
     }
 }

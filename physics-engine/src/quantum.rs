@@ -1,15 +1,19 @@
+#![allow(dead_code)]
 /// Quantum Physics Subsystem
 /// Implements semi-classical effects in strong-field gravity.
 
-use crate::constants::{G, C, HBAR, KB, H};
+use crate::constants::{SI_G as G, SI_C as C, SI_TO_GEOM_MASS, SI_KB as KB, SI_SOLAR_MASS};
+const H: f64 = 6.62607015e-34; 
+const HBAR: f64 = H / (2.0 * std::f64::consts::PI);
 
 /// Calculate Hawking Temperature for a Kerr Black Hole
 /// T = (hbar * c^3) / (8 * pi * G * M * k_B) * [ ... rotation factor ... ]
 pub fn hawking_temperature(mass: f64, spin: f64) -> f64 {
-    let mass_kg = mass * 1.989e30; // Solar masses to kg
+    let mass_kg = mass * SI_SOLAR_MASS; // Input mass is in Solar Masses
     let a_star = spin.abs();
     
     // Schwarzschild Temperature (Base line)
+    // T = (hbar * c^3) / (8 * pi * G * M * k_B)
     let t_schwarz = (HBAR * C.powi(3)) / (8.0 * std::f64::consts::PI * G * mass_kg * KB);
     
     // Kerr Correction Factor: f(a) = sqrt(1-a^2) / (1 + sqrt(1-a^2))
@@ -32,7 +36,8 @@ pub fn planck_radiance(wavelength: f64, temperature: f64) -> f64 {
 /// Stochastic Metric Fluctuations (Planck Scale Foam)
 /// Returns a perturbation factor for g_mu_nu components near the singularity.
 pub fn planck_scale_fluctuation(r: f64, mass: f64, seed: u64) -> f64 {
-    let r_planck = 1.616e-35;
+    let r_planck = 1.616255e-35; // Plank length in meters
+    let _r_planck_geom = r_planck * SI_TO_GEOM_MASS; // Currently unused
     let r_event_horizon = 2.0 * mass;
     
     // Fluctuations grow exponentially as we approach the singularity (r -> 0)

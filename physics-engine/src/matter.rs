@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Matter & Stress-Energy Field Subsystem
 /// Decouples the physical objects (disks, jets) from the geometric spacetime.
 

@@ -1,27 +1,31 @@
-/// Physical Constants for Black Hole Simulation
-///
-/// Use standard MKS units unless otherwise specified (Dimensionless is common in GR).
-// Speed of light in m/s (exact)
-pub const C: f64 = 299_792_458.0;
+/// Standardized Geometric Units (G = c = 1)
+/// In this system, Length and Time have the same units, 
+/// and Mass is measured in units of distance (L = GM/c^2).
+pub const C: f64 = 1.0;
+pub const G: f64 = 1.0;
 
-// Gravitational constant in m^3 kg^-1 s^-2
-pub const G: f64 = 6.67430e-11;
+// All other physical constants are kept in SI for non-GR modules 
+// (e.g., spectral rendering for temperature-to-wavelength conversion).
 
-// Solar Mass in kg (approximate)
-pub const SOLAR_MASS: f64 = 1.989e30;
+/// SI: Solar Mass in kg
+pub const SI_SOLAR_MASS: f64 = 1.98847e30;
 
-// Stefan-Boltzmann constant in W m^-2 K^-4
-pub const SIGMA_SB: f64 = 5.670374419e-8;
+/// SI: Speed of light in m/s
+pub const SI_C: f64 = 299792458.0;
 
-// Reduced Planck Constant in J s
-pub const HBAR: f64 = 1.054571817e-34;
+/// SI: Gravitational constant in m^3 kg^-1 s^-2
+pub const SI_G: f64 = 6.67430e-11;
 
-// Planck Constant in J s
-pub const H: f64 = 6.62607015e-34;
+/// SI: Stefan-Boltzmann constant (W m^-2 K^-4)
+pub const SI_SIGMA_SB: f64 = 5.670374e-8;
 
-// Boltzmann Constant in J/K
-pub const KB: f64 = 1.380649e-23;
+/// SI: Boltzmann Constant (J/K)
+pub const SI_KB: f64 = 1.380649e-23;
 
-// Schwarzschild radius for 1 Solar Mass (normalized units used in simulation usually)
-// But for consistency:
-pub const RS_SOLAR: f64 = 2.0 * G * SOLAR_MASS / (C * C);
+/// Conversion: SI Mass (kg) -> Geometric Mass (m)
+/// m_geom = m_si * G / c^2
+pub const SI_TO_GEOM_MASS: f64 = SI_G / (SI_C * SI_C);
+
+/// Schwarzschild radius for 1 Solar Mass (in meters)
+/// Rs = 2 * M_solar_geom
+pub const RS_SOLAR_METERS: f64 = 2.0 * (SI_SOLAR_MASS * SI_TO_GEOM_MASS);

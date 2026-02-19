@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Invariants and Conservation Laws
 ///
 /// Monitor and correct numerical drift using the constants of motion:
@@ -7,7 +8,7 @@
 /// 4. Hamiltonian (H) - Conserved (= 0 for null geodesics)
 
 use num_complex::Complex64;
-use crate::kerr;
+use crate::metric::Metric;
 use crate::geodesic::RayStateRelativistic;
 
 #[derive(Debug, Clone, Copy)]
@@ -19,7 +20,7 @@ pub struct ConstantsOfMotion {
     pub walker_penrose: Complex64,
 }
 
-pub fn calculate_constants(state: &RayStateRelativistic, mass: f64, spin: f64) -> ConstantsOfMotion {
+pub fn calculate_constants<M: Metric>(state: &RayStateRelativistic, metric: &M) -> ConstantsOfMotion {
     let p_t = state.p[0];
     let p_r = state.p[1];
     let p_th = state.p[2];
@@ -28,12 +29,12 @@ pub fn calculate_constants(state: &RayStateRelativistic, mass: f64, spin: f64) -
     let r = state.x[1];
     let theta = state.x[2];
     
+    let mass = metric.get_mass();
+    let spin = metric.get_spin();
     let a = spin * mass;
     let cos_theta = theta.cos();
     let sin_theta = theta.sin();
     let sin2 = sin_theta * sin_theta;
-    
-    let _delta = r * r - 2.0 * mass * r + a * a;
     
     // E = -p_t, Lz = p_phi
     let energy = -p_t;
@@ -42,17 +43,19 @@ pub fn calculate_constants(state: &RayStateRelativistic, mass: f64, spin: f64) -
     // Carter Constant Q (Null geodesic case)
     let e2 = energy * energy;
     let lz2 = angular_momentum * angular_momentum;
-    let lz_term = if sin2 < 1e-9 { 0.0 } else { lz2 / sin2 };
+    let lz_term = if sin2 < 1e-12 { 0.0 } else { lz2 / sin2 };
     let carter = p_th * p_th + cos_theta * cos_theta * (lz_term - a * a * e2);
     
     // Hamiltonian H
-    let g_inv = kerr::metric_inverse_bl(r, theta, mass, spin);
+    let g_inv = metric.g_contravariant(r, theta);
     let h = 0.5 * (
         g_inv[0] * p_t * p_t +
         g_inv[5] * p_r * p_r +
         g_inv[10] * p_th * p_th +
         g_inv[15] * p_ph * p_ph +
-        2.0 * g_inv[3] * p_t * p_ph
+        2.0 * g_inv[3] * p_t * p_ph +
+        2.0 * g_inv[1] * p_t * p_r +  // tr
+        2.0 * g_inv[7] * p_r * p_ph   // rphi
     );
 
     // --- Walker-Penrose Constant (Phase 5.1 surrogate) ---
@@ -60,8 +63,7 @@ pub fn calculate_constants(state: &RayStateRelativistic, mass: f64, spin: f64) -
     let rho_inv = Complex64::new(r, a * cos_theta);
     
     // The complex conserved quantity for null geodesics is related to Carter's Q.
-    // We store the complex root that combines r and theta effects.
-    let walker_penrose = rho_inv * carter.sqrt();
+    let walker_penrose = rho_inv * carter.max(0.0).sqrt();
 
     ConstantsOfMotion {
         energy,
@@ -74,48 +76,36 @@ pub fn calculate_constants(state: &RayStateRelativistic, mass: f64, spin: f64) -
 
 /// Renormalize momentum to strictly satisfy H = 0 (Null Geodesic Condition)
 /// Projects p_r to satisfy the constraint, assuming E and Lz are exact.
-pub fn renormalize_momentum(state: &mut RayStateRelativistic, mass: f64, spin: f64) {
-    let consts = calculate_constants(state, mass, spin);
-    let h_err = consts.hamiltonian; // Should be 0
+pub fn renormalize_momentum<M: Metric>(state: &mut RayStateRelativistic, metric: &M) {
+    let r = state.x[1];
+    let theta = state.x[2];
+    let g_inv = metric.g_contravariant(r, theta);
     
-    if h_err.abs() > 1e-9 {
-        // Adjust p_r to zero out H
-        // H = 0.5 * (g^rr p_r^2 + terms_fixed)
-        // g^rr p_r^2 = -terms_fixed
-        // p_r = +/- sqrt(-terms_fixed / g^rr)
-        
-        // Let's correct p_r to match the sign of current p_r
-        
-        let p_t = state.p[0];
-        let p_r = state.p[1];
-        let p_th = state.p[2];
-        let p_ph = state.p[3];
-        
-        let r = state.x[1];
-        let theta = state.x[2];
-        
-        let g_inv = kerr::metric_inverse_bl(r, theta, mass, spin);
-        let g_tt = g_inv[0];
-        let g_tph = g_inv[3];
-        let g_rr = g_inv[5];
-        let g_thth = g_inv[10];
-        let g_phph = g_inv[15];
-        
-        let fixed_terms = g_tt * p_t * p_t +
-                          g_thth * p_th * p_th +
-                          g_phph * p_ph * p_ph +
-                          2.0 * g_tph * p_t * p_ph;
-                          
-        // We need g^rr * p_r_new^2 + fixed_terms = 0
-        // p_r_new^2 = -fixed_terms / g^rr
-        
-        if g_rr.abs() > 1e-12 {
-            let target_sq = -fixed_terms / g_rr;
-            if target_sq >= 0.0 {
-                let p_r_new = target_sq.sqrt();
-                // Set sign to match current direction
-                state.p[1] = if p_r < 0.0 { -p_r_new } else { p_r_new };
-            }
+    let p_t = state.p[0];
+    let p_r = state.p[1];
+    let p_th = state.p[2];
+    let p_ph = state.p[3];
+
+    // Solve for p_r such that H = 0 (for null geodesics)
+    // 0 = g^tt pt^2 + g^rr pr^2 + g^thth pth^2 + g^phph pph^2 + 2(g^tr pt pr + g^tph pt pph + g^rph pr pph)
+    // Rearrange as quadratic in pr: A pr^2 + B pr + C = 0
+    let a_quad = g_inv[5]; // g^rr
+    let b_quad = 2.0 * (g_inv[1] * p_t + g_inv[7] * p_ph); // 2(g^tr pt + g^rph pph)
+    let c_quad = g_inv[0] * p_t * p_t +
+                 g_inv[10] * p_th * p_th +
+                 g_inv[15] * p_ph * p_ph +
+                 2.0 * g_inv[3] * p_t * p_ph;
+
+    if a_quad.abs() > 1e-12 {
+        let discriminant = b_quad * b_quad - 4.0 * a_quad * c_quad;
+        if discriminant >= 0.0 {
+            // Two solutions: pr = (-B +/- sqrt(D)) / 2A
+            let sqrt_d = discriminant.sqrt();
+            let sol1 = (-b_quad + sqrt_d) / (2.0 * a_quad);
+            let sol2 = (-b_quad - sqrt_d) / (2.0 * a_quad);
+            
+            // Choose solution closest to current p_r to maintain direction
+            state.p[1] = if (sol1 - p_r).abs() < (sol2 - p_r).abs() { sol1 } else { sol2 };
         }
     }
 }

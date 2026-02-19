@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Kerr Metric Calculations
 ///
 /// Implements exact solutions for event horizons, photon spheres, and ISCO

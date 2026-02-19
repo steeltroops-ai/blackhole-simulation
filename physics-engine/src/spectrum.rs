@@ -13,9 +13,8 @@
 // y_bar(lambda) ~ 0.821*g(568, 46.9) + 0.286*g(530, 22.1)
 // z_bar(lambda) ~ 1.217*g(437, 11.8) + 0.681*g(459, 26.0)
 
-const H: f64 = 6.62607015e-34;  // Planck constant
-const C: f64 = 2.99792458e8;    // Speed of light
-const K: f64 = 1.380649e-23;    // Boltzmann constant
+use crate::constants::{SI_C as C, SI_KB as K};
+const H: f64 = 6.62607015e-34;  // Planck constant remains local for high precision here
 const C1: f64 = 2.0 * H * C * C;
 const C2: f64 = H * C / K;
 

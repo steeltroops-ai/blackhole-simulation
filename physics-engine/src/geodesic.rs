@@ -1,10 +1,10 @@
+#![allow(dead_code)]
 /// Geodesic Integrators
 ///
 /// Implements high-precision integration schemes for ray tracing in Kerr metric.
 /// Used for ground-truth validation of shader approximations.
 
-use crate::derivatives;
-use crate::kerr;
+use crate::metric::Metric;
 use glam::DVec3;
 
 // --- Legacy Newtonian State (Deprecated) ---
@@ -15,14 +15,43 @@ pub struct RayStateNewtonian {
     pub vel: DVec3,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TerminationReason {
+    None,
+    Horizon,
+    Singularity,
+    Escape,
+}
+
 /// Relativistic Phase Space State (8D)
-/// Coordinates: Boyer-Lindquist (t, r, theta, phi)
+/// Coordinates: Boyer-Lindquist or Kerr-Schild (t, r, theta, phi)
 /// Momentum: Covariant p_mu (p_t, p_r, p_theta, p_phi)
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct RayStateRelativistic {
     pub x: [f64; 4], // x^mu
     pub p: [f64; 4], // p_mu
+}
+
+impl RayStateRelativistic {
+    pub fn check_termination<M: Metric>(&self, metric: &M) -> TerminationReason {
+        let r = self.x[1];
+        let rh = metric.get_horizon_radius();
+        
+        // 1. Horizon capture: stop slightly before singularity/horizon to avoid NaNs
+        // We use a safe margin for Boyer-Lindquist.
+        if r < 1.001 * rh {
+            return TerminationReason::Horizon;
+        }
+        
+        // 2. Escape condition
+        if r > 1000.0 {
+            return TerminationReason::Escape;
+        }
+        
+        TerminationReason::None
+    }
 }
 
 impl RayStateRelativistic {
@@ -36,19 +65,23 @@ impl RayStateRelativistic {
 
 /// Calculate the time derivative of the state vector (Hamiltonian equations)
 /// dy/dlambda = f(y)
-/// where y = (x^mu, p_mu)
-pub fn get_state_derivative(state: &RayStateRelativistic, mass: f64, spin: f64) -> RayStateRelativistic {
+pub fn get_state_derivative<M: Metric>(state: &RayStateRelativistic, metric: &M) -> RayStateRelativistic {
     let r = state.x[1];
     let theta = state.x[2];
     
     // 1. Get Inverse Metric g^mu_nu
-    let g_inv = kerr::metric_inverse_bl(r, theta, mass, spin);
+    let g_inv = metric.g_contravariant(r, theta);
     
-    // 2. Compute dx^mu/dlambda = g^mu_nu * p_nu (contravariant velocity)
+    // 2. Compute dx^mu/dlambda = g^mu_nu * p_nu
     let g_tt = g_inv[0];
+    let g_tr = g_inv[1];
     let g_tph = g_inv[3];
+    let g_rt = g_inv[4];
     let g_rr = g_inv[5];
+    let g_rph = g_inv[7];
     let g_thth = g_inv[10];
+    let g_pht = g_inv[12];
+    let g_phr = g_inv[13];
     let g_phph = g_inv[15];
     
     let p_t = state.p[0];
@@ -56,15 +89,14 @@ pub fn get_state_derivative(state: &RayStateRelativistic, mass: f64, spin: f64) 
     let p_th = state.p[2];
     let p_ph = state.p[3];
     
-    // Velocity dx/dlambda (using Hamiltonian p_mu as momentum)
-    let dt = g_tt * p_t + g_tph * p_ph;
-    let dr = g_rr * p_r;
+    // Velocity dx/dlambda (General for non-diagonal metrics like Kerr-Schild)
+    let dt = g_tt * p_t + g_tr * p_r + g_tph * p_ph;
+    let dr = g_rt * p_t + g_rr * p_r + g_rph * p_ph;
     let dth = g_thth * p_th;
-    let dph = g_tph * p_t + g_phph * p_ph;
+    let dph = g_pht * p_t + g_phr * p_r + g_phph * p_ph;
     
     // 3. Compute dp_mu/dlambda = -dH/dx^mu
-    // dH/dt = 0, dH/dphi = 0 (stationarity and axisymmetry)
-    let derivs = derivatives::calculate_derivatives(r, theta, state.p, mass, spin);
+    let derivs = metric.calculate_hamiltonian_derivatives(r, theta, state.p);
     
     RayStateRelativistic {
         x: [dt, dr, dth, dph],
@@ -72,68 +104,106 @@ pub fn get_state_derivative(state: &RayStateRelativistic, mass: f64, spin: f64) 
     }
 }
 
+/// Adaptive RKF45 Step specialized for Kerr Geodesics
+pub fn rkf45_step<M: Metric>(state: &RayStateRelativistic, metric: &M, h: f64) -> (RayStateRelativistic, f64) {
+    let k1 = get_state_derivative(state, metric);
+    
+    let k2_state = state.add_k1(k1, h / 4.0);
+    let k2 = get_state_derivative(&k2_state, metric);
+    
+    let k3_state = state.add_k2(k1, 3.0 * h / 32.0, k2, 9.0 * h / 32.0);
+    let k3 = get_state_derivative(&k3_state, metric);
+    
+    let k4_state = state.add_k3(k1, 1932.0 * h / 2197.0, k2, -7200.0 * h / 2197.0, k3, 7296.0 * h / 2197.0);
+    let k4 = get_state_derivative(&k4_state, metric);
+    
+    let k5_state = state.add_k4(k1, 439.0 * h / 216.0, k2, -8.0 * h, k3, 3680.0 * h / 513.0, k4, -845.0 * h / 4104.0);
+    let k5 = get_state_derivative(&k5_state, metric);
+    
+    let k6_state = state.add_k5(k1, -8.0 * h / 27.0, k2, 2.0 * h, k3, -3544.0 * h / 2565.0, k4, 1859.0 * h / 4104.0, k5, -11.0 * h / 40.0);
+    let k6 = get_state_derivative(&k6_state, metric);
+
+    // 5th order solution
+    let mut final_state = *state;
+    for i in 0..4 {
+        final_state.x[i] += h * (16.0/135.0 * k1.x[i] + 6656.0/12825.0 * k3.x[i] + 28561.0/56430.0 * k4.x[i] - 9.0/50.0 * k5.x[i] + 2.0/55.0 * k6.x[i]);
+        final_state.p[i] += h * (16.0/135.0 * k1.p[i] + 6656.0/12825.0 * k3.p[i] + 28561.0/56430.0 * k4.p[i] - 9.0/50.0 * k5.p[i] + 2.0/55.0 * k6.p[i]);
+    }
+
+    // Error estimate (diff between 4th and 5th order)
+    let mut error = 0.0f64;
+    for i in 0..4 {
+        let err_x = h * ( (16.0/135.0 - 25.0/216.0) * k1.x[i] +
+                          (6656.0/12825.0 - 1408.0/2565.0) * k3.x[i] +
+                          (28561.0/56430.0 - 2197.0/4104.0) * k4.x[i] +
+                          (-9.0/50.0 + 1.0/5.0) * k5.x[i] +
+                          2.0/55.0 * k6.x[i] );
+        error = error.max(err_x.abs());
+    }
+
+    (final_state, error)
+}
 
 /// Runge-Kutta 4th Order Step (RK4)
 /// General purpose high-order integrator for non-separable Hamiltonians.
-pub fn step_rk4(state: &mut RayStateRelativistic, mass: f64, spin: f64, h: f64) {
-    // k1 = f(y)
-    let k1 = get_state_derivative(state, mass, spin);
+pub fn step_rk4<M: Metric>(state: &mut RayStateRelativistic, metric: &M, h: f64) {
+    let k1 = get_state_derivative(state, metric);
     
-    // k2 = f(y + h/2 * k1)
-    let state_k2 = RayStateRelativistic {
-        x: [
-            state.x[0] + 0.5 * h * k1.x[0],
-            state.x[1] + 0.5 * h * k1.x[1],
-            state.x[2] + 0.5 * h * k1.x[2],
-            state.x[3] + 0.5 * h * k1.x[3]
-        ],
-        p: [
-            state.p[0] + 0.5 * h * k1.p[0],
-            state.p[1] + 0.5 * h * k1.p[1],
-            state.p[2] + 0.5 * h * k1.p[2],
-            state.p[3] + 0.5 * h * k1.p[3]
-        ]
-    };
-    let k2 = get_state_derivative(&state_k2, mass, spin);
+    let state_k2 = state.add_k1(k1, 0.5 * h);
+    let k2 = get_state_derivative(&state_k2, metric);
     
-    // k3 = f(y + h/2 * k2)
-    let state_k3 = RayStateRelativistic {
-        x: [
-            state.x[0] + 0.5 * h * k2.x[0],
-            state.x[1] + 0.5 * h * k2.x[1],
-            state.x[2] + 0.5 * h * k2.x[2],
-            state.x[3] + 0.5 * h * k2.x[3]
-        ],
-        p: [
-            state.p[0] + 0.5 * h * k2.p[0],
-            state.p[1] + 0.5 * h * k2.p[1],
-            state.p[2] + 0.5 * h * k2.p[2],
-            state.p[3] + 0.5 * h * k2.p[3]
-        ]
-    };
-    let k3 = get_state_derivative(&state_k3, mass, spin);
+    let state_k3 = state.add_k1(k2, 0.5 * h);
+    let k3 = get_state_derivative(&state_k3, metric);
     
-    // k4 = f(y + h * k3)
-    let state_k4 = RayStateRelativistic {
-        x: [
-            state.x[0] + h * k3.x[0],
-            state.x[1] + h * k3.x[1],
-            state.x[2] + h * k3.x[2],
-            state.x[3] + h * k3.x[3]
-        ],
-        p: [
-            state.p[0] + h * k3.p[0],
-            state.p[1] + h * k3.p[1],
-            state.p[2] + h * k3.p[2],
-            state.p[3] + h * k3.p[3]
-        ]
-    };
-    let k4 = get_state_derivative(&state_k4, mass, spin);
+    let state_k4 = state.add_k1(k3, h);
+    let k4 = get_state_derivative(&state_k4, metric);
     
-    // Combine: y_new = y + h/6 (k1 + 2k2 + 2k3 + k4)
     for i in 0..4 {
         state.x[i] += (h / 6.0) * (k1.x[i] + 2.0 * k2.x[i] + 2.0 * k3.x[i] + k4.x[i]);
         state.p[i] += (h / 6.0) * (k1.p[i] + 2.0 * k2.p[i] + 2.0 * k3.p[i] + k4.p[i]);
+    }
+}
+
+impl RayStateRelativistic {
+    pub fn add_k1(&self, k1: Self, s1: f64) -> Self {
+        let mut n = *self;
+        for i in 0..4 {
+            n.x[i] += k1.x[i] * s1;
+            n.p[i] += k1.p[i] * s1;
+        }
+        n
+    }
+    pub fn add_k2(&self, k1: Self, s1: f64, k2: Self, s2: f64) -> Self {
+        let mut n = *self;
+        for i in 0..4 {
+            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2;
+            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2;
+        }
+        n
+    }
+    pub fn add_k3(&self, k1: Self, s1: f64, k2: Self, s2: f64, k3: Self, s3: f64) -> Self {
+        let mut n = *self;
+        for i in 0..4 {
+            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2 + k3.x[i] * s3;
+            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2 + k3.p[i] * s3;
+        }
+        n
+    }
+    pub fn add_k4(&self, k1: Self, s1: f64, k2: Self, s2: f64, k3: Self, s3: f64, k4: Self, s4: f64) -> Self {
+        let mut n = *self;
+        for i in 0..4 {
+            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2 + k3.x[i] * s3 + k4.x[i] * s4;
+            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2 + k3.p[i] * s3 + k4.p[i] * s4;
+        }
+        n
+    }
+    pub fn add_k5(&self, k1: Self, s1: f64, k2: Self, s2: f64, k3: Self, s3: f64, k4: Self, s4: f64, k5: Self, s5: f64) -> Self {
+        let mut n = *self;
+        for i in 0..4 {
+            n.x[i] += k1.x[i] * s1 + k2.x[i] * s2 + k3.x[i] * s3 + k4.x[i] * s4 + k5.x[i] * s5;
+            n.p[i] += k1.p[i] * s1 + k2.p[i] * s2 + k3.p[i] * s3 + k4.p[i] * s4 + k5.p[i] * s5;
+        }
+        n
     }
 }
 

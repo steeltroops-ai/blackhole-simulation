@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// WebGPU Data Layouts for Rust Kernel
 ///
 /// Ensures byte-perfect alignment with WGSL shaders (std140/std430).

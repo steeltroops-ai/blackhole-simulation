@@ -1,4 +1,4 @@
-
+#![allow(dead_code)]
 /// Tiled Rendering Manager
 ///
 /// Strategies for dividing the screen into tiles for progressive rendering.
