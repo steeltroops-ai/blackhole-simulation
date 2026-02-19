@@ -34,10 +34,10 @@ export const SimulationInfo = ({
               stiffness: 300,
               damping: 30,
             }}
-            className={`fixed md:absolute bottom-6 left-6 z-50 pointer-events-auto overflow-hidden shadow-2xl border border-white/10 transition-all duration-700 ${
+            className={`fixed bottom-6 left-4 right-4 md:left-6 md:right-auto z-50 pointer-events-auto overflow-hidden shadow-2xl border border-white/10 transition-all duration-700 ${
               isExpanded
-                ? "frosted-glass-apple w-full sm:w-[576px] rounded-[1.5rem]"
-                : "liquid-glass w-[280px] rounded-[1.25rem]"
+                ? "frosted-glass-apple w-auto md:w-[576px] rounded-[1.5rem]"
+                : "liquid-glass w-auto md:w-[280px] rounded-[1.25rem]"
             }`}
           >
             <div className={`relative overflow-hidden group`}>
