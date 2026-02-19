@@ -17,7 +17,7 @@ describe("Property 8: Rolling average FPS calculation", () => {
         // Generate array of frame times (10ms to 100ms range)
         fc.array(fc.double({ min: 10, max: 100, noNaN: true }), {
           minLength: 1,
-          maxLength: 60,
+          maxLength: 90,
         }),
         (frameTimes) => {
           // Create fresh monitor for each test
@@ -47,8 +47,8 @@ describe("Property 8: Rolling average FPS calculation", () => {
       fc.property(
         // Generate more than 60 frame times
         fc.array(fc.double({ min: 10, max: 100, noNaN: true }), {
-          minLength: 61,
-          maxLength: 120,
+          minLength: 91,
+          maxLength: 180,
         }),
         (frameTimes) => {
           // Create fresh monitor for each test
@@ -60,14 +60,14 @@ describe("Property 8: Rolling average FPS calculation", () => {
             lastMetrics = monitor.updateMetrics(frameTime);
           }
 
-          // Calculate expected rolling average using only last 60 frames
-          const last60Frames = frameTimes.slice(-60);
+          // Calculate expected rolling average using only last 90 frames
+          const last90Frames = frameTimes.slice(-90);
           const avgFrameTime =
-            last60Frames.reduce((sum, time) => sum + time, 0) /
-            last60Frames.length;
+            last90Frames.reduce((sum, time) => sum + time, 0) /
+            last90Frames.length;
           const expectedFPS = Math.round(1000 / avgFrameTime);
 
-          // The rolling average FPS should match calculation using only last 60 frames
+          // The rolling average FPS should match calculation using only last 90 frames
           expect(lastMetrics?.rollingAverageFPS).toBe(expectedFPS);
         },
       ),
@@ -80,7 +80,7 @@ describe("Property 8: Rolling average FPS calculation", () => {
       fc.property(
         fc.array(fc.double({ min: 1, max: 100, noNaN: true }), {
           minLength: 1,
-          maxLength: 60,
+          maxLength: 90,
         }),
         (frameTimes) => {
           // Create fresh monitor for each test
@@ -111,13 +111,13 @@ describe("Property 8: Rolling average FPS calculation", () => {
 
           // Feed consistent low frame times to monitor1
           let metrics1;
-          for (let i = 0; i < 60; i++) {
+          for (let i = 0; i < 90; i++) {
             metrics1 = monitor1.updateMetrics(lowFrameTime);
           }
 
           // Feed consistent high frame times to monitor2
           let metrics2;
-          for (let i = 0; i < 60; i++) {
+          for (let i = 0; i < 90; i++) {
             metrics2 = monitor2.updateMetrics(highFrameTime);
           }
 
@@ -140,8 +140,8 @@ describe("Property 8: Rolling average FPS calculation", () => {
           // Create fresh monitor for each test
           const monitor = new PerformanceMonitor();
 
-          // Feed 59 baseline frames
-          for (let i = 0; i < 59; i++) {
+          // Feed 89 baseline frames
+          for (let i = 0; i < 89; i++) {
             monitor.updateMetrics(baselineFrameTime);
           }
 
@@ -149,7 +149,7 @@ describe("Property 8: Rolling average FPS calculation", () => {
           const metricsWithSpike = monitor.updateMetrics(spikeFrameTime);
 
           // Calculate expected average
-          const avgFrameTime = (baselineFrameTime * 59 + spikeFrameTime) / 60;
+          const avgFrameTime = (baselineFrameTime * 89 + spikeFrameTime) / 90;
           const expectedFPS = Math.round(1000 / avgFrameTime);
 
           // Rolling average should smooth the spike
@@ -174,9 +174,9 @@ describe("Property 8: Rolling average FPS calculation", () => {
           // Create fresh monitor for each test
           const monitor = new PerformanceMonitor();
 
-          // Feed 60 identical frame times
+          // Feed 90 identical frame times
           let lastMetrics;
-          for (let i = 0; i < 60; i++) {
+          for (let i = 0; i < 90; i++) {
             lastMetrics = monitor.updateMetrics(frameTime);
           }
 
@@ -215,7 +215,7 @@ describe("Property 8: Rolling average FPS calculation", () => {
       fc.property(
         fc.array(fc.double({ min: 10, max: 100, noNaN: true }), {
           minLength: 1,
-          maxLength: 60,
+          maxLength: 90,
         }),
         (frameTimes) => {
           // Create fresh monitor for each test
@@ -260,7 +260,7 @@ describe("PerformanceMonitor", () => {
 
   test("getWarnings returns critical warning for FPS < 30", () => {
     // Feed low FPS frames
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 90; i++) {
       monitor.updateMetrics(40); // 25 FPS
     }
 
@@ -271,7 +271,7 @@ describe("PerformanceMonitor", () => {
 
   test("getWarnings returns warning for FPS < 60", () => {
     // Feed medium FPS frames
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 90; i++) {
       monitor.updateMetrics(20); // 50 FPS
     }
 
@@ -285,7 +285,7 @@ describe("PerformanceMonitor", () => {
     const lowFPS = PERFORMANCE_CONFIG.resolution.adaptiveThreshold - 5;
     const frameTime = 1000 / lowFPS;
 
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 90; i++) {
       monitor.updateMetrics(frameTime);
     }
 
@@ -297,7 +297,7 @@ describe("PerformanceMonitor", () => {
     const highFPS = PERFORMANCE_CONFIG.resolution.recoveryThreshold + 20;
     const frameTime = 1000 / highFPS;
 
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 100; i++) {
       monitor.updateMetrics(frameTime);
     }
 
