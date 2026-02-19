@@ -649,7 +649,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
     it("should calculate correct budget usage percentage", () => {
       // Simulate frames at 20ms
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 90; i++) {
         monitor.updateMetrics(20);
       }
 
@@ -662,7 +662,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
     it("should recommend quality reduction when performance is poor", () => {
       // Simulate poor performance
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 90; i++) {
         monitor.updateMetrics(25);
       }
 
@@ -672,7 +672,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
     it("should allow quality increase when performance is good", () => {
       // Simulate excellent performance (10ms = 100 FPS)
-      for (let i = 0; i < 70; i++) {
+      for (let i = 0; i < 100; i++) {
         monitor.updateMetrics(10);
       }
 
@@ -682,7 +682,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
 
     it("should not recommend quality increase if near frame budget", () => {
       // Simulate 14ms frames (71 FPS, close to 16.67ms budget ~84% usage)
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 90; i++) {
         monitor.updateMetrics(14);
       }
 
