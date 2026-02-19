@@ -40,6 +40,9 @@ interface CinematicState {
   // Physics State for Infall
   velocity: number; // Radial velocity (dr/dt) in Rs/s
   angularMomentum: number; // Conserved L = r^2 * omega
+  // Recovery phase: smooth interpolation back to origin after cinematic ends
+  recovering: boolean;
+  recoverStartTime: number;
 }
 
 /**
@@ -183,6 +186,8 @@ export function useCamera(
     startParams: { theta: 0, phi: 0, zoom: 0 },
     velocity: 0,
     angularMomentum: 0,
+    recovering: false,
+    recoverStartTime: 0,
   });
 
   const paramsRef = useRef(params);
@@ -207,152 +212,307 @@ export function useCamera(
       const dt = Math.min((now - cinematicRef.current.lastTime) * 0.001, 0.1);
       cinematicRef.current.lastTime = now;
 
-      if (cinematicRef.current.active && cinematicRef.current.mode) {
+      // PAUSE GUARD: Skip all physics when simulation is paused
+      const isPaused = paramsRef.current.paused;
+      if (isPaused) {
+        // Still schedule next frame so loop doesn't die
+        animationFrameId = requestAnimationFrame(applyMomentum);
+        return;
+      }
+
+      // --- RECOVERY PHASE: Smooth emergence back to pre-cinematic position ---
+      // Like waking from a dream -- initially fast pullback, then gentle settling.
+      if (cinematicRef.current.recovering) {
+        const RECOVER_DURATION = 3.5; // seconds (longer = more dramatic)
+        const elapsed = (now - cinematicRef.current.recoverStartTime) * 0.001;
+        const progress = Math.min(elapsed / RECOVER_DURATION, 1.0);
+
+        // Quartic ease-out: stronger initial pull, very gentle deceleration
+        const ease = 1.0 - Math.pow(1.0 - progress, 4);
+
+        const target = cinematicRef.current.startParams;
+
+        // Accelerating convergence rate
+        const lerpRate = 0.05 + ease * 0.06;
+        state.theta += (target.theta - state.theta) * lerpRate;
+        state.phi += (target.phi - state.phi) * lerpRate;
+
+        // Interpolate zoom
+        const currentZoom = paramsRef.current.zoom;
+        const zoomDelta = (target.zoom - currentZoom) * lerpRate;
+        if (Math.abs(zoomDelta) > 0.001) {
+          setParams((prev) => ({ ...prev, zoom: prev.zoom + zoomDelta }));
+        }
+
+        // Check if recovery is complete
+        const thetaDist = Math.abs(target.theta - state.theta);
+        const phiDist = Math.abs(target.phi - state.phi);
+        const zoomDist = Math.abs(target.zoom - paramsRef.current.zoom);
+
+        if (
+          (thetaDist < 0.01 && phiDist < 0.01 && zoomDist < 0.1) ||
+          progress >= 1.0
+        ) {
+          state.theta = target.theta;
+          state.phi = target.phi;
+          cinematicRef.current.recovering = false;
+          setParams((prev) => ({
+            ...prev,
+            zoom: target.zoom,
+            autoSpin: DEFAULT_AUTO_SPIN,
+          }));
+        }
+
+        state.phi = Math.max(0.001, Math.min(Math.PI - 0.001, state.phi));
+      } else if (cinematicRef.current.active && cinematicRef.current.mode) {
         // --- CINEMATIC MODE: DIRECTOR'S CUT ---
-        const t = (now - cinematicRef.current.startTime) * 0.001; // Total time
-        // const { theta: startTheta } = cinematicRef.current.startParams;
+        const t = (now - cinematicRef.current.startTime) * 0.001;
 
         if (cinematicRef.current.mode === "orbit") {
-          // === ORBIT DEMO: KEPLERIAN CINEMATIC TOUR ===
-          // A dynamic, elliptical orbit that speeds up when close (Periapsis)
-          // and slows down when far (Apoapsis), creating a "slingshot" feel.
+          // ============================================================
+          //  ORBIT TOUR: "THE GRAND SURVEY"
+          //  4-Act cinematic orbit with Keplerian speed variation,
+          //  dramatic vertical sweeps, and zoom breathing.
+          // ============================================================
+          const ORBIT_MAX_DURATION = 120.0;
+          if (t > ORBIT_MAX_DURATION) {
+            cinematicRef.current.active = false;
+            cinematicRef.current.mode = null;
+            cinematicRef.current.recovering = true;
+            cinematicRef.current.recoverStartTime = now;
+            setIsCinematic(false);
+            setCinematicMode(null);
+          } else {
+            // --- Act boundaries ---
+            const ACT1_END = 15.0; // The Reveal
+            const ACT2_END = 45.0; // The Descent & Sweep
+            const ACT3_END = 75.0; // The Close Pass
+            // ACT4: 75 - 120       // The Contemplation
 
-          // 1. Zoom (Radius) - Define an Elliptical Path
-          // Oscillate between close (10.0) and far (25.0) over a long period
-          // Period = 40s
-          // Period = Fast cycle for "Trailer" feel
-          const orbitTime = t * 0.2; // Faster zoom cycle
+            // --- Smooth blending function ---
+            // Hermite smoothstep for act transitions (no pops or sudden changes)
+            const smoothstep = (edge0: number, edge1: number, x: number) => {
+              const v = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+              return v * v * (3 - 2 * v);
+            };
 
-          const verticalWave = Math.sin(orbitTime * 0.5);
+            // --- Target Distance (Zoom) ---
+            // Each act has a characteristic distance. We crossfade between them.
+            let targetDist: number;
+            let targetPhi: number;
+            let orbitSpeed: number;
 
-          // Base Pivot: Use the configured default vertical angle (e.g. 97 deg), NOT Equator.
-          // User Range Constraint: 80 deg to 110 deg.
-          // Base ~97. Amplitude ~10-12 degrees keeps us safely within 80-110.
-          // Base Pivot: Use the configured default vertical angle (e.g. 97 deg), NOT Equator.
-          // User Request: "Don't make the camera go below degree 92".
-          // In spherical coords, degree 90 is equator, 0 is top.
-          // If default is 97, and we can't go "below" (meaning closer to pole/smaller angle) than 92,
-          // then our max upward swing is 5 degrees. We'll use +/- 5 degrees for balance.
-          const orbitAmplitude = (5 * Math.PI) / 180; // ~0.087 radians
+            const mass = paramsRef.current.mass;
+            const minSafe = Math.max(15.0, mass * 3.5);
 
-          // We oscillate around the DEFAULT axis
-          const targetPhi =
-            DEFAULT_VERTICAL_ANGLE + verticalWave * orbitAmplitude * -1;
+            if (t < ACT1_END) {
+              // ACT 1: THE REVEAL -- Pull back to wide establishing shot
+              // Camera rises above the disk (low phi = looking down)
+              const actProgress = t / ACT1_END;
+              const easeIn = smoothstep(0, 1, actProgress);
 
-          // --- ZOOM & DISTANCE DYNAMICS ---
-          // User Request: "Don't let the camera get closer... feeling like we are falling in"
-          // Push everything out further.
-          const minSafeZoom = Math.max(18.0, paramsRef.current.mass * 4.0);
+              // Zoom out from current to a commanding wide shot
+              targetDist = minSafe + 18.0 + easeIn * 8.0; // ~33 -> 41 Rs
+              // Rise above the disk: from default angle toward ~70 deg (more overhead)
+              const overheadAngle = (70 * Math.PI) / 180;
+              targetPhi =
+                DEFAULT_VERTICAL_ANGLE +
+                (overheadAngle - DEFAULT_VERTICAL_ANGLE) * easeIn;
+              // Slow, majestic rotation
+              orbitSpeed = 0.15 + easeIn * 0.1; // 0.15 -> 0.25 rad/s
+            } else if (t < ACT2_END) {
+              // ACT 2: THE DESCENT & SWEEP -- Drop back to disk level, speed up
+              const actProgress = (t - ACT1_END) / (ACT2_END - ACT1_END);
+              const ease = smoothstep(0, 1, actProgress);
 
-          // Outer Orbit: Range 22.0 to 42.0
-          const safeRadiusBase = 22.0;
-          const radiusVar = 10.0;
+              // Come closer and back to disk plane
+              targetDist = minSafe + 18.0 - ease * 10.0; // 41 -> 23 Rs
+              // Descend back toward equatorial view
+              const overheadAngle = (70 * Math.PI) / 180;
+              targetPhi =
+                overheadAngle + (DEFAULT_VERTICAL_ANGLE - overheadAngle) * ease;
+              // Speed up as we get closer (Kepler's 2nd law feel)
+              orbitSpeed = 0.25 + ease * 0.3; // 0.25 -> 0.55 rad/s
+            } else if (t < ACT3_END) {
+              // ACT 3: THE CLOSE PASS -- Skim near the photon sphere
+              const actProgress = (t - ACT2_END) / (ACT3_END - ACT2_END);
 
-          // Use zoomPhase calculated above
-          const zoomPhase = Math.cos(orbitTime);
+              // Elliptical path: close periapsis at center of act, wider at edges
+              // Use a smooth pulse that dips close then pulls back
+              const periapsisPhase = Math.sin(actProgress * Math.PI); // 0->1->0
+              targetDist = minSafe + 8.0 - periapsisPhase * 6.0; // 23 -> 17 -> 23
+              // Slight dip below equatorial for drama, then back
+              const equatorialTilt = (3 * Math.PI) / 180;
+              targetPhi =
+                DEFAULT_VERTICAL_ANGLE -
+                equatorialTilt * Math.sin(actProgress * Math.PI * 2);
+              // Fastest at periapsis (whip effect)
+              orbitSpeed = 0.55 + periapsisPhase * 0.35; // 0.55 -> 0.90 -> 0.55
+            } else {
+              // ACT 4: THE CONTEMPLATION -- Wide, reverent, slow
+              const actProgress =
+                (t - ACT3_END) / (ORBIT_MAX_DURATION - ACT3_END);
+              const ease = smoothstep(0, 1, actProgress);
 
-          // Remap targetDist
-          const rawDist = safeRadiusBase + zoomPhase * radiusVar;
-          const targetDist = Math.max(minSafeZoom, rawDist);
+              // Pull way back for the "big picture" moment
+              targetDist = minSafe + 10.0 + ease * 18.0; // 25 -> 43 Rs
+              // Gentle rise for a slightly elevated perspective
+              const contemplativeAngle = (85 * Math.PI) / 180;
+              targetPhi =
+                DEFAULT_VERTICAL_ANGLE +
+                (contemplativeAngle - DEFAULT_VERTICAL_ANGLE) * ease * 0.5;
+              // Decelerate to a meditative pace
+              orbitSpeed = 0.55 - ease * 0.35; // 0.55 -> 0.20 rad/s
+            }
 
-          // Moderate interpolation for smooth but distinct distance shifts
-          const currentZoom = paramsRef.current.zoom;
-          const r = currentZoom + (targetDist - currentZoom) * 0.02;
+            // --- Apply with smooth interpolation (no pops) ---
+            const currentZoom = paramsRef.current.zoom;
+            const zoomLerp = currentZoom + (targetDist - currentZoom) * 0.025;
+            if (Math.abs(zoomLerp - currentZoom) > 0.001) {
+              setParams((prev) => ({ ...prev, zoom: zoomLerp }));
+            }
 
-          if (Math.abs(r - currentZoom) > 0.001) {
-            setParams((prev) => ({ ...prev, zoom: r }));
-          }
+            // Subtle "breathing" -- micro zoom oscillation for organic feel
+            const breathe = Math.sin(t * 0.7) * 0.3;
 
-          // Add secondary "Handheld" wobble for realism
-          const wobble = Math.sin(t * 0.5) * 0.05 + Math.cos(t * 0.23) * 0.03;
+            // "Handheld" micro-wobble (2-axis) for realism
+            const wobbleX =
+              Math.sin(t * 0.31) * 0.008 + Math.cos(t * 0.17) * 0.005;
+            const wobbleY =
+              Math.cos(t * 0.23) * 0.006 + Math.sin(t * 0.41) * 0.004;
 
-          // Smoothly seek target phi ONLY if user is not engaging
-          // Allows user to override ("let the user go") but stabilizes back ("slowly go back")
-          if (!isDragging.current && touchState.current.touches.length === 0) {
-            state.phi += (targetPhi + wobble - state.phi) * 0.015;
+            if (
+              !isDragging.current &&
+              touchState.current.touches.length === 0
+            ) {
+              // Smooth phi tracking with wobble
+              state.phi += (targetPhi + wobbleY - state.phi) * 0.018;
+              // Orbit rotation with Keplerian speed variation
+              state.theta += dt * orbitSpeed + wobbleX;
+            }
 
-            // "Make excitation disk go faster" -> Fast Orbital Rotation
-            // We drive the theta explicitly here for the "Speed" effect
-            state.theta += dt * 0.4; // Fast orbit ~ 0.4 rad/s
+            // Apply breathing to zoom
+            if (Math.abs(breathe) > 0.01) {
+              setParams((prev) => ({
+                ...prev,
+                zoom: Math.max(minSafe, prev.zoom + breathe * 0.01),
+              }));
+            }
           }
         } else if (cinematicRef.current.mode === "dive") {
-          // === INFALL DIVE: RELATIVISTIC GEODESIC PLUNGE ===
-          // 1. Radial Physics (Newtonian Gravity + Relativistic Correction term approximation)
-          // a = -M/r^2
+          // ============================================================
+          //  INFALL DIVE: "THE DESCENT INTO GARGANTUA"
+          //  3-Act geodesic plunge with dramatic pacing.
+          //  Act 1: The Hesitation (0-8s) -- Deep breath before the fall
+          //  Act 2: The Commitment (8-20s) -- Point of no return
+          //  Act 3: The Maelstrom (20s+) -- Physics takes over
+          // ============================================================
           const r = paramsRef.current.zoom;
 
-          // Effective Gravity: Tweak for "Cinematic Slow Fall"
-          // Tuned to 18.0 (from 5.0) to speed up the mid-fall acceleration
-          const gravity = -25.0 / (r * r + 0.1);
+          // --- Act-dependent gravity ---
+          // Each act has escalating gravitational intensity.
+          // This creates the "Nolan pacing" -- deliberate, then overwhelming.
+          const ACT1_END = 8.0;
+          const ACT2_END = 20.0;
 
-          // Update Velocity (v = v0 + a*dt)
+          let gravityScale: number;
+          let phiDriftRate: number; // How fast camera aligns to equatorial
+          let thetaWobble: number; // Organic camera shake
+
+          if (t < ACT1_END) {
+            // ACT 1: THE HESITATION
+            // Almost no gravity. Camera floats. You feel weightless.
+            // A slight pull-back even, for the "establishing wide."
+            const actProgress = t / ACT1_END;
+            gravityScale = 3.0 + actProgress * 3.0; // 3 -> 6 (gentle)
+            phiDriftRate = 0.05; // Very slow tilt
+
+            // Subtle "last look" wobble -- the camera is studying the black hole
+            thetaWobble = Math.sin(t * 0.4) * 0.003;
+          } else if (t < ACT2_END) {
+            // ACT 2: THE COMMITMENT
+            // Gravity becomes real. The spiral tightens. No turning back.
+            const actProgress = (t - ACT1_END) / (ACT2_END - ACT1_END);
+            gravityScale = 6.0 + actProgress * 12.0; // 6 -> 18
+            phiDriftRate = 0.1 + actProgress * 0.15; // Accelerating tilt
+
+            // Growing unease - camera vibration increases
+            thetaWobble = Math.sin(t * 0.8) * 0.005 * (1 + actProgress);
+          } else {
+            // ACT 3: THE MAELSTROM
+            // Full Newtonian fury. The vortex consumes everything.
+            // Gravity is overwhelming. Spin is frantic.
+            const actDuration = t - ACT2_END;
+            const intensity = Math.min(actDuration * 0.15, 1.0); // Ramps over ~7s
+            gravityScale = 18.0 + intensity * 20.0; // 18 -> 38
+            phiDriftRate = 0.25 + intensity * 0.25; // Fast equatorial lock
+
+            // Violent camera shake near the horizon
+            const shakeIntensity = 0.008 + intensity * 0.015;
+            thetaWobble =
+              Math.sin(t * 2.1) * shakeIntensity +
+              Math.cos(t * 3.7) * shakeIntensity * 0.6;
+          }
+
+          // --- Radial Physics ---
+          const gravity = -gravityScale / (r * r + 0.1);
           cinematicRef.current.velocity += gravity * dt;
-
-          // Update Position (r = r0 + v*dt)
           const newR = r + cinematicRef.current.velocity * dt;
 
-          // 2. Angular Physics (Conservation of Momentum)
-          // omega = L / r^2
+          // --- Angular Physics (Conservation of Momentum: L = r^2 * omega) ---
           const L = cinematicRef.current.angularMomentum;
-          // Add a small constant to prevent division by zero, but keep it small to allow spin up
           const omegaProp = L / (newR * newR + 0.1);
+          state.theta += omegaProp * dt + thetaWobble;
 
-          // Apply as a continuous rotation (Drift)
-          // We add this to theta directly for the "Base Motion"
-          state.theta += omegaProp * dt;
-
-          // Allow user to ADD velocity on top (fighting the current)
-          // We do this by NOT zeroing thetaVelocity at the end of the frame/block
-
-          // 3. Inclination: Gentle drift to equatorial plane
-          // Slower drift now (-5.0 instead of -50 in gravity means more time)
+          // --- Inclination: Drift toward equatorial plane ---
           const distToEquator = Math.PI * 0.5 - state.phi;
-          state.phi += distToEquator * dt * 0.2; // Slower alignment to allow looking around
+          state.phi += distToEquator * dt * phiDriftRate;
+
+          // Subtle phi wobble for "tumbling through spacetime" feel
+          if (t > ACT2_END) {
+            const phiWobble =
+              Math.sin(t * 1.7) * 0.004 + Math.cos(t * 2.9) * 0.003;
+            state.phi += phiWobble;
+          }
 
           // --- HORIZON CROSSING LOGIC ---
           if (newR < 2.0) {
-            // Horizon crossing: Perform a FULL RESET to safe state.
-            // This must match the manual 'resetCamera' logic exactly to prevent state inconsistencies.
+            // Horizon crossing -> Begin smooth recovery to pre-dive position
             cinematicRef.current.active = false;
             cinematicRef.current.mode = null;
+            cinematicRef.current.velocity = 0;
+            cinematicRef.current.angularMomentum = 0;
+            cinematicRef.current.recovering = true;
+            cinematicRef.current.recoverStartTime = now;
 
-            // 1. Reset Physics to Standard Orientation
-            physicsRef.current = {
-              theta: Math.PI,
-              phi: DEFAULT_VERTICAL_ANGLE,
-              thetaVelocity: 0,
-              phiVelocity: 0,
-              zoomVelocity: 0,
-              damping: 0.92,
-            };
+            // Clear velocities so recovery isn't fighting residual momentum
+            state.thetaVelocity = 0;
+            state.phiVelocity = 0;
+            state.zoomVelocity = 0;
 
-            // 2. Restore Simulation Params (CRITICAL: Restore autoSpin!)
+            // Restore autoSpin and unpause
             setParams((prev) => ({
               ...prev,
-              zoom: DEFAULT_ZOOM,
               autoSpin: DEFAULT_AUTO_SPIN,
+              paused: false,
             }));
 
-            // 3. Sync UI State
+            // Sync UI State
             setIsCinematic(false);
             setCinematicMode(null);
-            setCameraState({ ...physicsRef.current }); // Force immediate UI consistency
-            return;
+          } else {
+            // Apply Zoom (only during active dive)
+            setParams((prev) => ({ ...prev, zoom: Math.max(0.2, newR) }));
           }
-
-          // Apply Zoom (Gravity is unstoppable)
-          setParams((prev) => ({ ...prev, zoom: Math.max(0.2, newR) }));
         }
 
-        // Apply Damping to allow smooth fighting against the spin
+        // Apply Damping for user input during cinematic
         state.thetaVelocity *= 0.95;
         state.phiVelocity *= 0.95;
 
-        // Use standard integration for camera angle (User Input)
         state.theta += state.thetaVelocity;
         state.phi += state.phiVelocity;
 
-        // Ensure phi stays in bounds
         state.phi = Math.max(0.001, Math.min(Math.PI - 0.001, state.phi));
       } else {
         // --- INTERACTIVE MODE: USER CONTROL ---
@@ -421,15 +581,15 @@ export function useCamera(
   // --- Input Handlers (Mutate Ref Directly) ---
 
   const stopCinematic = useCallback(() => {
-    if (cinematicRef.current.active) {
-      // If we are interrupting a DIVE, we must restore the 'autoSpin' that we killed.
-      // Otherwise the camera feels "dead" after a dive.
+    if (cinematicRef.current.active || cinematicRef.current.recovering) {
+      // Restore autoSpin if we killed it for a dive
       if (cinematicRef.current.mode === "dive") {
         setParams((prev) => ({ ...prev, autoSpin: DEFAULT_AUTO_SPIN }));
       }
 
       cinematicRef.current.active = false;
       cinematicRef.current.mode = null;
+      cinematicRef.current.recovering = false;
       setIsCinematic(false);
       setCinematicMode(null);
     }
@@ -519,27 +679,28 @@ export function useCamera(
           phi: physicsRef.current.phi,
           zoom: paramsRef.current.zoom,
         },
-        velocity: 0, // Initial radial velocity
-        angularMomentum: 0, // Calculated below
+        velocity: 0,
+        angularMomentum: 0,
+        recovering: false,
+        recoverStartTime: 0,
       };
 
       if (mode === "dive") {
-        // Calculate initial Angular Momentum (L = r^2 * omega)
-        // Target: Full rotation in ~30s at start (r=15)
-        // omega = 2PI / 30 = ~0.2 rad/s
-        const initialOmega = 0.2;
+        // Angular Momentum: L = r^2 * omega
+        // omega ~0.3 for a wide, dramatic spiral
+        const initialOmega = 0.3;
         const r = paramsRef.current.zoom;
         cinematicRef.current.angularMomentum = r * r * initialOmega;
 
-        // Give an initial push towards the black hole
-        // Tuned for "Cinematic Realism" - not too fast, not too slow.
-        cinematicRef.current.velocity = -1.2;
+        // Barely a nudge inward. Act 1 ("The Hesitation") handles the
+        // slow buildup. This just tips you over the edge.
+        cinematicRef.current.velocity = -0.15;
 
-        // Start slightly ABOVE the disk to avoid clipping/blocking view
-        // 0.35 PI is ~63 degrees (Equator is 90/0.5 PI)
-        physicsRef.current.phi = Math.PI * 0.35;
+        // Start above the disk for the establishing wide shot.
+        // ~54 degrees from pole -> looking down at the disk
+        physicsRef.current.phi = Math.PI * 0.3;
 
-        // Align theta to give a dynamic spiral start
+        // Offset theta for a dynamic spiral entry
         physicsRef.current.theta += Math.PI * 0.25;
       }
 
@@ -698,9 +859,12 @@ export function useCamera(
   }, []);
 
   const resetCamera = useCallback(() => {
-    // 1. Force Stop Cinematic
+    // 1. Force Stop Cinematic (Full cleanup)
     cinematicRef.current.active = false;
     cinematicRef.current.mode = null;
+    cinematicRef.current.velocity = 0;
+    cinematicRef.current.angularMomentum = 0;
+    cinematicRef.current.recovering = false; // Cancel any recovery in progress
     setIsCinematic(false);
     setCinematicMode(null);
 
@@ -717,11 +881,12 @@ export function useCamera(
     // 3. Force React State Update (Critical for UI Sync)
     setCameraState({ ...physicsRef.current });
 
-    // 4. Reset Simulation Params (Zoom, AutoSpin)
+    // 4. Reset Simulation Params (Zoom, AutoSpin, Pause)
     setParams((prev) => ({
       ...prev,
       zoom: DEFAULT_ZOOM,
-      autoSpin: DEFAULT_AUTO_SPIN, // Ensure autospin is restored if it was killed
+      autoSpin: DEFAULT_AUTO_SPIN,
+      paused: false, // Guarantee simulation runs after reset
     }));
   }, [setParams]);
 
