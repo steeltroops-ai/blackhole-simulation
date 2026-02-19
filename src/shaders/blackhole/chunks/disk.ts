@@ -17,84 +17,65 @@ export const DISK_CHUNK = `
       vec3 p, vec3 ro, float r, float isco, float M, float a, float dt, float rs,
       inout vec3 accumulatedColor, inout float accumulatedAlpha
   ) {
-      if (u_show_redshift < 0.5) {
-        // Enforce Thin Disk Limit (H/R < 0.45) - Increased to allow meaningful volume
-        // Respect the new diskHeightMultiplier as a governance limit
-        float effectiveScaleHeight = min(u_disk_scale_height, ${PHYSICS_CONSTANTS.accretion.diskHeightMultiplier.toFixed(3)}); 
-        float diskHeight = r * effectiveScaleHeight;
-        
-        // SCIENTIFIC FIX: Ensure ISCO creates a hard edge even for retrograde orbits
-        // The calling code passes the corrected ISCO from metric.ts
-        float diskInner = isco;
-        float diskOuter = max(M * u_disk_size, diskInner * 1.1);
-        
-        if(abs(p.y) < diskHeight && r > diskInner && r < diskOuter) {
-            vec3 noiseP = p * ${PHYSICS_CONSTANTS.accretion.turbulenceScale.toFixed(2)} + vec3(u_time * ${PHYSICS_CONSTANTS.accretion.timeScale.toFixed(2)}, 0.0, 0.0);
-            float turbulence = noise(noiseP) * 0.5 + noise(noiseP * ${PHYSICS_CONSTANTS.accretion.turbulenceDetail.toFixed(1)}) * 0.25;
-            
-            float heightFalloff = exp(-abs(p.y) / (diskHeight * ${PHYSICS_CONSTANTS.accretion.densityFalloff.toFixed(2)}));
-            float radialFalloff = smoothstep(diskOuter, diskInner, r); // Note: wrong direction? 
-            // smoothstep(edge0, edge1, x). If edge0 > edge1, result 0 if x < edge1?
-            // Original code: smoothstep(diskOuter, diskInner, r). 
-            // If r=diskOuter, 0. If r=diskInner, 1. Correct (density grows inward).
-            
-            float baseDensity = turbulence * heightFalloff * radialFalloff;
-            
-            if (baseDensity > 0.001) {
-                // Keperian Orbital Velocity (Approximate for Kerr)
-                // v = 1 / (r^0.5 + a/r)
-                // If a < 0 (retropy), v increases near horizon.
-                // Formula is strictly correct for prograde disk relative to coordinate system.
-                // But we must check direction.
-                
-                float orbitalVel = 1.0 / (sqrt(r) * (1.0 + abs(a) / (r*sqrt(r)))); 
-                // Using abs(a) because we assume disk orbits in the direction of spin 
-                // OR coordinate phi is defined relative to spin axis.
-                
-                orbitalVel = clamp(orbitalVel, 0.0, 0.99);
-                
-                // SCIENTIFIC FIX: Disk Rotation Direction
-                // If u_spin > 0, BH spins CCW. Disk spins CCW.
-                // If u_spin < 0, BH spins CW. Disk spins CW.
-                // If u_spin = 0, default CCW.
-                float rotDir = (u_spin >= 0.0) ? 1.0 : -1.0;
-                
-                // Tangent vector (-z, 0, x) is CCW. Multiply by rotDir.
-                vec3 diskVelVec = normalize(vec3(-p.z, 0.0, p.x)) * rotDir * orbitalVel;
+      // FAST EARLY-EXIT: Check geometric bounds FIRST -- before ANY expensive computation.
+      // These are simple comparisons. Turbulence FBM (8+ texture lookups) only runs
+      // if the ray is actually passing through the disk volume.
+      if (u_show_redshift > 0.5) return;
 
-                float cosTheta = dot(diskVelVec, normalize(ro - p));
-                
-                // Relativistic Doppler Factor
-                float beta = length(diskVelVec); // orbitalVel
-                // Direction check inside dot product handles sign.
-                
-                float gamma = 1.0 / sqrt(1.0 - beta*beta);
-                float delta = 1.0 / (gamma * (1.0 - beta * cosTheta));
-                
-                // Relativistic Doppler beaming
-                // SCIENTIFIC FIX: Bolometric intensity scales as delta^4
-                // VISUAL FIX: Toggle check
+      float effectiveScaleHeight = min(u_disk_scale_height, ${PHYSICS_CONSTANTS.accretion.diskHeightMultiplier.toFixed(3)});
+      float diskHeight = r * effectiveScaleHeight;
+
+      // Exit 1: Ray is above or below the disk plane
+      if (abs(p.y) >= diskHeight) return;
+
+      // Exit 2: Ray is inside the ISCO (disk is physically truncated here)
+      float diskInner = isco;
+      if (r <= diskInner) return;
+
+      // Exit 3: Ray is beyond the outer disk edge
+      float diskOuter = max(M * u_disk_size, diskInner * 1.1);
+      if (r >= diskOuter) return;
+
+      // --- All geometry checks passed. Now compute turbulence. ---
+      vec3 noiseP = p * ${PHYSICS_CONSTANTS.accretion.turbulenceScale.toFixed(2)} + vec3(u_time * ${PHYSICS_CONSTANTS.accretion.timeScale.toFixed(2)}, 0.0, 0.0);
+      float turbulence = noise(noiseP) * 0.5 + noise(noiseP * ${PHYSICS_CONSTANTS.accretion.turbulenceDetail.toFixed(1)}) * 0.25;
+      
+      float heightFalloff = exp(-abs(p.y) / (diskHeight * ${PHYSICS_CONSTANTS.accretion.densityFalloff.toFixed(2)}));
+      float radialFalloff = smoothstep(diskOuter, diskInner, r);
+      
+      float baseDensity = turbulence * heightFalloff * radialFalloff;
+      
+      if (baseDensity > 0.001) {
+          float orbitalVel = 1.0 / (sqrt(r) * (1.0 + abs(a) / (r*sqrt(r))));
+          orbitalVel = clamp(orbitalVel, 0.0, 0.99);
+          
+          float rotDir = (u_spin >= 0.0) ? 1.0 : -1.0;
+          vec3 diskVelVec = normalize(vec3(-p.z, 0.0, p.x)) * rotDir * orbitalVel;
+
+          float cosTheta = dot(diskVelVec, normalize(ro - p));
+          float beta = length(diskVelVec);
+          float gamma = 1.0 / sqrt(1.0 - beta*beta);
+          float delta = 1.0 / (gamma * (1.0 - beta * cosTheta));
+          
 #ifdef ENABLE_DOPPLER
-                float beaming = pow(delta, 3.0); // Balanced for HDR pipeline
+          float beaming = pow(delta, 3.0);
 #else
-                float beaming = 1.0;
+          float beaming = 1.0;
 #endif
 
-                float radialTempGradient = pow(isco / r, 0.75); // Standard T ~ r^-3/4
-                
-                // Gravitational redshift
-                float gravRedshift = sqrt(max(0.0, 1.0 - rs / r));
-                
-                // SCIENTIFIC FIX: Observed Temperature T_obs = T_emit * delta * redshift
-                float temperature = u_disk_temp * radialTempGradient * delta * gravRedshift;
-                
-                vec3 diskColor = blackbody(temperature) * beaming;
-                float density = baseDensity * u_disk_density * 0.12 * dt;
-                
-                accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
-                accumulatedAlpha += density;
-            }
-        }
+          // Shakura-Sunyaev (1973) thin disk T profile: T ~ r^{-3/4} * (1 - sqrt(r_ISCO/r))^{1/4}
+          // The second factor forces T -> 0 at the ISCO (physically correct inner edge)
+          // at zero extra cost since we are already inside the disk sampling branch.
+          float radialTempGradient = pow(isco / r, 0.75) * pow(max(0.0, 1.0 - sqrt(isco / r)), 0.25);
+          
+          float gravRedshift = sqrt(max(0.0, 1.0 - rs / r));
+          float temperature = u_disk_temp * radialTempGradient * delta * gravRedshift;
+          
+          vec3 diskColor = blackbody(temperature) * beaming;
+          float density = baseDensity * u_disk_density * 0.12 * dt;
+          
+          accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
+          accumulatedAlpha += density;
       }
   }
 

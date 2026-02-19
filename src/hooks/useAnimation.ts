@@ -5,10 +5,10 @@ import { PerformanceMonitor } from "@/performance/monitor";
 import type { PerformanceMetrics } from "@/performance/monitor";
 import { UniformBatcher, IdleDetector } from "@/utils/cpu-optimizations";
 import type { BloomManager } from "@/rendering/bloom";
-import type { ReprojectionManager } from "@/rendering/reprojection"; // Added import
+import type { ReprojectionManager } from "@/rendering/reprojection";
 import { SIMULATION_CONFIG } from "@/configs/simulation.config";
 import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
-import { getSharedQuadBuffer } from "@/utils/webgl-utils";
+import { getSharedQuadBuffer, warmupShader } from "@/utils/webgl-utils";
 import { GPUTimer } from "@/performance/gpu-timer";
 
 import { physicsBridge } from "@/engine/physics-bridge";
@@ -197,8 +197,9 @@ export function useAnimation(
   }, [glRef, diskLUTTextureRef, spectrumLUTTextureRef]);
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const animate = async (currentTime: number) => {
+    // Synchronous RAF callback. No async -- avoids micro-task overhead
+    // and Promise allocation on every frame.
+    const animate = (currentTime: number) => {
       if (!isVisible.current) {
         requestRef.current = requestAnimationFrame(animate);
         return;
@@ -221,14 +222,9 @@ export function useAnimation(
         smoothedDeltaTime.current * 0.8 + cappedDelta * 0.2;
       const deltaTimeMs = smoothedDeltaTime.current;
 
-      // Unbind all textures to prevent feedback loops across frames
-      if (gl) {
-        for (let i = 0; i < 8; i++) {
-          gl.activeTexture(gl.TEXTURE0 + i);
-          gl.bindTexture(gl.TEXTURE_2D, null);
-        }
-        gl.activeTexture(gl.TEXTURE0); // Return to default
-      }
+      // NOTE: Texture unbinding removed. BloomManager.beginScene() and
+      // ReprojectionManager handle FBO transitions and texture binding correctly.
+      // Wholesale unbinding 8 units per frame = 540 wasted API calls/sec.
 
       if (idleDetector.current.isIdle()) {
         targetFrameTime.current =
@@ -275,10 +271,7 @@ export function useAnimation(
             gpuTimer.current.initialize(gl);
           }
 
-          // Phase 4.3: Shader Warmup
-          // Perform 1x1 dummy draw to prime the driver
-          // Perform 1x1 dummy draw to prime the driver
-          const { warmupShader } = await import("@/utils/webgl-utils");
+          // Phase 4.3: Shader Warmup -- prime driver on first frame
           const qb = getSharedQuadBuffer(gl);
           if (qb) {
             warmupShader(gl, program, qb);
@@ -465,8 +458,9 @@ export function useAnimation(
         );
         uniformBatcher.current.set1f("u_debug", 0.0); // Set to 1.0 to debug shader output
 
-        // Ensure viewport matches canvas dimensions for the draw call
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        // NOTE: Do NOT call gl.viewport() here. The correct scaled viewport
+        // was set at line ~392 using renderScale. Overriding it would break
+        // the PID-controlled adaptive resolution system entirely.
 
         // Critical Fix: Explicitly bind the geometry buffer
         const quadBuffer = getSharedQuadBuffer(gl);

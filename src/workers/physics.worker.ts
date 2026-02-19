@@ -165,7 +165,10 @@ function calculate() {
   Atomics.add(sabSequenceView, OFFSETS.TELEMETRY, 1);
 
   // High-Precision Loop Control
-  const targetDelay = isIdle ? 1000 : 1000 / 120;
+  // Active: 75 Hz (adequate for 60 FPS rendering with margin, ~37% less CPU than 120 Hz)
+  // Idle: 1 Hz (physics barely changes without input)
+  const targetHz = isIdle ? 1 : 75;
+  const targetDelay = 1000 / targetHz;
   const processingTime = performance.now() - currentTime;
   const finalDelay = Math.max(0, targetDelay - processingTime);
 
