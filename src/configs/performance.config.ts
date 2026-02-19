@@ -17,11 +17,15 @@ export const PERFORMANCE_CONFIG = {
     adaptiveThreshold: 58, // FPS threshold below which resolution drops
     recoveryThreshold: 72, // FPS threshold above which resolution recovers
     enableDynamicScaling: true, // Master toggle for DPI scaling
-    // PID Controller Coefficients for smooth stabilization
+    // PID Controller Coefficients -- tuned for STABILITY, not reactivity.
+    // Goal: FPS should barely move once converged. Visual smoothness > peak throughput.
     pid: {
-      kp: 0.05, // Proportional: Instant reaction to current frame budget
-      ki: 0.01, // Integral: Long-term compensation for thermal/CPU load
-      kd: 0.02, // Derivative: Resists sudden changes (jitter)
+      kp: 0.025, // Proportional: halved to dampen oscillation around setpoint
+      ki: 0.005, // Integral: reduced to prevent wind-up drift
+      kd: 0.04, // Derivative: doubled to resist sudden frame-time spikes
+      deadzone: 0.05, // Fractional: ignore errors < 5% of frame budget (prevents micro-oscillation)
+      cooldownMs: 500, // Minimum time between resolution changes (prevents GPU pipeline thrashing)
+      integralClamp: 8.0, // Tighter integral wind-up limit (was effectively 20)
     },
   },
 

@@ -36,6 +36,10 @@ export class PhysicsBridge {
   private wasmCameraView: Float32Array = new Float32Array(0);
   private wasmPhysicsView: Float32Array = new Float32Array(0);
 
+  // Cached Int32Array view for Atomics (avoids per-frame allocation)
+  private seqView: Int32Array | null = null;
+  private lastSeenSequence: number = -1;
+
   public async initialize(): Promise<void> {
     if (this.initializationPromise) return this.initializationPromise;
 
@@ -95,6 +99,7 @@ export class PhysicsBridge {
     this.controlView = new Float32Array(this.sab, OFFSETS.CONTROL * 4, 16);
     this.cameraView = new Float32Array(this.sab, OFFSETS.CAMERA * 4, 16);
     this.physicsView = new Float32Array(this.sab, OFFSETS.PHYSICS * 4, 16);
+    this.seqView = new Int32Array(this.sab);
   }
 
   private initializeFallbackViews() {
@@ -143,26 +148,23 @@ export class PhysicsBridge {
   public tick(
     dt: number,
   ): { camera: Float32Array; physics: Float32Array } | null {
-    if (this.worker && this.sab) {
+    if (this.worker && this.sab && this.seqView) {
       // 1. Write the current frame delta to the shared control block
       this.controlView[4] = dt;
 
       // 2. CONSISTENCY CHECK (Anti-Tearing)
-      // Read sequence -> Read Data -> Read sequence
-      // If sequence changed, the worker was writing during our read.
-      //
-      // BUG FIX: OFFSETS.TELEMETRY is already the element index (256).
-      // Int32Array elements are 4 bytes each, same as Float32Array.
-      // Element 256 is at byte 1024 in both views.  The old code used
-      // OFFSETS.TELEMETRY / 4 = 64, which pointed into the CAMERA block!
-      const seqView = new Int32Array(this.sab);
-      const seq1 = Atomics.load(seqView, OFFSETS.TELEMETRY);
+      const seq1 = Atomics.load(this.seqView, OFFSETS.TELEMETRY);
 
-      // Perform very fast copy/reads here...
+      // Fast path: if sequence hasn't changed since last read, data is the same.
+      // Skip the expensive .set() copy entirely.
+      if (seq1 === this.lastSeenSequence) {
+        return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
+      }
+
       const camera = this.cameraView;
       const physics = this.physicsView;
 
-      const seq2 = Atomics.load(seqView, OFFSETS.TELEMETRY);
+      const seq2 = Atomics.load(this.seqView, OFFSETS.TELEMETRY);
       if (seq1 !== seq2) {
         // Data might be torn. Return last good state.
         return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
@@ -177,9 +179,10 @@ export class PhysicsBridge {
         return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
       }
 
-      // Update shadowing caches
+      // Update shadowing caches (only when data actually changed)
       this._lastGoodCamera.set(camera);
       this._lastGoodPhysics.set(physics);
+      this.lastSeenSequence = seq1;
 
       return { camera: this._lastGoodCamera, physics: this._lastGoodPhysics };
     }

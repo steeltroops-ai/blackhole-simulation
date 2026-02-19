@@ -404,10 +404,8 @@ export class BloomManager {
       return null;
     }
 
-    // Safety: Unbind potential feedback textures
+    // Safety: Unbind potential feedback textures before binding the scene FBO
     this.gl.activeTexture(this.gl.TEXTURE0);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
-    this.gl.activeTexture(this.gl.TEXTURE1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, null);
 
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.sceneFramebuffer);
@@ -495,9 +493,8 @@ export class BloomManager {
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    // Unbind to prevent feedback
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // Bright pass done -- framebuffer state transitions handle cleanup implicitly
+    // (next pass rebinds its own FBO and textures)
 
     // === PASS 2: Blur passes ===
     gl.useProgram(this.blurProgram);
@@ -582,12 +579,7 @@ export class BloomManager {
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    // Unbind all units used in combine
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // Combine pass renders to backbuffer -- no cleanup needed, next frame rebinds everything
   }
 
   /**
@@ -636,12 +628,7 @@ export class BloomManager {
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    // Cleanup
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // drawTextureToScreen renders to backbuffer -- no cleanup needed
   }
 
   /**

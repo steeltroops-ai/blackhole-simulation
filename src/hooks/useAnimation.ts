@@ -63,7 +63,7 @@ export function useAnimation(
   const metricsRef = useRef<PerformanceMetrics>(initialMetrics);
 
   const lastFrameTime = useRef(0);
-  const smoothedDeltaTime = useRef(16.67); // 60 FPS default
+  const smoothedDeltaTime = useRef(16.67); // 60 FPS default for display
   useEffect(() => {
     lastFrameTime.current = performance.now();
   }, []);
@@ -217,9 +217,11 @@ export function useAnimation(
       // Filter out huge spikes from tab switching
       const cappedDelta = Math.min(rawDeltaTime, 100);
 
-      // Moving Average Smoothing (Exponential)
+      // Heavy EMA smoothing: 0.93/0.07 means a single spike needs ~15 consecutive
+      // bad frames to substantially move the average. This prevents the PID
+      // resolution scaler from reacting to isolated frame-time spikes.
       smoothedDeltaTime.current =
-        smoothedDeltaTime.current * 0.8 + cappedDelta * 0.2;
+        smoothedDeltaTime.current * 0.93 + cappedDelta * 0.07;
       const deltaTimeMs = smoothedDeltaTime.current;
 
       // NOTE: Texture unbinding removed. BloomManager.beginScene() and
@@ -233,7 +235,10 @@ export function useAnimation(
         targetFrameTime.current = PERFORMANCE_CONFIG.scheduler.frameBudgetMs;
       }
 
-      if (deltaTimeMs < targetFrameTime.current) {
+      // Frame-skip gate uses RAW delta (not EMA-smoothed), because the EMA
+      // can temporarily over-report due to a past spike, causing us to skip
+      // a perfectly fine frame. Only skip if the real raw delta is too fast.
+      if (cappedDelta < targetFrameTime.current) {
         requestRef.current = requestAnimationFrame(animate);
         return;
       }
@@ -315,11 +320,9 @@ export function useAnimation(
 
           // Sync refs to state for UI (Visual Only)
           if (onMetricsUpdate) {
-            onMetricsUpdate({
-              ...updatedMetrics,
-              quality: metricsRef.current.quality,
-              renderResolution: metricsRef.current.renderResolution,
-            });
+            // Reuse the pre-allocated _metrics object from PerformanceMonitor.
+            // No spread operator = no GC allocation every 200ms.
+            onMetricsUpdate(updatedMetrics);
           }
         }
 

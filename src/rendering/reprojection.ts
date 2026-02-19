@@ -183,14 +183,21 @@ export class ReprojectionManager {
    * Resolve the current frame by blending with history.
    *
    * @param sourceTexture The texture containing the raw current frame render
-   * @param blendFactor 0.0 to 1.0 (default 0.9 for high stability)
+   * @param blendFactor 0.0 to 1.0 -- base accumulation weight (default 0.9 for static scenes)
    * @param cameraMoving Boolean flag - if true, blend factor is reduced to prevent ghosting
+   * @param renderScale Fractional resolution scale (0.5 = half-res)
+   * @param cameraVelocityMagnitude Phase 3.4: scalar camera velocity.
+   *   When > 0, overrides blendFactor with velocity-aware formula:
+   *   blend = clamp(0.9 - velocity * 6.0, 0.05, 0.9)
+   *   This eliminates ghosting during fast pans while maximizing noise suppression at rest.
    */
+  // eslint-disable-next-line max-params
   public resolve(
     sourceTexture: WebGLTexture,
-    blendFactor: number = 0.7, // Reduced from 0.9 for less ghosting
+    blendFactor: number = 0.9,
     cameraMoving: boolean = false,
     renderScale: number = 1.0,
+    cameraVelocityMagnitude: number = 0.0,
   ) {
     if (!this.program || !this.isInitialized) return;
 
@@ -228,8 +235,18 @@ export class ReprojectionManager {
     gl.bindTexture(gl.TEXTURE_2D, readTex);
     if (this.loc_historyFrame) gl.uniform1i(this.loc_historyFrame, 1);
 
+    // Phase 3.4: Velocity-aware blend factor.
+    // Static scene (velocity ~ 0): use full 0.9 blend for maximum TAA noise suppression.
+    // Fast pan (velocity ~ 0.1): back off to ~0.3 to prevent streaking ghosting.
+    // Formula: blend = clamp(0.9 - vel * 6.0, 0.05, 0.9)
+    const effectiveBlend =
+      cameraVelocityMagnitude > 0.001
+        ? Math.max(0.05, Math.min(0.9, 0.9 - cameraVelocityMagnitude * 6.0))
+        : blendFactor;
+
     // 3. Set Uniforms (cached locations)
-    if (this.loc_blendFactor) gl.uniform1f(this.loc_blendFactor, blendFactor);
+    if (this.loc_blendFactor)
+      gl.uniform1f(this.loc_blendFactor, effectiveBlend);
     if (this.loc_cameraMoving)
       gl.uniform1i(this.loc_cameraMoving, cameraMoving ? 1 : 0);
     if (this.loc_textureScale)
@@ -244,15 +261,10 @@ export class ReprojectionManager {
         gl.enableVertexAttribArray(this.attrib_position);
         gl.vertexAttribPointer(this.attrib_position, 2, gl.FLOAT, false, 0, 0);
       }
-      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
-    // Safety: Unbind textures
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    // Unbind framebuffer only (textures get rebound at next resolve() -- no need to touch them)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     // 5. Swap ping-pong for next frame

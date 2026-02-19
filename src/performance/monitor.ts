@@ -72,7 +72,7 @@ export class PerformanceMonitor {
   private readonly cpuTimes: RingBuffer;
   private readonly gpuTimes: RingBuffer;
   private readonly idleTimes: RingBuffer;
-  private readonly WINDOW = 60;
+  private readonly WINDOW = 90; // 90 frames (~1.5s at 60fps) for stable rolling average
   private currentQuality: RayTracingQuality = "high";
   private renderResolution: number = 1.0;
 
@@ -86,6 +86,7 @@ export class PerformanceMonitor {
   private errorIntegral: number = 0;
   private prevError: number = 0;
   private isStabilized: boolean = false;
+  private lastResolutionChangeTime: number = 0;
 
   // Pre-allocated metrics to avoid GC pressure in the render loop
   private readonly _metrics: PerformanceMetrics = {
@@ -159,18 +160,38 @@ export class PerformanceMonitor {
   }
 
   private applyPIDScaling(dt: number): void {
-    const target = PERFORMANCE_CONFIG.scheduler.frameBudgetMs * 0.95; // 95% safety target
+    const target = PERFORMANCE_CONFIG.scheduler.frameBudgetMs * 0.95; // 95% headroom
     const error = target - dt;
+    const now = performance.now();
 
-    const { kp, ki, kd } = PERFORMANCE_CONFIG.resolution.pid;
+    const { kp, ki, kd, deadzone, cooldownMs, integralClamp } =
+      PERFORMANCE_CONFIG.resolution.pid;
+
+    // DEADZONE: If the error is within `deadzone` fraction of target, do nothing.
+    // This prevents sub-millisecond oscillation from causing resolution ping-pong.
+    const absError = Math.abs(error);
+    if (absError < target * deadzone) {
+      // We're close enough. Zero the derivative to prevent jitter on re-entry.
+      this.prevError = error;
+      this.isStabilized = true;
+      return;
+    }
+
+    // COOLDOWN: Don't change resolution more than once per `cooldownMs`.
+    // Each resolution change forces the GPU to reconfigure framebuffer state,
+    // which itself causes a frame-time spike that feeds back into the PID.
+    if (now - this.lastResolutionChangeTime < cooldownMs) {
+      this.prevError = error;
+      return;
+    }
 
     // 1. Proportional
     const pOut = kp * error;
 
-    // 2. Integral (clamped to prevent wind-up)
+    // 2. Integral (tightly clamped to prevent wind-up)
     this.errorIntegral = Math.min(
-      Math.max(this.errorIntegral + error, -20.0),
-      20.0,
+      Math.max(this.errorIntegral + error, -integralClamp),
+      integralClamp,
     );
     const iOut = ki * this.errorIntegral;
 
@@ -181,12 +202,16 @@ export class PerformanceMonitor {
     // Total correction
     const adjustment = pOut + iOut + dOut;
 
-    // Apply to resolution (damped)
-    const newRes = this.renderResolution + adjustment * 0.01;
-    this.setRenderResolution(newRes);
+    // Apply to resolution (damped, with minimum step to avoid float noise)
+    const delta = adjustment * 0.01;
+    if (Math.abs(delta) < 0.001) return; // Sub-pixel change -- skip
 
-    // If we are consistently within 5% of target, mark as stabilized
-    this.isStabilized = Math.abs(error) < target * 0.05;
+    const newRes = this.renderResolution + delta;
+    this.setRenderResolution(newRes);
+    this.lastResolutionChangeTime = now;
+
+    // If we are consistently within 3% of target, mark as stabilized
+    this.isStabilized = absError < target * 0.03;
   }
 
   private invalidateCache(): void {

@@ -78,7 +78,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
  * Property 17: Idle frame rate reduction
  */
 export class IdleDetector {
-  private lastActivityTime: number = Date.now();
+  private lastActivityTime: number = performance.now();
   private idleThresholdMs: number;
 
   constructor(idleThresholdMs: number = 5000) {
@@ -89,7 +89,7 @@ export class IdleDetector {
    * Record user activity
    */
   recordActivity(): void {
-    this.lastActivityTime = Date.now();
+    this.lastActivityTime = performance.now();
   }
 
   /**
@@ -98,21 +98,21 @@ export class IdleDetector {
    * @returns true if idle (no activity for > threshold)
    */
   isIdle(): boolean {
-    return Date.now() - this.lastActivityTime > this.idleThresholdMs;
+    return performance.now() - this.lastActivityTime > this.idleThresholdMs;
   }
 
   /**
    * Get time since last activity in milliseconds
    */
   getTimeSinceActivity(): number {
-    return Date.now() - this.lastActivityTime;
+    return performance.now() - this.lastActivityTime;
   }
 
   /**
    * Reset the idle timer
    */
   reset(): void {
-    this.lastActivityTime = Date.now();
+    this.lastActivityTime = performance.now();
   }
 
   /**

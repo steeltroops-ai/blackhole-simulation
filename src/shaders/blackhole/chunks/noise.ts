@@ -18,16 +18,30 @@ export const NOISE_CHUNK = `
                    mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
   }
 
-  // Fractal Brownian Motion for turbulence
+  // Fractal Brownian Motion -- standard 4-octave version (used by background nebula)
   float fbm(vec3 p) {
     float f = 0.0;
     float amp = 0.5;
     for(int i = 0; i < 4; i++) {
-        // Optimization: fewer octaves far away? No, standard 4 is optimized enough with texture lookups
       f += amp * noise(p);
       p *= 2.0;
       amp *= 0.5;
     }
+    return f;
+  }
+
+  // Phase 2.3: Adaptive FBM -- exact octave count controlled by caller.
+  // Use 1 octave far from ISCO, 2 in the transition zone, 3 near the inner edge.
+  // Saves 4-6 texture fetches for the vast majority of disk samples.
+  // Called by sample_accretion_disk() based on r/isco ratio.
+  float adaptiveFbm(vec3 p, int octaves) {
+    float f = 0.0;
+    float amp = 0.5;
+    // GLSL unrolled manually to 3 max for shader compiler compatibility.
+    // (Dynamic loops over uniforms are slow on some drivers.)
+    f += amp * noise(p); p *= 2.0; amp *= 0.5; // Octave 1 (always)
+    if (octaves >= 2) { f += amp * noise(p); p *= 2.0; amp *= 0.5; } // Octave 2
+    if (octaves >= 3) { f += amp * noise(p); } // Octave 3
     return f;
   }
 `;
