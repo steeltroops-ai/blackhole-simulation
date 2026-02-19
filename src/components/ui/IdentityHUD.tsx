@@ -46,10 +46,10 @@ export const IdentityHUD = ({
               <span className="text-[7px] md:text-[8px] font-mono text-accent-cyan/80 tracking-[0.2em] animate-pulse">
                 RELATIVISTIC KERNEL
               </span>
-              <span className="text-[7px] md:text-[8px] font-mono text-white/30 tracking-[0.1em]">
+              <span className="text-[7px] md:text-[8px] font-mono text-white/60 tracking-[0.1em]">
                 |
               </span>
-              <span className="text-[7px] md:text-[8px] font-mono text-white/60 tracking-[0.1em] uppercase">
+              <span className="text-[7px] md:text-[8px] font-mono text-white/80 tracking-[0.1em] uppercase">
                 Active
               </span>
             </div>
@@ -67,7 +67,7 @@ export const IdentityHUD = ({
                   }}
                 />
               </div>
-              <span className="text-[6px] font-mono text-white/20 tracking-tighter">
+              <span className="text-[6px] font-mono text-white/40 tracking-tighter">
                 SYNC_LOCK_0x3F7
               </span>
             </div>

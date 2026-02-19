@@ -49,7 +49,7 @@ export const SimulationInfo = ({
                   </h2>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-[7px] font-mono font-black text-white/30 uppercase tracking-[0.15em] bg-white/5 px-2.5 py-1 rounded-full border border-white/5 group-hover:text-white/60 transition-colors whitespace-nowrap">
+                  <span className="text-[7px] font-mono font-black text-white/70 uppercase tracking-[0.15em] bg-white/10 px-2.5 py-1 rounded-full border border-white/20 group-hover:text-white transition-colors whitespace-nowrap">
                     {isExpanded ? "Close" : "Open"}
                   </span>
                 </div>
@@ -72,7 +72,7 @@ export const SimulationInfo = ({
                   {/* 1. Spacetime Topology */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
                       Kerr Spacetime Manifold
                     </h3>
                     <div className="space-y-3 px-4">
@@ -178,7 +178,7 @@ export const SimulationInfo = ({
                         },
                       ].map((i, k) => (
                         <div key={k} className="space-y-1">
-                          <span className="block text-[8px] text-white/50 uppercase font-black tracking-widest">
+                          <span className="block text-[8px] text-white/70 uppercase font-black tracking-widest">
                             {i.l}
                           </span>
                           <span className="block text-[11px] text-white font-light">
@@ -221,21 +221,21 @@ export const SimulationInfo = ({
                     </h3>
                     <ul className="space-y-4 px-4">
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
-                        <span className="text-white/60">Ergosphere Max</span>
+                        <span className="text-white/80">Ergosphere Max</span>
                         <span className="text-white font-bold">r = 2M</span>
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
-                        <span className="text-white/60">ISCO Radius (a=0)</span>
+                        <span className="text-white/80">ISCO Radius (a=0)</span>
                         <span className="text-[10px] text-white font-bold">
                           r = 6M
                         </span>
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
-                        <span className="text-white/60">ISCO Radius (a=1)</span>
+                        <span className="text-white/80">ISCO Radius (a=1)</span>
                         <span className="text-white font-bold">r = 1M</span>
                       </li>
                       <li className="flex justify-between items-center text-[10px] font-mono border-b border-white/[0.1] pb-1">
-                        <span className="text-white/60">
+                        <span className="text-white/80">
                           Keplerian Ω<sub>K</sub>
                         </span>
                         <span className="text-white font-bold">

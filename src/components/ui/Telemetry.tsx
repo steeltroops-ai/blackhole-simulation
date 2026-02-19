@@ -26,8 +26,8 @@ export const Telemetry = ({
   // Determine FPS opacity based on thresholds
   const getFPSOpacity = (fps: number): string => {
     if (fps >= 60) return "text-white/95";
-    if (fps >= 30) return "text-white/60";
-    return "text-white/30";
+    if (fps >= 30) return "text-white/80";
+    return "text-white/50";
   };
 
   return (
@@ -57,7 +57,7 @@ export const Telemetry = ({
           { label: "Dilation", value: timeDilation.toFixed(3), unit: "x" },
         ].map((item, idx) => (
           <div key={idx} className="flex flex-col items-end">
-            <span className="text-[7px] md:text-[8px] text-white/60 font-mono font-bold uppercase tracking-[0.2em] mb-0.5">
+            <span className="text-[7px] md:text-[8px] text-white/80 font-mono font-bold uppercase tracking-[0.2em] mb-0.5">
               {item.label}
             </span>
             <div className="flex items-baseline gap-0.5">
@@ -67,7 +67,7 @@ export const Telemetry = ({
                 {item.value || "---"}
               </span>
               {item.unit && (
-                <span className="text-[8px] md:text-[9px] text-white/50 font-mono uppercase">
+                <span className="text-[8px] md:text-[9px] text-white/70 font-mono uppercase">
                   {item.unit}
                 </span>
               )}
@@ -79,10 +79,10 @@ export const Telemetry = ({
       {metrics && budgetUsage > 0 && (
         <div className="w-48 mt-1">
           <div className="flex justify-between items-center mb-1">
-            <p className="text-[8px] text-gray-500 uppercase tracking-widest">
+            <p className="text-[8px] text-gray-400 uppercase tracking-widest">
               Frame Budget
             </p>
-            <p className="text-[8px] font-mono text-gray-400">
+            <p className="text-[8px] font-mono text-gray-300">
               {Math.round(budgetUsage)}%
             </p>
           </div>

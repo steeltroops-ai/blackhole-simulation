@@ -61,7 +61,7 @@ export const BenchmarkResults = ({
         <div className="relative z-40 p-6 md:p-8">
           {/* Diagnostic Header */}
           <div className="flex items-center justify-between mb-5 pb-4 border-b border-white/5">
-            <div className="flex items-center gap-2.5 text-white/30">
+            <div className="flex items-center gap-2.5 text-white/70">
               <Activity className="w-3 h-3" />
               <span className="text-[8.5px] font-black tracking-[0.25em] uppercase">
                 Stability Evaluation
@@ -71,7 +71,7 @@ export const BenchmarkResults = ({
               onClick={onClose}
               className="hover:text-white transition-colors"
             >
-              <X className="w-3 h-3 text-white/20" />
+              <X className="w-3 h-3 text-white/40 group-hover:text-white" />
             </button>
           </div>
 
@@ -82,7 +82,7 @@ export const BenchmarkResults = ({
                 <div className="absolute top-0 right-0 p-2 opacity-20">
                   <Zap className={`w-4 h-4 ${recommendedTier?.color}`} />
                 </div>
-                <div className="text-[7.5px] text-white/20 uppercase tracking-[0.2em] font-black mb-2">
+                <div className="text-[7.5px] text-white/60 uppercase tracking-[0.2em] font-black mb-2">
                   Recommended Setup
                 </div>
                 <h3 className="text-white text-[13px] font-black uppercase tracking-tight leading-none mb-2.5">
@@ -92,7 +92,7 @@ export const BenchmarkResults = ({
                   <span className="text-white font-mono text-xl font-black leading-none">
                     {recommendedResult.averageFPS.toFixed(0)}
                   </span>
-                  <span className="text-[8px] text-white/20 font-mono uppercase">
+                  <span className="text-[8px] text-white/60 font-mono uppercase">
                     FPS
                   </span>
                   <div
@@ -126,13 +126,13 @@ export const BenchmarkResults = ({
                       className={`w-1 h-1 rounded-full ${isRecommended ? "bg-white shadow-[0_0_10px_white]" : "bg-white/10"}`}
                     />
                     <span
-                      className={`text-[8.5px] font-black uppercase tracking-[0.1em] ${isRecommended ? "text-white" : "text-white/40"}`}
+                      className={`text-[8.5px] font-black uppercase tracking-[0.1em] ${isRecommended ? "text-white" : "text-white/60"}`}
                     >
                       {result.presetName.replace("-", " ")}
                     </span>
                   </div>
                   <span
-                    className={`text-[10px] font-mono font-black ${isRecommended ? tier.color : "text-white/20"}`}
+                    className={`text-[10px] font-mono font-black ${isRecommended ? tier.color : "text-white/60"}`}
                   >
                     {result.averageFPS.toFixed(0)}
                   </span>
@@ -145,7 +145,7 @@ export const BenchmarkResults = ({
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-white/5 text-white/40 text-[8px] font-black uppercase tracking-widest hover:text-white hover:bg-white/5 transition-all"
+              className="px-4 py-2.5 rounded-xl border border-white/10 text-white/60 text-[8px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all"
             >
               Discard
             </button>
