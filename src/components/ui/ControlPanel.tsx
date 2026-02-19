@@ -409,7 +409,7 @@ export const ControlPanel = ({
           </motion.div>
         ) : (
           /* --- FULL MODE: UNIFIED CONTROL CHASSIS (Adaptive Panels) --- */
-          <div className="fixed bottom-0 left-0 w-full h-full pointer-events-none z-30 flex flex-col items-center justify-end p-2 sm:p-4 pb-4">
+          <div className="fixed bottom-0 left-0 w-full h-full pointer-events-none z-30 flex flex-col items-center justify-end p-2 sm:p-4 pb-4 pt-16">
             <motion.div
               key="full-system"
               initial={{ y: 50, opacity: 0, scale: 0.98 }}
@@ -424,7 +424,7 @@ export const ControlPanel = ({
                 <div className="absolute inset-x-0 top-0 liquid-glass-top-line z-30" />
 
                 {/* CONTENT LAYER: High-Density Active Manifold */}
-                <div className="relative z-40 p-5 md:p-8 pt-16">
+                <div className="relative z-40 p-5 md:p-8">
                   {/* Header Anchor: Identity & Responsive Telemetry */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                     <div className="flex items-center gap-4 w-full sm:w-auto">

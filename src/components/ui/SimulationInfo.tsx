@@ -27,17 +27,20 @@ export const SimulationInfo = ({
             animate={{
               opacity: 1,
               x: 0,
+              width: isExpanded
+                ? "min(576px, calc(100vw - 2rem))"
+                : "min(280px, calc(100vw - 2rem))", // 280px default, constrained on mobile
             }}
             exit={{ opacity: 0, x: -20 }}
             transition={{
               type: "spring",
-              stiffness: 300,
+              stiffness: 250,
               damping: 30,
             }}
-            className={`fixed bottom-6 left-4 right-4 md:left-6 md:right-auto z-50 pointer-events-auto overflow-hidden shadow-2xl border border-white/10 transition-all duration-700 ${
+            className={`fixed bottom-6 left-4 z-50 pointer-events-auto overflow-hidden shadow-2xl border border-white/10 ${
               isExpanded
-                ? "frosted-glass-apple w-auto md:w-[576px] rounded-[1.5rem]"
-                : "liquid-glass w-auto md:w-[280px] rounded-[1.25rem]"
+                ? "frosted-glass-apple rounded-[1.5rem]"
+                : "liquid-glass rounded-[1.25rem]"
             }`}
           >
             <div className={`relative overflow-hidden group`}>
