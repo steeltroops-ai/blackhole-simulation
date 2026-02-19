@@ -101,16 +101,16 @@ void main() {
     float accumulatedAlpha = 0.0;
     bool hitHorizon = false;
     float maxRedshift = 0.0;
+    // DITHERING: Use Blue Noise to jitter ray start and step size (Fixes 'vector lines')
+    vec2 noiseUV = gl_FragCoord.xy / 256.0; // Assuming 256x256 blue noise texture
+    float bNoise = texture(u_blueNoiseTex, noiseUV).r;
+    float dt = MIN_STEP; // Initialize dt for the first jitter
+    p += v * bNoise * dt; // Jitter start position
     
     int photonCrossings = 0;
     float prevY = p.y;
     
     int maxSteps = int(min(float(u_maxRaySteps), 500.0));
-    
-    // Blue Noise Dithering
-    float dither = texture(u_blueNoiseTex, gl_FragCoord.xy / 256.0).r;
-    float rayOffset = dither * MIN_STEP;
-    p += v * rayOffset;
     
     float impactParam = length(cross(ro, rd));
 
@@ -134,44 +134,62 @@ void main() {
         float sphereProx = abs(r - rph);
         dt = min(dt, MIN_STEP + sphereProx * 0.15);
         
+        // ADAPTIVE STEP REFINEMENT: Shrink steps near the disk plane to fix 'vector lines'
+        float diskThreshold = 0.2;
+        float hRefinement = smoothstep(diskThreshold, 0.0, abs(p.y));
+        float currentDt = dt * (1.0 - hRefinement * 0.7); // Up to 3.3x more precision in the disk
+        
         // Cinematic LDE Acceleration
+        vec3 accel = vec3(0.0);
+
+#ifdef ENABLE_LENSING
         vec3 L_vec = cross(p, v);
         float L2 = dot(L_vec, L_vec);
         float r2 = r * r;
         float r4 = r2 * r2;
         
-        vec3 accel = -normalize(p) * (M / r2 + 2.0 * M * L2 / r4) * u_lensing_strength;
+        // Lensing enabled: Full GR approximation
+        accel = -normalize(p) * (M / r2 + 2.0 * M * L2 / r4) * u_lensing_strength;
         
         // Relativistic Banking (Frame Dragging)
-        float omega = 2.0 * M * a / (r2 * r + a*a*r);
-        mat2 dragging = rot(omega * dt);
+        float omega = 2.0 * M * a / (r * r * r + a*a*r); // Fixed r^3
+        mat2 dragging = rot(omega * currentDt);
         v.xz *= dragging;
         p.xz *= dragging;
+#endif
 
         // Velocity Verlet Integration
-        p += v * dt + 0.5 * accel * dt * dt;
+        p += v * currentDt + 0.5 * accel * currentDt * currentDt;
         
         float r_new = length(p);
+        
+#ifdef ENABLE_LENSING
+        // Re-calculate accel for Verlet step 2
         vec3 L_new = cross(p, v);
         float L2_new = dot(L_new, L_new);
         float r2_new = r_new * r_new;
         float r4_new = r2_new * r2_new;
         vec3 accel_new = -normalize(p) * (M / r2_new + 2.0 * M * L2_new / r4_new) * u_lensing_strength;
         
-        v += 0.5 * (accel + accel_new) * dt;
+        v += 0.5 * (accel + accel_new) * currentDt;
+#endif
         v = normalize(v);
 
         // Photon Crossing Detection
+#ifdef ENABLE_PHOTON_GLOW
         if(prevY * p.y < 0.0 && r_new < rph * 2.0 && r_new > rh) {
           photonCrossings++;
         }
+#endif
 
         // Redshift Tracking
+#ifdef ENABLE_REDSHIFT
         if (u_show_redshift > 0.5) {
              float potential = sqrt(max(0.0, 1.0 - rs / r_new));
              if (i == 0) maxRedshift = potential;
              else maxRedshift = min(maxRedshift, potential);
         }
+#endif
         
         prevY = p.y;
 
@@ -188,6 +206,7 @@ void main() {
     }
 
     // Gravitational Redshift Overlay
+#ifdef ENABLE_REDSHIFT
     if (u_show_redshift > 0.5) {
         float val = maxRedshift;
         if (hitHorizon) val = 0.0;
@@ -199,11 +218,17 @@ void main() {
         fragColor = vec4(heatmap, 1.0);
         return;
     }
+#endif
 
     // Background & Post-Process
-    vec3 background = starfield(v);
+    vec3 background = vec3(0.0);
+#ifdef ENABLE_STARS
+    background = starfield(v);
+#endif
     
     // Photon Ring Logic
+    vec3 photonColor = vec3(0.0);
+#ifdef ENABLE_PHOTON_GLOW
     float distToPhotonRing = abs(length(p) - rph);
     float directRing = exp(-distToPhotonRing * 40.0) * 1.8 * u_lensing_strength;
     float higherOrderRing = 0.0;
@@ -212,7 +237,8 @@ void main() {
       float ringBrightness = exp(-float(photonCrossings) * 1.0) * 1.2;
       higherOrderRing = exp(-distToPhotonRing * ringSharpness) * ringBrightness * u_lensing_strength;
     }
-    vec3 photonColor = vec3(1.0) * (directRing + higherOrderRing);
+    photonColor = vec3(1.0) * (directRing + higherOrderRing);
+#endif
     
     // Ergosphere Visualization
     vec3 ergoColor = vec3(0.0);
@@ -236,9 +262,11 @@ void main() {
        }
     }
     
-    // Tone Mapping & Gamma
+    // Tone Mapping & Gamma (Conditional based on Pipeline)
+#ifndef ENABLE_LINEAR_OUTPUT
     finalColor = aces_tone_mapping(finalColor);
-    finalColor = pow(finalColor, vec3(0.4545));
+    finalColor = pow(max(finalColor, 0.0), vec3(0.4545));
+#endif
     
     fragColor = vec4(finalColor, 1.0);
 }

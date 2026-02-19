@@ -34,6 +34,7 @@ export class ShaderManager {
       jets: features.relativisticJets,
       redshift: features.gravitationalRedshift,
       shadow: features.kerrShadow,
+      hasPost: !!(features as any).hasPost,
     });
   }
 
@@ -46,7 +47,11 @@ export class ShaderManager {
     return this.variantCache.get(key) || null;
   }
 
-  generateShaderSource(baseSource: string, features: FeatureToggles): string {
+  generateShaderSource(
+    baseSource: string,
+    features: FeatureToggles,
+    hasPost: boolean = false,
+  ): string {
     const defines: string[] = [];
 
     // IMPORTANT: Only emit #define when feature is ENABLED.
@@ -68,6 +73,10 @@ export class ShaderManager {
     defines.push(
       `#define RAY_QUALITY_${features.rayTracingQuality.toUpperCase()} 1`,
     );
+
+    if (hasPost) {
+      defines.push("#define ENABLE_LINEAR_OUTPUT 1");
+    }
 
     const sanitized = baseSource.replace(/\r/g, "").replace(/\t/g, "  ");
     const lines = sanitized.split("\n");
@@ -107,13 +116,17 @@ export class ShaderManager {
     vertexSource: string,
     fragmentSource: string,
     features: FeatureToggles,
+    hasPost: boolean = false,
   ): ShaderVariant | null {
     const start = performance.now();
-    const cached = this.getCachedVariant(features);
+    const featWithPost = { ...features, hasPost } as FeatureToggles & {
+      hasPost: boolean;
+    };
+    const cached = this.getCachedVariant(featWithPost);
     if (cached) return cached;
 
-    const fs = this.generateShaderSource(fragmentSource, features);
-    const vs = this.generateShaderSource(vertexSource, features);
+    const fs = this.generateShaderSource(fragmentSource, features, hasPost);
+    const vs = this.generateShaderSource(vertexSource, features, hasPost);
 
     const vertexShader = createShader(this.gl, this.gl.VERTEX_SHADER, vs);
     const fragmentShader = createShader(this.gl, this.gl.FRAGMENT_SHADER, fs);

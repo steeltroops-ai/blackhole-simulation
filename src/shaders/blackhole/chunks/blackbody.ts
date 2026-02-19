@@ -9,7 +9,8 @@ export const BLACKBODY_CHUNK = `
   vec3 blackbody(float temp) {
     // Standard Tanner-Helland / Mitchell Charity approximation
     // Adjusted for linear space
-    float t = temp / 100.0;
+    // Clamp to prevent log(0) at Event Horizon (Infinite Redshift)
+    float t = max(temp, 1.0) / 100.0;
     float r, g, b;
 
     if (t <= 66.0) {
@@ -27,7 +28,9 @@ export const BLACKBODY_CHUNK = `
         b = 255.0;
     }
 
-    return clamp(vec3(r, g, b) / 255.0, 0.0, 1.0);
+    // Formula produces sRGB. Convert to Linear for HDR pipeline.
+    vec3 srgbCol = vec3(r, g, b) / 255.0;
+    return pow(max(srgbCol, 0.0), vec3(2.2));
   }
 
   // Approximate star color from B-V color index

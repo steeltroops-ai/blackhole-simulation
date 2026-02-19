@@ -19,8 +19,12 @@ export const bloomVertexShader = `#version 300 es
   out vec2 v_texCoord;
   
   void main() {
-    // Standard quad UVs [0..1] scaled by virtual resolution
-    v_texCoord = (position * 0.5 + 0.5) * u_textureScale;
+    // FIX: When u_textureScale is not set, GLSL defaults it to (0,0).
+    // This collapses ALL UVs to the origin, making every fragment sample
+    // the same texel. Guard against this by treating (0,0) as (1,1).
+    vec2 scale = u_textureScale;
+    if (scale.x < 0.01) scale = vec2(1.0, 1.0);
+    v_texCoord = (position * 0.5 + 0.5) * scale;
     gl_Position = vec4(position, 0.0, 1.0);
   }
 `;
@@ -98,12 +102,26 @@ export const combineShader = `#version 300 es
   in vec2 v_texCoord;
   out vec4 fragColor;
   
+  // ACES Tone Mapping (Narkowicz 2014)
+  vec3 aces_tone_mapping(vec3 color) {
+    float A = 2.51;
+    float B = 0.03;
+    float C = 2.43;
+    float D = 0.59;
+    float E = 0.14;
+    return clamp((color * (A * color + B)) / (color * (C * color + D) + E), 0.0, 1.0);
+  }
+
   void main() {
     vec3 sceneColor = texture(u_sceneTexture, v_texCoord).rgb;
     vec3 bloomColor = texture(u_bloomTexture, v_texCoord).rgb;
     
-    // Additive blending with intensity control
+    // Additive blending in linear space
     vec3 result = sceneColor + bloomColor * u_bloomIntensity;
+    
+    // FINAL PASS: Apply Tone Mapping & Gamma
+    result = aces_tone_mapping(result);
+    result = pow(result, vec3(0.4545)); // Gamma 2.2
     
     fragColor = vec4(result, 1.0);
   }

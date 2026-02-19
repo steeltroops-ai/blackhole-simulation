@@ -9,8 +9,10 @@ export const reprojectionVertexShader = `#version 300 es
   out vec2 v_texCoord;
 
   void main() {
-    // Correctly map UVs to the virtual viewport region [0..scale]
-    v_texCoord = (position * 0.5 + 0.5) * u_textureScale;
+    // FIX: Guard against u_textureScale defaulting to (0,0) before it is set.
+    vec2 scale = u_textureScale;
+    if (scale.x < 0.01) scale = vec2(1.0, 1.0);
+    v_texCoord = (position * 0.5 + 0.5) * scale;
     gl_Position = vec4(position, 0.0, 1.0);
   }
 `;
@@ -40,27 +42,68 @@ export const reprojectionVertexShader = `#version 300 es
  */
 export const reprojectionFragmentShader = `#version 300 es
   precision highp float;
-
   uniform sampler2D u_currentFrame;
   uniform sampler2D u_historyFrame;
   uniform vec2 u_resolution;
-  uniform float u_blendFactor; // 0.0 = all new, 1.0 = all old
+  uniform float u_blendFactor; 
   uniform bool u_cameraMoving;
+  uniform vec2 u_textureScale;
 
   in vec2 v_texCoord;
   out vec4 fragColor;
 
-  void main() {
-    vec4 current = texture(u_currentFrame, v_texCoord);
-    vec4 history = texture(u_historyFrame, v_texCoord);
+  vec3 RGBToYCoCg(vec3 rgb) {
+    float y = dot(rgb, vec3(0.25, 0.5, 0.25));
+    const float co = 0.5; // Offset for bias if needed, but relative is fine
+    float co_val = dot(rgb, vec3(0.5, 0.0, -0.5));
+    float cg_val = dot(rgb, vec3(-0.25, 0.5, -0.25));
+    return vec3(y, co_val, cg_val);
+  }
 
-    // Adaptive Blending
-    // If camera is moving, drastically reduce history influence to prevent ghosting
+  vec3 YCoCgToRGB(vec3 ycocg) {
+    float y = ycocg.x;
+    float co = ycocg.y;
+    float cg = ycocg.z;
+    return vec3(y + co - cg, y + cg, y - co - cg);
+  }
+
+  void main() {
+    vec3 current = texture(u_currentFrame, v_texCoord).rgb;
+    
+    // Texture is full size, so texel size must be relative to physical dimensions.
+    // u_resolution is (width * scale, height * scale).
+    // u_textureScale is (scale, scale).
+    // Physical resolution = u_resolution / u_textureScale.
+    vec2 scale = u_textureScale;
+    if (scale.x < 0.01) scale = vec2(1.0, 1.0);
+    vec2 texelSize = scale / u_resolution;
+
+    // 3x3 Neighborhood Sampling
+    vec3 m1 = vec3(0.0);
+    vec3 m2 = vec3(0.0);
+    
+    for(int y = -1; y <= 1; y++) {
+      for(int x = -1; x <= 1; x++) {
+        vec3 s = RGBToYCoCg(texture(u_currentFrame, v_texCoord + vec2(x, y) * texelSize).rgb);
+        m1 += s;
+        m2 += s * s;
+      }
+    }
+
+    vec3 mean = m1 / 9.0;
+    vec3 std = sqrt(max(m2 / 9.0 - mean * mean, 0.0));
+    
+    vec3 boxMin = mean - 1.5 * std;
+    vec3 boxMax = mean + 1.5 * std;
+
+    vec3 history = RGBToYCoCg(texture(u_historyFrame, v_texCoord).rgb);
+    
+    // Clamp history sample to the neighborhood AABB to minimize ghosting
+    history = clamp(history, boxMin, boxMax);
+
     float alpha = u_cameraMoving ? 0.0 : u_blendFactor;
     
-    // Neighborhood clamping (Anti-Ghosting logic would go here)
-    // Simple clamp: not implemented in Phase 1 of optimizations
-    
-    fragColor = mix(current, history, alpha);
+    vec3 resolved = YCoCgToRGB(mix(RGBToYCoCg(current), history, alpha));
+    fragColor = vec4(resolved, 1.0);
   }
 `;
