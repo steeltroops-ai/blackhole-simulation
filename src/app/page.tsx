@@ -8,6 +8,8 @@ import { WebGLCanvas } from "@/components/canvas/WebGLCanvas";
 import { WebGPUCanvas } from "@/components/canvas/WebGPUCanvas";
 import ErrorBoundary from "@/components/debug/ErrorBoundary";
 import { IdentityHUD } from "@/components/ui/IdentityHUD";
+import { CompatibilityHUD } from "@/components/ui/CompatibilityHUD";
+import { useHardwareSupport } from "@/hooks/useHardwareSupport";
 
 // Dynamic Imports for Performance Optimization (SEO)
 const ControlPanel = dynamic(
@@ -61,6 +63,7 @@ const App = () => {
   const { isMobile, getMobileFeatures } = useMobileOptimization();
   const { applyPreset } = usePresets();
   const { isSupported: isWebGPUSupported } = useWebGPUSupport();
+  const hardwareSupport = useHardwareSupport();
 
   const [params, setParams] = useState<SimulationParams>(() => {
     // Forced Config Authority: Ignore local storage to respect simulation.config.ts defaults
@@ -149,11 +152,17 @@ const App = () => {
 
   // Phase 6: WebGPU Support Hook
   const [useWebGPU, setUseWebGPU] = useState(false);
+  const [forceShowCompat, setForceShowCompat] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       const requested = urlParams.get("webgpu") === "true";
+
+      if (urlParams.get("debug_hud") === "true") {
+        setForceShowCompat(true);
+      }
+
       if (requested && isWebGPUSupported !== false) {
         setUseWebGPU(true);
       } else {
@@ -173,6 +182,12 @@ const App = () => {
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans text-white">
+      {(forceShowCompat ||
+        (hardwareSupport.isReady &&
+          (!hardwareSupport.webgl || hardwareSupport.isInApp))) && (
+        <CompatibilityHUD />
+      )}
+
       <ErrorBoundary>
         {useWebGPU ? (
           <WebGPUCanvas

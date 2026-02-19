@@ -131,6 +131,14 @@
   .icon-glow {
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
   }
+
+  .glass-panel {
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  }
 }
 
 /* Custom Scrollbar */
