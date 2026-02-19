@@ -15,13 +15,14 @@ export interface CameraUniforms {
   viewMatrix: Float32Array; // mat4x4<f32> (64 bytes)
   projectionMatrix: Float32Array; // mat4x4<f32> (64 bytes)
   inverseView: Float32Array; // mat4x4<f32> (64 bytes) - For ray generation
-  inverseProjection: Float32Array; // mat4x4<f32> (64 bytes) - For ray generation
+  inverseProjection: Float32Array; // mat4x4<f32> (64 bytes)
+  prevViewProj: Float32Array; // mat4x4<f32> (64 bytes) - For TAA Reprojection
   position: Float32Array; // vec3<f32> + padding (16 bytes)
   direction: Float32Array; // vec3<f32> + padding (16 bytes)
 }
 
-// Byte size: 64 * 4 + 16 + 16 = 288 bytes
-export const CAMERA_UNIFORM_SIZE = 288;
+// Byte size: 64 * 5 + 16 + 16 = 352 bytes
+export const CAMERA_UNIFORM_SIZE = 352;
 
 /**
  * Physics Parameters (32 bytes aligned)
@@ -33,11 +34,11 @@ export interface PhysicsParams {
   resolution: [number, number]; // vec2<f32> (8)
   time: number; // f32 (4)
   dt: number; // f32 (4)
-  // Padding to 32 bytes (16-byte alignment requirement for struct size)
-  _padding: [number, number]; // 8 bytes padding
+  frameIndex: number; // u32 (4)
+  _padding: number; // 4 bytes padding to reach 32
 }
 
-// Byte size: 4 + 4 + 8 + 4 + 4 + 8 = 32 bytes
+// Byte size: 4 + 4 + 8 + 4 + 4 + 4 + 4 = 32 bytes
 export const PHYSICS_PARAM_SIZE = 32;
 
 // --- Storage Buffer Objects (SSBO) - std430 ---
@@ -74,7 +75,12 @@ export function writePhysicsParams(
   buffer[offset + 3] = params.resolution[1];
   buffer[offset + 4] = params.time;
   buffer[offset + 5] = params.dt;
-  // Padding is skipped/zeroed
+  const intView = new Uint32Array(
+    buffer.buffer,
+    buffer.byteOffset,
+    buffer.length,
+  );
+  intView[offset + 6] = params.frameIndex;
 }
 
 /**
@@ -93,16 +99,18 @@ export function writeCameraUniforms(
   buffer.set(uniforms.inverseView, offset + 32);
   // inverseProjection (16 floats)
   buffer.set(uniforms.inverseProjection, offset + 48);
+  // prevViewProj (16 floats)
+  buffer.set(uniforms.prevViewProj, offset + 64);
 
   // position (3 floats) + 1 pad
-  buffer[offset + 64] = uniforms.position[0];
-  buffer[offset + 65] = uniforms.position[1];
-  buffer[offset + 66] = uniforms.position[2];
-  buffer[offset + 67] = 0.0; // pad
+  buffer[offset + 80] = uniforms.position[0];
+  buffer[offset + 81] = uniforms.position[1];
+  buffer[offset + 82] = uniforms.position[2];
+  buffer[offset + 83] = 0.0; // pad
 
   // direction (3 floats) + 1 pad
-  buffer[offset + 68] = uniforms.direction[0];
-  buffer[offset + 69] = uniforms.direction[1];
-  buffer[offset + 70] = uniforms.direction[2];
-  buffer[offset + 71] = 0.0; // pad
+  buffer[offset + 84] = uniforms.direction[0];
+  buffer[offset + 85] = uniforms.direction[1];
+  buffer[offset + 86] = uniforms.direction[2];
+  buffer[offset + 87] = 0.0; // pad
 }

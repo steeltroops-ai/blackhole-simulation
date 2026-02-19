@@ -8,12 +8,13 @@ struct CameraUniforms {
     proj_matrix: mat4x4<f32>,       // 64 bytes
     inv_view: mat4x4<f32>,          // 64 bytes
     inv_proj: mat4x4<f32>,          // 64 bytes
+    prev_view_proj: mat4x4<f32>,    // 64 bytes
     position: vec3<f32>,            // 12 bytes
     _pad1: f32,                     // 4 bytes -> 16 byte align
     direction: vec3<f32>,           // 12 bytes
     _pad2: f32,                     // 4 bytes -> 16 byte align
 };
-// Total: 288 bytes
+// Total: 352 bytes
 
 // --- Binding 1: Physics Parameters (std140) ---
 struct PhysicsParams {
@@ -22,7 +23,8 @@ struct PhysicsParams {
     resolution: vec2<f32>,          // 8 bytes
     time: f32,                      // 4 bytes
     dt: f32,                        // 4 bytes
-    _pad: vec2<f32>,                // 8 bytes -> 32 byte align
+    frame_index: u32,               // 4 bytes
+    _pad: u32,                      // 4 bytes -> 32 byte align
 };
 // Total: 32 bytes
 

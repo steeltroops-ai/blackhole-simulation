@@ -8,6 +8,7 @@ import {
 } from "@/types/webgpu";
 import wgslTypes from "@/shaders/types.wgsl";
 import wgslCompute from "@/shaders/compute.wgsl";
+import wgslATAA from "@/shaders/postprocess/ataa.wgsl";
 
 // Vertex Shader for Blit (Full-screen quad)
 const blitShader = `
@@ -59,11 +60,18 @@ export class WebGPURenderer {
   private renderPipeline: GPURenderPipeline | null = null;
   private renderBindGroup: GPUBindGroup | null = null;
 
+  // ATAA Resolve Pipeline
+  private ataaPipeline: GPUComputePipeline | null = null;
+  private ataaBindGroups: GPUBindGroup[] = []; // Ping-pong bind groups
+
   // Resources
   private cameraBuffer: GPUBuffer | null = null;
   private physicsBuffer: GPUBuffer | null = null;
   private rayBuffer: GPUBuffer | null = null;
   private computeTexture: GPUTexture | null = null;
+  private historyTextures: GPUTexture[] = [];
+  private currentHistoryIndex = 0;
+  private frameCount = 0;
   private sampler: GPUSampler | null = null;
 
   private width: number = 0;
@@ -145,16 +153,31 @@ export class WebGPURenderer {
   private initTextures(width: number, height: number) {
     if (!this.device) return;
 
-    // Destroy old texture if exists
-    if (this.computeTexture) {
-      this.computeTexture.destroy();
-    }
+    // Destroy old textures if they exist
+    [this.computeTexture, ...this.historyTextures].forEach((tex) => {
+      if (tex) tex.destroy();
+    });
 
     this.computeTexture = this.device.createTexture({
       size: [width, height, 1],
       format: "rgba16float",
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
     });
+
+    this.historyTextures = [
+      this.device.createTexture({
+        size: [width, height, 1],
+        format: "rgba16float",
+        usage:
+          GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+      }),
+      this.device.createTexture({
+        size: [width, height, 1],
+        format: "rgba16float",
+        usage:
+          GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+      }),
+    ];
   }
 
   private currentMaxSteps: number = 150;
@@ -184,6 +207,20 @@ export class WebGPURenderer {
         constants: {
           MAX_STEPS: maxSteps,
         },
+      },
+    });
+
+    // --- ATAA Resolve Pipeline ---
+    const ataaSource = wgslTypes + "\n" + wgslATAA;
+    const ataaModule = this.device.createShaderModule({
+      code: ataaSource,
+    });
+
+    this.ataaPipeline = this.device.createComputePipeline({
+      layout: "auto",
+      compute: {
+        module: ataaModule,
+        entryPoint: "main",
       },
     });
 
@@ -241,6 +278,11 @@ export class WebGPURenderer {
   }
 
   public render(camera: CameraUniforms, physics: PhysicsParams) {
+    const [width, height] = physics.resolution;
+    if (width !== this.width || height !== this.height) {
+      this.resize(width, height);
+    }
+
     if (
       !this.device ||
       !this.computePipeline ||
@@ -260,7 +302,8 @@ export class WebGPURenderer {
     this.device.queue.writeBuffer(this.cameraBuffer, 0, cameraData);
 
     const physData = new Float32Array(8);
-    writePhysicsParams(physData, physics);
+    const paramsWithFrame = { ...physics, frameIndex: this.frameCount };
+    writePhysicsParams(physData, paramsWithFrame);
     this.device.queue.writeBuffer(this.physicsBuffer, 0, physData);
 
     // 2. Create/Update Bind Groups (if needed)
@@ -276,28 +319,72 @@ export class WebGPURenderer {
       });
     }
 
-    if (!this.renderBindGroup) {
-      this.renderBindGroup = this.device.createBindGroup({
-        layout: this.renderPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.sampler },
-          { binding: 1, resource: this.computeTexture.createView() },
-        ],
-      });
+    const histIdx = this.currentHistoryIndex;
+    const nextHistIdx = 1 - histIdx;
+
+    if (this.ataaBindGroups.length === 0 && this.ataaPipeline) {
+      this.ataaBindGroups = [
+        this.device.createBindGroup({
+          layout: this.ataaPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: this.cameraBuffer } },
+            { binding: 1, resource: { buffer: this.physicsBuffer } },
+            { binding: 2, resource: this.computeTexture.createView() },
+            { binding: 3, resource: this.historyTextures[0].createView() },
+            { binding: 4, resource: this.historyTextures[1].createView() },
+            { binding: 5, resource: this.sampler },
+          ],
+        }),
+        this.device.createBindGroup({
+          layout: this.ataaPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: this.cameraBuffer } },
+            { binding: 1, resource: { buffer: this.physicsBuffer } },
+            { binding: 2, resource: this.computeTexture.createView() },
+            { binding: 3, resource: this.historyTextures[1].createView() },
+            { binding: 4, resource: this.historyTextures[0].createView() },
+            { binding: 5, resource: this.sampler },
+          ],
+        }),
+      ];
     }
 
-    // 3. Dispatch Compute
+    // Update Blit Bind Group to use the resolved history texture
+    this.renderBindGroup = this.device.createBindGroup({
+      layout: this.renderPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.sampler },
+        {
+          binding: 1,
+          resource: this.historyTextures[nextHistIdx].createView(),
+        },
+      ],
+    });
+
+    // 3. Dispatch Passes
     const commandEncoder = this.device.createCommandEncoder();
 
+    // Pass 1: Main Raymarching
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(this.computePipeline);
     passEncoder.setBindGroup(0, this.computeBindGroup);
-    // Dispatch (width/8, height/8)
     passEncoder.dispatchWorkgroups(
       Math.ceil(this.width / 8),
       Math.ceil(this.height / 8),
     );
     passEncoder.end();
+
+    // Pass 2: ATAA Resolve
+    if (this.ataaPipeline && this.ataaBindGroups.length > 0) {
+      const ataaPass = commandEncoder.beginComputePass();
+      ataaPass.setPipeline(this.ataaPipeline);
+      ataaPass.setBindGroup(0, this.ataaBindGroups[histIdx]);
+      ataaPass.dispatchWorkgroups(
+        Math.ceil(this.width / 8),
+        Math.ceil(this.height / 8),
+      );
+      ataaPass.end();
+    }
 
     // 4. Blit to Screen
     const renderPass = commandEncoder.beginRenderPass({
@@ -317,5 +404,9 @@ export class WebGPURenderer {
     renderPass.end();
 
     this.device.queue.submit([commandEncoder.finish()]);
+
+    // Swap history
+    this.currentHistoryIndex = nextHistIdx;
+    this.frameCount++;
   }
 }

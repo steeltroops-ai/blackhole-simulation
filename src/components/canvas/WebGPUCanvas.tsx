@@ -30,6 +30,7 @@ export const WebGPUCanvas = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<WebGPURenderer | null>(null);
   const requestRef = useRef<number>(0);
+  const prevViewProjRef = useRef<mat4 | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current || rendererRef.current) return;
@@ -159,15 +160,22 @@ export const WebGPUCanvas = ({
     vec3.subtract(dir, target, eye);
     vec3.normalize(dir, dir);
 
+    const viewProj = mat4.create();
+    mat4.multiply(viewProj, proj, view);
+
     // Construct Uniforms
     const cameraUniforms: CameraUniforms = {
       viewMatrix: view as Float32Array,
       projectionMatrix: proj as Float32Array,
       inverseView: invView as Float32Array,
       inverseProjection: invProj as Float32Array,
+      prevViewProj: (prevViewProjRef.current || viewProj) as Float32Array,
       position: new Float32Array([eye[0], eye[1], eye[2], 0]), // vec3 + pad
       direction: new Float32Array([dir[0], dir[1], dir[2], 0]), // vec3 + pad
     };
+
+    // Update history for next frame
+    prevViewProjRef.current = viewProj;
 
     // Physics Param filtering
     const physSpin = Math.max(-1.0, Math.min(1.0, params.spin / 5.0));
@@ -178,7 +186,8 @@ export const WebGPUCanvas = ({
       resolution: [width, height],
       time: timestamp / 1000.0,
       dt: 0.016,
-      _padding: [0, 0],
+      frameIndex: 0, // Updated inside renderer
+      _padding: 0,
     };
 
     renderer.render(cameraUniforms, physParams);
