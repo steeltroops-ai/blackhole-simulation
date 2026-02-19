@@ -5,10 +5,10 @@
 pub trait MatterField {
     /// Returns the local Stress-Energy density at coordinate (r, theta, phi)
     fn energy_density(&self, r: f64, theta: f64, phi: f64) -> f64;
-    
+
     /// Returns the 4-velocity u^mu of the matter fluid
     fn velocity_field(&self, r: f64, theta: f64, phi: f64) -> [f64; 4];
-    
+
     /// Returns the local Temperature (K)
     fn temperature(&self, r: f64, theta: f64, phi: f64) -> f64;
 }
@@ -22,8 +22,11 @@ pub struct AccretionDisk {
 
 impl MatterField for AccretionDisk {
     fn energy_density(&self, r: f64, _theta: f64, _phi: f64) -> f64 {
-        if r < self.inner_radius || r > self.outer_radius { 0.0 } 
-        else { 1.0 / (r.powf(1.5)) } // Power law decay
+        if r < self.inner_radius || r > self.outer_radius {
+            0.0
+        } else {
+            1.0 / (r.powf(1.5))
+        } // Power law decay
     }
 
     fn velocity_field(&self, r: f64, _theta: f64, _phi: f64) -> [f64; 4] {
@@ -47,7 +50,11 @@ impl MatterField for RelativisticJet {
     fn energy_density(&self, _r: f64, theta: f64, _phi: f64) -> f64 {
         // Concentrate matter at the poles
         let margin = 0.1;
-        if theta < margin || theta > std::f64::consts::PI - margin { 1.0 } else { 0.0 }
+        if theta < margin || theta > std::f64::consts::PI - margin {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     fn velocity_field(&self, _r: f64, _theta: f64, _phi: f64) -> [f64; 4] {

@@ -3,7 +3,6 @@
 ///
 /// Strategies for dividing the screen into tiles for progressive rendering.
 /// Optimizes GPU workload by prioritizing center or user-gaze.
-
 use std::collections::VecDeque;
 
 #[derive(Debug, Clone, Copy)]
@@ -48,7 +47,7 @@ impl TileManager {
                     y: y * self.tile_size,
                     width: self.tile_size,
                     height: self.tile_size,
-                    priority: 1.0, 
+                    priority: 1.0,
                 });
             }
         }

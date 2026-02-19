@@ -146,7 +146,7 @@ const techArticleSchema = {
   "@type": "TechArticle",
   headline: "Visualizing the Kerr Metric: A Real-Time Simulation",
   alternativeHeadline: "Interactive Black Hole Physics Engine",
-  image: "https://blackhole-simulation.vercel.app/opengraph-image.png",
+  image: "https://blackhole-simulation.vercel.app/opengraph-image.webp",
   author: {
     "@type": "Person",
     name: "Mayank Pratap Singh",

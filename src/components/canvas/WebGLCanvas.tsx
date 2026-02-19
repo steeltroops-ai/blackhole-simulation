@@ -6,6 +6,12 @@ import { AlertCircle } from "lucide-react";
 import type { SimulationParams, MouseState } from "@/types/simulation";
 import type { PerformanceMetrics } from "@/performance/monitor";
 
+interface CanvasError {
+  type: "context" | "shader" | "program" | "memory";
+  message: string;
+  details?: string;
+}
+
 interface WebGLCanvasProps {
   params: SimulationParams;
   mouse: MouseState;
@@ -35,7 +41,7 @@ export const WebGLCanvas = ({
   const rendererRef = useRef<WebGLRenderer | null>(null);
   const paramsRef = useRef(params);
   const mouseRef = useRef(mouse);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<CanvasError | null>(null);
   const requestRef = useRef<number>(0);
 
   const startLoop = () => {
@@ -45,14 +51,16 @@ export const WebGLCanvas = ({
         if (rendererRef.current) {
           rendererRef.current.render(paramsRef.current, mouseRef.current);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // CRITICAL: Without this try/catch, any throw inside render() silently
         // kills the entire rAF loop. The user sees a black screen with no error.
+        // eslint-disable-next-line no-console
         console.error("[WebGLCanvas] Render loop crash:", e);
+        const err = e as Error;
         setError({
           type: "shader" as const,
-          message: `Render loop crashed: ${e.message || e}`,
-          details: e.stack || String(e),
+          message: `Render loop crashed: ${err.message || String(e)}`,
+          details: err.stack || String(e),
         });
         // Stop the loop on crash to prevent infinite error spam
         return;
@@ -102,7 +110,7 @@ export const WebGLCanvas = ({
       // skips init on the second mount, leaving a dead renderer.
       rendererRef.current = null;
     };
-  }, []);
+  }, [onMetricsUpdate]);
 
   useEffect(() => {
     const handleResize = () => {

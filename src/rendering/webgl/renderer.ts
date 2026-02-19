@@ -33,7 +33,9 @@ export class WebGLRenderer {
   private uniformBatcher = new UniformBatcher();
 
   public error: WebGLError | null = null;
-  public onMetricsUpdate?: (metrics: any) => void;
+  public onMetricsUpdate?: (
+    metrics: import("@/performance/monitor").PerformanceMetrics,
+  ) => void;
 
   private noiseTex: WebGLTexture | null = null;
   private blueNoiseTex: WebGLTexture | null = null;

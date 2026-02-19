@@ -1,26 +1,26 @@
 #![allow(clippy::too_many_arguments)]
+mod camera;
 mod constants;
+mod derivatives; // Hamiltonian Derivatives
 mod disk;
 mod geodesic;
-mod kerr;
-mod spectrum;
-mod derivatives; // Hamiltonian Derivatives
-mod invariants; // Conserved quantities
 mod integrator; // Adaptive Integrator
-mod camera; // Camera EKF
+mod invariants; // Conserved quantities
+mod kerr;
+mod spectrum; // Camera EKF
 
 // NEW: Decoupled Physics Kernel Architecture (PHD-Grade)
-mod metric; // Spacetime Fabric (Geodesics)
+pub(crate) mod audit;
 mod matter; // Stress-Energy Fields (T_mu_nu)
-mod quantum; // Hawking & Planck Effects
-pub(crate) mod audit; // Numerical derivatives audit
+mod metric; // Spacetime Fabric (Geodesics)
+mod quantum; // Hawking & Planck Effects // Numerical derivatives audit
 
-mod tiling; // Tiled Rendering
 mod structs; // WebGPU Data Layouts
+mod tiling; // Tiled Rendering
 mod training; // NRS Training Core
 
-use wasm_bindgen::prelude::*;
 use js_sys::Float32Array;
+use wasm_bindgen::prelude::*;
 
 // Enable panic hook for better debugging
 #[wasm_bindgen]
@@ -30,12 +30,12 @@ pub fn init_hooks() {
 
 // Byte offsets for the SAB Layout (v2 Protocol)
 // Header
-pub const OFFSET_CONTROL: usize = 0;    // [0..63]
-pub const OFFSET_CAMERA: usize = 64;    // [64..127]
-pub const OFFSET_PHYSICS: usize = 128;  // [128..255]
-pub const OFFSET_TELEMETRY: usize = 256;// [256..511]
-// Large Data
-pub const OFFSET_LUTS: usize = 2048;    // [2048+]
+pub const OFFSET_CONTROL: usize = 0; // [0..63]
+pub const OFFSET_CAMERA: usize = 64; // [64..127]
+pub const OFFSET_PHYSICS: usize = 128; // [128..255]
+pub const OFFSET_TELEMETRY: usize = 256; // [256..511]
+                                         // Large Data
+pub const OFFSET_LUTS: usize = 2048; // [2048+]
 
 #[wasm_bindgen]
 pub struct PhysicsEngine {
@@ -43,7 +43,7 @@ pub struct PhysicsEngine {
     spin: f64,
     lut_width: usize,
     lut_buffer: Vec<f32>,
-    sab_buffer: Vec<f32>, // Internal buffer (fallback)
+    sab_buffer: Vec<f32>,               // Internal buffer (fallback)
     external_sab_ptr: Option<*mut f32>, // Pointer to Worker-shared memory
     camera: camera::CameraState,
     last_good_camera: camera::CameraState, // Phase 5.3: NaN Guard
@@ -90,7 +90,11 @@ impl PhysicsEngine {
         // Observer at rest at radius r on equator
         let g = kerr::metric_tensor_bl(r, std::f64::consts::FRAC_PI_2, self.mass, self.spin);
         let g_tt = g[0];
-        if g_tt >= 0.0 { 100.0 } else { 1.0 / (-g_tt).sqrt() }
+        if g_tt >= 0.0 {
+            100.0
+        } else {
+            1.0 / (-g_tt).sqrt()
+        }
     }
 
     pub fn generate_disk_lut(&mut self) -> Vec<f32> {
@@ -116,13 +120,18 @@ impl PhysicsEngine {
 
     // --- New Spectrum Functions ---
 
-    pub fn generate_spectrum_lut(&self, width: usize, height: usize, max_temp: f64) -> Float32Array {
+    pub fn generate_spectrum_lut(
+        &self,
+        width: usize,
+        height: usize,
+        max_temp: f64,
+    ) -> Float32Array {
         let data = spectrum::generate_blackbody_lut(width, height, max_temp);
         Float32Array::from(data.as_slice())
     }
 
     // --- SAB Protocol v2 (Preview) ---
-    // This function simulates the SAB read/write loop for now. 
+    // This function simulates the SAB read/write loop for now.
     // In Phase 3, this will read directly from the shared memory pointer.
     // --- SAB Protocol v2 Implementation ---
     // Reads Inputs from SAB -> Updates State -> Writes Outputs to SAB
@@ -141,7 +150,11 @@ impl PhysicsEngine {
             let mouse_dy = *sab_ptr.add(OFFSET_CONTROL + 2) as f64;
             let zoom_delta = *sab_ptr.add(OFFSET_CONTROL + 3) as f64;
             // Use JS frame delta if override is 0.0, otherwise use fixed step
-            let dt = if dt_override > 0.0 { dt_override } else { *sab_ptr.add(OFFSET_CONTROL + 4) as f64 };
+            let dt = if dt_override > 0.0 {
+                dt_override
+            } else {
+                *sab_ptr.add(OFFSET_CONTROL + 4) as f64
+            };
 
             // Reset input flags (consume the event)
             *sab_ptr.add(OFFSET_CONTROL + 1) = 0.0;
@@ -155,7 +168,7 @@ impl PhysicsEngine {
                 zoom_delta,
                 dt,
             };
-            
+
             // EKF Prediction Step (Phase 5.3: Includes Soft-Landing Guard)
             camera::update_camera(&input, &mut self.camera);
 
@@ -196,62 +209,90 @@ impl PhysicsEngine {
             *sab_ptr.add(OFFSET_TELEMETRY) += 1.0;
         }
     }
-    
+
     pub fn get_sab_layout(&self) -> Vec<usize> {
-        vec![OFFSET_CONTROL, OFFSET_CAMERA, OFFSET_PHYSICS, OFFSET_TELEMETRY, OFFSET_LUTS]
+        vec![
+            OFFSET_CONTROL,
+            OFFSET_CAMERA,
+            OFFSET_PHYSICS,
+            OFFSET_TELEMETRY,
+            OFFSET_LUTS,
+        ]
     }
 
     /// Ground Truth Geodesic Integration (Phase 5 End-to-End)
     /// Performs high-precision adaptive integration for a single ray.
     /// Returns [t, r, theta, phi, pt, pr, ptheta, pphi]
     pub fn integrate_ray_relativistic(
-        &self, 
+        &self,
         initial_state: Vec<f64>, // [t, r, theta, phi, pt, pr, ptheta, pphi]
         steps: usize,
         tolerance: f64,
-        use_kerr_schild: bool
+        use_kerr_schild: bool,
     ) -> Vec<f64> {
-        if initial_state.len() < 8 { return initial_state; }
-        
+        if initial_state.len() < 8 {
+            return initial_state;
+        }
+
         // 1. Initialize State
         let mut state = geodesic::RayStateRelativistic::new(
-            initial_state[0], initial_state[1], initial_state[2], initial_state[3],
-            initial_state[4], initial_state[5], initial_state[6], initial_state[7]
+            initial_state[0],
+            initial_state[1],
+            initial_state[2],
+            initial_state[3],
+            initial_state[4],
+            initial_state[5],
+            initial_state[6],
+            initial_state[7],
         );
-        
+
         // 2. Initialize Stepper
         let mut stepper = integrator::AdaptiveStepper::new(tolerance);
         let mut h = 0.01; // Initial Guess
-        
+
         let horizon = self.compute_horizon();
 
         // 3. Integration Loop
         if use_kerr_schild {
-            let metric = metric::KerrSchild { mass: self.mass, spin: self.spin };
+            let metric = metric::KerrSchild {
+                mass: self.mass,
+                spin: self.spin,
+            };
             for _ in 0..steps {
                 h = stepper.step(&mut state, &metric, h);
                 invariants::renormalize_momentum(&mut state, &metric);
-                
+
                 // Termination: Hit central singularity (r -> 0)
-                if state.x[1] < 0.1 { break; }
-                if state.x[1] > 1000.0 { break; }
+                if state.x[1] < 0.1 {
+                    break;
+                }
+                if state.x[1] > 1000.0 {
+                    break;
+                }
             }
         } else {
-            let metric = metric::KerrBL { mass: self.mass, spin: self.spin };
+            let metric = metric::KerrBL {
+                mass: self.mass,
+                spin: self.spin,
+            };
             for _ in 0..steps {
                 h = stepper.step(&mut state, &metric, h);
                 invariants::renormalize_momentum(&mut state, &metric);
-                
+
                 // Termination: Stop at Horizon
-                if state.x[1] < horizon * 1.001 { break; }
-                if state.x[1] > 1000.0 { break; }
+                if state.x[1] < horizon * 1.001 {
+                    break;
+                }
+                if state.x[1] > 1000.0 {
+                    break;
+                }
             }
         }
-        
+
         // 4. Return Final State
         vec![
-            state.x[0], state.x[1], state.x[2], state.x[3],
-            state.p[0], state.p[1], state.p[2], state.p[3]
+            state.x[0], state.x[1], state.x[2], state.x[3], state.p[0], state.p[1], state.p[2],
+            state.p[3],
         ]
     }
 }

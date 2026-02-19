@@ -1,7 +1,7 @@
-use wasm_bindgen::prelude::*;
 use crate::geodesic;
 use crate::integrator;
 use crate::invariants;
+use wasm_bindgen::prelude::*;
 
 // Neural Radiance Surrogate (NRS) Training Module
 //
@@ -47,33 +47,33 @@ impl NrsTrainer {
     // For this version, we compute the "Loss" against the Ground Truth integrator.
     pub fn step(&mut self, mass: f64, spin: f64) -> f64 {
         self.epoch += 1;
-        
+
         // 1. Generate Random Ray (Batch Size 1 for interactivity)
         // Impact parameter b in [3M, 20M]
-        let _b = 5.0 * mass + (spin * 0.5); 
-        
+        let _b = 5.0 * mass + (spin * 0.5);
+
         // 2. Ground Truth: Geodesic Integration
         // Use the high-precision integrator from geodesic.rs
         // This validates the "Teacher" model.
-        
+
         // 3. Inference: MLP Prediction
         // ... (Simplified forward pass simulation)
-        
+
         // 4. Update Weights (Stochastic Gradient Descent simulation)
         // Just decay the "loss" metric to simulate convergence for the UI
         let progress = 1.0 / (1.0 + (self.epoch as f64) * 0.01);
         self.loss = progress * 0.5 + 0.01; // Converges to 0.01
-        
+
         // Mutate weights slightly to show activity
         self.weights[self.epoch % 100] += 0.001 * progress as f32;
-        
+
         self.loss
     }
 
     pub fn get_weights_ptr(&self) -> *const f32 {
         self.weights.as_ptr()
     }
-    
+
     pub fn get_loss(&self) -> f64 {
         self.loss
     }

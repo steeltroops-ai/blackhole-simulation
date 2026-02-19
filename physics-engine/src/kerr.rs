@@ -92,10 +92,7 @@ pub fn metric_tensor_bl(r: f64, theta: f64, mass: f64, spin: f64) -> [f64; 16] {
 
     // Flattened 4x4 Matrix (Row-Major: t, r, theta, phi)
     [
-        g_tt,  0.0,   0.0,   g_tph,
-        0.0,   g_rr,  0.0,   0.0,
-        0.0,   0.0,   g_thth, 0.0,
-        g_tph, 0.0,   0.0,   g_phph,
+        g_tt, 0.0, 0.0, g_tph, 0.0, g_rr, 0.0, 0.0, 0.0, 0.0, g_thth, 0.0, g_tph, 0.0, 0.0, g_phph,
     ]
 }
 
@@ -116,13 +113,13 @@ pub fn metric_inverse_bl(r: f64, theta: f64, mass: f64, spin: f64) -> [f64; 16] 
     // Components
     // g^tt = -(Sigma(r^2+a^2) + 2Mra^2sin^2theta) / (Delta * Sigma)
     let g_tt = -((sigma * (r2 + a2) + 2.0 * mass * r * a2 * sin2) / (delta * sigma));
-    
+
     // g^rr = Delta / Sigma
     let g_rr = delta / sigma;
-    
+
     // g^thth = 1 / Sigma
     let g_thth = 1.0 / sigma;
-    
+
     // g^phph = (Delta - a^2sin^2theta) / (Delta * Sigma * sin^2theta)
     // Avoid division by zero at poles (sin_theta = 0)
     let g_phph = if sin2 < 1e-9 {
@@ -136,9 +133,6 @@ pub fn metric_inverse_bl(r: f64, theta: f64, mass: f64, spin: f64) -> [f64; 16] 
 
     // Flattened 4x4 Matrix (Row-Major: t, r, theta, phi)
     [
-        g_tt,  0.0,   0.0,   g_tph,
-        0.0,   g_rr,  0.0,   0.0,
-        0.0,   0.0,   g_thth, 0.0,
-        g_tph, 0.0,   0.0,   g_phph,
+        g_tt, 0.0, 0.0, g_tph, 0.0, g_rr, 0.0, 0.0, 0.0, 0.0, g_thth, 0.0, g_tph, 0.0, 0.0, g_phph,
     ]
 }

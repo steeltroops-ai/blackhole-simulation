@@ -1,14 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  AlertCircle,
-  ArrowRight,
-  ExternalLink,
-  ChevronRight,
-  Monitor,
-  Smartphone,
-} from "lucide-react";
+import { ExternalLink, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export const CompatibilityHUD = () => {
@@ -143,7 +136,7 @@ export const CompatibilityHUD = () => {
             <div className="h-[1px] w-8 bg-white/10" />
 
             <div className="flex items-center gap-2 text-[8px] font-mono text-white/20 uppercase tracking-[0.2em]">
-              Current Environment: {env?.browser} // {env?.os}
+              Current Environment: {env?.browser} | {env?.os}
               {env?.isInApp && (
                 <span className="text-red-500/50 ml-1"> [In-App]</span>
               )}

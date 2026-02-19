@@ -100,7 +100,6 @@ export class PhysicsBridge {
   private initializeFallbackViews() {
     if (!this.engine || !this.wasmMemory) return;
     const ptr = this.engine.get_sab_ptr();
-    const startIdx = ptr / 4;
     this.wasmControlView = new Float32Array(
       this.wasmMemory.buffer,
       ptr + OFFSETS.CONTROL * 4,

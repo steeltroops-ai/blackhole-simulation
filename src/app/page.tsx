@@ -220,7 +220,7 @@ const App = () => {
         <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
 
         <AnimatePresence>
-          {showUI && !isInfoExpanded && (
+          {showUI && !isInfoExpanded && !(isMobile && !isCompact) && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}

@@ -1,10 +1,10 @@
 /// Standardized Geometric Units (G = c = 1)
-/// In this system, Length and Time have the same units, 
+/// In this system, Length and Time have the same units,
 /// and Mass is measured in units of distance (L = GM/c^2).
 pub const C: f64 = 1.0;
 pub const G: f64 = 1.0;
 
-// All other physical constants are kept in SI for non-GR modules 
+// All other physical constants are kept in SI for non-GR modules
 // (e.g., spectral rendering for temperature-to-wavelength conversion).
 
 /// SI: Solar Mass in kg

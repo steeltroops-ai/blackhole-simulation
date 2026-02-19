@@ -1,6 +1,6 @@
-use crate::metric::Metric;
 use crate::derivatives::HamiltonianDerivatives;
 use crate::geodesic::RayStateRelativistic;
+use crate::metric::Metric;
 
 pub struct NumericalMetricAudit<'a, M: Metric> {
     pub inner: &'a M,
@@ -12,7 +12,12 @@ impl<'a, M: Metric> NumericalMetricAudit<'a, M> {
         Self { inner, eps: 1e-7 }
     }
 
-    pub fn calculate_numerical_derivatives(&self, r: f64, theta: f64, p: [f64; 4]) -> HamiltonianDerivatives {
+    pub fn calculate_numerical_derivatives(
+        &self,
+        r: f64,
+        theta: f64,
+        p: [f64; 4],
+    ) -> HamiltonianDerivatives {
         let h = |r_val: f64, theta_val: f64| {
             let g_inv = self.inner.g_contravariant(r_val, theta_val);
             let mut ham = 0.0;

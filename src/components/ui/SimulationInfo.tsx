@@ -32,7 +32,9 @@ export const SimulationInfo = ({
             }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed md:absolute bottom-6 left-6 z-50 pointer-events-auto overflow-hidden shadow-2xl liquid-glass border border-white/10"
+            className={`fixed md:absolute bottom-6 left-6 z-50 pointer-events-auto overflow-hidden shadow-2xl border border-white/10 transition-all duration-700 ${
+              isExpanded ? "frosted-glass-apple" : "liquid-glass"
+            }`}
           >
             <div className={`relative overflow-hidden group`}>
               {/* Glossy Overlay Highlight */}
