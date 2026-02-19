@@ -62,6 +62,8 @@ const ControlSlider = ({
   onChange,
   unit,
   decimals = 1,
+  disabled = false,
+  logarithmic = false,
 }: {
   label: string;
   value: number;
@@ -71,42 +73,66 @@ const ControlSlider = ({
   onChange: (v: number) => void;
   unit: string;
   decimals?: number;
-}) => (
-  <div className="mb-4 last:mb-0 group select-none">
-    <div className="flex justify-between items-center mb-1.5 px-0.5">
-      <span className="text-[9px] uppercase tracking-[0.2em] text-white/50 font-black group-hover:text-white transition-colors">
-        {label}
-      </span>
-      <span className="font-mono text-[10px] text-white font-bold tabular-nums">
-        {value.toFixed(decimals)}
-        <span className="text-white/40 ml-1 text-[8px] uppercase">{unit}</span>
-      </span>
-    </div>
-    <div className="relative h-4 w-full flex items-center">
-      <div className="absolute left-0 right-0 h-[2px] bg-white/[0.08] rounded-full overflow-hidden">
+  disabled?: boolean;
+  logarithmic?: boolean;
+}) => {
+  // Logarithmic transformation math
+  const safeMin = logarithmic ? Math.max(min, 1e-4) : min;
+  const safeVal = logarithmic ? Math.max(value, 1e-4) : value;
+
+  const minPos = logarithmic ? Math.log(safeMin) : min;
+  const maxPos = logarithmic ? Math.log(max) : max;
+  const valPos = logarithmic ? Math.log(safeVal) : value;
+
+  // Calculate percentage for visual track
+  const percent = ((valPos - minPos) / (maxPos - minPos)) * 100;
+  const clampedPercent = Math.max(0, Math.min(100, percent));
+
+  return (
+    <div
+      className={`mb-4 last:mb-0 group select-none transition-opacity duration-300 ${disabled ? "opacity-30 pointer-events-none grayscale" : "opacity-100"}`}
+    >
+      <div className="flex justify-between items-center mb-1.5 px-0.5">
+        <span className="text-[9px] uppercase tracking-[0.2em] text-white/70 font-black group-hover:text-white transition-colors">
+          {label}
+        </span>
+        <span className="font-mono text-[10px] text-white font-bold tabular-nums">
+          {value.toFixed(decimals)}
+          <span className="text-white/40 ml-1 text-[8px] uppercase">
+            {unit}
+          </span>
+        </span>
+      </div>
+      <div className="relative h-4 w-full flex items-center">
+        <div className="absolute left-0 right-0 h-[2px] bg-white/[0.08] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-white/20 to-white/90 rounded-full transition-all duration-300"
+            style={{ width: `${clampedPercent}%` }}
+          />
+        </div>
+        <input
+          type="range"
+          min={minPos}
+          max={maxPos}
+          step={logarithmic ? (maxPos - minPos) / 200 : step}
+          value={valPos}
+          disabled={disabled}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            onChange(logarithmic ? Math.exp(v) : v);
+          }}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed"
+        />
         <div
-          className="h-full bg-gradient-to-r from-white/20 to-white/90 rounded-full transition-all duration-300"
-          style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+          className="absolute w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.4)] pointer-events-none z-10 border border-white/50 group-hover:scale-125 transition-[transform,opacity,scale]"
+          style={{
+            left: `calc(${clampedPercent}% - 5px)`,
+          }}
         />
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-      />
-      <div
-        className="absolute w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.4)] pointer-events-none z-10 border border-white/50 group-hover:scale-125 transition-[transform,opacity,scale]"
-        style={{
-          left: `calc(${((value - min) / (max - min)) * 100}% - 5px)`,
-        }}
-      />
     </div>
-  </div>
-);
+  );
+};
 
 const QUALITY_LEVELS: { id: RayTracingQuality; label: string }[] = [
   { id: "off", label: "Off" },
@@ -218,6 +244,13 @@ export const ControlPanel = ({
           SIMULATION_CONFIG.diskSize.max,
           DEFAULT_PARAMS.diskSize,
         ),
+        diskScaleHeight: clampAndValidate(
+          newParams.diskScaleHeight ??
+            SIMULATION_CONFIG.diskScaleHeight.default,
+          SIMULATION_CONFIG.diskScaleHeight.min,
+          SIMULATION_CONFIG.diskScaleHeight.max,
+          DEFAULT_PARAMS.diskScaleHeight,
+        ),
         renderScale: clampAndValidate(
           newParams.renderScale ?? SIMULATION_CONFIG.renderScale.default,
           SIMULATION_CONFIG.renderScale.min,
@@ -233,10 +266,15 @@ export const ControlPanel = ({
 
   const toggleFeature = useCallback(
     (key: keyof FeatureToggles) => {
-      if (!params.features) return;
-      const currentVal = params.features[key];
+      // FIX: Handle case where params.features is undefined
+      const currentFeatures =
+        params.features || SIMULATION_CONFIG.features.default;
+      const currentVal = currentFeatures[key];
+
       if (typeof currentVal !== "boolean") return;
-      const newFeatures = { ...params.features, [key]: !currentVal };
+
+      const newFeatures = { ...currentFeatures, [key]: !currentVal };
+
       onParamsChange({
         ...params,
         features: newFeatures,
@@ -248,8 +286,12 @@ export const ControlPanel = ({
 
   const setQuality = useCallback(
     (q: RayTracingQuality) => {
-      if (!params.features) return;
-      const newFeatures = { ...params.features, rayTracingQuality: q };
+      // FIX: Handle case where params.features is undefined
+      const currentFeatures =
+        params.features || SIMULATION_CONFIG.features.default;
+
+      const newFeatures = { ...currentFeatures, rayTracingQuality: q };
+
       onParamsChange({
         ...params,
         features: newFeatures,
@@ -281,8 +323,8 @@ export const ControlPanel = ({
           flex items-center gap-2 p-1.5 px-2 rounded-lg border transition-all duration-300 relative group/btn overflow-hidden w-full
           ${
             isActive
-              ? "bg-white/10 text-white border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
-              : "bg-white/[0.02] text-white/40 border-white/5 hover:bg-white/[0.05] hover:border-white/10 hover:text-white"
+              ? "bg-white/15 text-white border-white/40 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+              : "bg-white/[0.08] text-white/70 border-white/10 hover:bg-white/[0.12] hover:border-white/20 hover:text-white"
           }
         `}
       >
@@ -292,7 +334,7 @@ export const ControlPanel = ({
           />
         )}
         <span
-          className={`text-[7.5px] uppercase font-black tracking-[0.1em] truncate transition-colors duration-300 ${isActive ? "text-white" : "text-white/30"}`}
+          className={`text-[7.5px] uppercase font-black tracking-[0.1em] truncate transition-colors duration-300 ${isActive ? "text-white" : "text-white/70"}`}
         >
           {label}
         </span>
@@ -328,13 +370,13 @@ export const ControlPanel = ({
         flex items-center justify-center p-1.5 px-2.5 rounded-lg border transition-all duration-300 relative group/btn overflow-hidden
         ${
           isActive
-            ? "bg-white/10 text-white border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.05)] scale-[1.01]"
-            : "bg-white/[0.02] text-white/40 border-white/5 hover:bg-white/[0.05] hover:border-white/10 hover:text-white"
+            ? "bg-white/15 text-white border-white/40 shadow-[0_0_15px_rgba(255,255,255,0.1)] scale-[1.01]"
+            : "bg-white/[0.08] text-white/70 border-white/10 hover:bg-white/[0.12] hover:border-white/20 hover:text-white"
         }
       `}
     >
       <span
-        className={`text-[7.5px] uppercase font-black tracking-[0.1em] truncate transition-colors duration-300 ${isActive ? "text-white" : "text-white/20"}`}
+        className={`text-[7.5px] uppercase font-black tracking-[0.1em] truncate transition-colors duration-300 ${isActive ? "text-white" : "text-white/70"}`}
       >
         {label}
       </span>
@@ -486,6 +528,24 @@ export const ControlPanel = ({
                                 unit={SIMULATION_CONFIG.spin.unit} // Updated from ui_spin
                                 decimals={SIMULATION_CONFIG.spin.decimals} // Updated from ui_spin
                               />
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.lensing.label}
+                                value={
+                                  params.lensing ??
+                                  SIMULATION_CONFIG.lensing.default
+                                }
+                                min={SIMULATION_CONFIG.lensing.min}
+                                max={SIMULATION_CONFIG.lensing.max}
+                                step={SIMULATION_CONFIG.lensing.step}
+                                disabled={
+                                  !params.features?.gravitationalLensing
+                                }
+                                onChange={(v) =>
+                                  handleParamChange({ ...params, lensing: v })
+                                }
+                                unit={SIMULATION_CONFIG.lensing.unit}
+                                decimals={SIMULATION_CONFIG.lensing.decimals}
+                              />
                             </div>
                           </div>
 
@@ -516,6 +576,7 @@ export const ControlPanel = ({
                                 min={SIMULATION_CONFIG.diskSize.min}
                                 max={SIMULATION_CONFIG.diskSize.max}
                                 step={SIMULATION_CONFIG.diskSize.step}
+                                disabled={!params.features?.accretionDisk}
                                 onChange={(v) =>
                                   handleParamChange({
                                     ...params,
@@ -524,6 +585,68 @@ export const ControlPanel = ({
                                 }
                                 unit={SIMULATION_CONFIG.diskSize.unit}
                                 decimals={SIMULATION_CONFIG.diskSize.decimals}
+                              />
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.diskScaleHeight.label}
+                                value={
+                                  params.diskScaleHeight ??
+                                  SIMULATION_CONFIG.diskScaleHeight.default
+                                }
+                                min={SIMULATION_CONFIG.diskScaleHeight.min}
+                                max={SIMULATION_CONFIG.diskScaleHeight.max}
+                                step={SIMULATION_CONFIG.diskScaleHeight.step}
+                                disabled={!params.features?.accretionDisk}
+                                onChange={(v) =>
+                                  handleParamChange({
+                                    ...params,
+                                    diskScaleHeight: v,
+                                  })
+                                }
+                                unit={SIMULATION_CONFIG.diskScaleHeight.unit}
+                                decimals={
+                                  SIMULATION_CONFIG.diskScaleHeight.decimals
+                                }
+                              />
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.diskTemp.label}
+                                value={
+                                  params.diskTemp ??
+                                  SIMULATION_CONFIG.diskTemp.default
+                                }
+                                min={SIMULATION_CONFIG.diskTemp.min}
+                                max={SIMULATION_CONFIG.diskTemp.max}
+                                step={SIMULATION_CONFIG.diskTemp.step}
+                                disabled={!params.features?.accretionDisk}
+                                logarithmic={true} // Fixed: Better UX for wide temp range
+                                onChange={(v) =>
+                                  handleParamChange({
+                                    ...params,
+                                    diskTemp: v,
+                                  })
+                                }
+                                unit={SIMULATION_CONFIG.diskTemp.unit}
+                                decimals={SIMULATION_CONFIG.diskTemp.decimals}
+                              />
+                              <ControlSlider
+                                label={SIMULATION_CONFIG.diskDensity.label}
+                                value={
+                                  params.diskDensity ??
+                                  SIMULATION_CONFIG.diskDensity.default
+                                }
+                                min={SIMULATION_CONFIG.diskDensity.min}
+                                max={SIMULATION_CONFIG.diskDensity.max}
+                                step={SIMULATION_CONFIG.diskDensity.step}
+                                disabled={!params.features?.accretionDisk}
+                                onChange={(v) =>
+                                  handleParamChange({
+                                    ...params,
+                                    diskDensity: v,
+                                  })
+                                }
+                                unit={SIMULATION_CONFIG.diskDensity.unit}
+                                decimals={
+                                  SIMULATION_CONFIG.diskDensity.decimals
+                                }
                               />
                             </div>
                           </div>
@@ -652,7 +775,7 @@ export const ControlPanel = ({
                                   icon: Sun,
                                 },
                                 {
-                                  label: "Ambient Stars",
+                                  label: "Background Stars",
                                   key: "backgroundStars" as const,
                                   icon: Star,
                                 },
@@ -660,6 +783,11 @@ export const ControlPanel = ({
                                   label: "Volumetric Bloom",
                                   key: "bloom" as const,
                                   icon: Sparkles,
+                                },
+                                {
+                                  label: "Relativistic Jets",
+                                  key: "relativisticJets" as const,
+                                  icon: Zap,
                                 },
                                 {
                                   label: "Gravitational Redshift",
@@ -689,61 +817,8 @@ export const ControlPanel = ({
                             </div>
                           </div>
 
-                          {/* Right Column Stack: Spectral Properties & Cinematic Utility */}
+                          {/* Right Column Stack: Cinematic Utility */}
                           <div className="space-y-4">
-                            <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                              <SectionHeader label="Spectral Properties" />
-                              <div className="space-y-4">
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.diskTemp.label}
-                                  value={params.diskTemp}
-                                  min={SIMULATION_CONFIG.diskTemp.min}
-                                  max={SIMULATION_CONFIG.diskTemp.max}
-                                  step={SIMULATION_CONFIG.diskTemp.step}
-                                  onChange={(v) =>
-                                    handleParamChange({
-                                      ...params,
-                                      diskTemp: v,
-                                    })
-                                  }
-                                  unit={SIMULATION_CONFIG.diskTemp.unit}
-                                  decimals={SIMULATION_CONFIG.diskTemp.decimals}
-                                />
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.lensing.label}
-                                  value={params.lensing}
-                                  min={SIMULATION_CONFIG.lensing.min}
-                                  max={SIMULATION_CONFIG.lensing.max}
-                                  step={SIMULATION_CONFIG.lensing.step}
-                                  onChange={(v) =>
-                                    handleParamChange({
-                                      ...params,
-                                      lensing: v,
-                                    })
-                                  }
-                                  unit={SIMULATION_CONFIG.lensing.unit}
-                                  decimals={SIMULATION_CONFIG.lensing.decimals}
-                                />
-                                <ControlSlider
-                                  label={SIMULATION_CONFIG.diskDensity.label}
-                                  value={params.diskDensity}
-                                  min={SIMULATION_CONFIG.diskDensity.min}
-                                  max={SIMULATION_CONFIG.diskDensity.max}
-                                  step={SIMULATION_CONFIG.diskDensity.step}
-                                  onChange={(v) =>
-                                    handleParamChange({
-                                      ...params,
-                                      diskDensity: v,
-                                    })
-                                  }
-                                  unit={SIMULATION_CONFIG.diskDensity.unit}
-                                  decimals={
-                                    SIMULATION_CONFIG.diskDensity.decimals
-                                  }
-                                />
-                              </div>
-                            </div>
-
                             {/* Cinematic Tools - Always Active for Instant Switching */}
                             <div className="p-3.5 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
                               <SectionHeader label="Cinematic Tools" />

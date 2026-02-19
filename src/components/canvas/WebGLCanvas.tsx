@@ -1,6 +1,7 @@
-import { useRef, useEffect } from "react";
-import { useWebGL } from "@/hooks/useWebGL";
-import { useAnimation } from "@/hooks/useAnimation";
+"use client";
+
+import { useRef, useEffect, useState } from "react";
+import { WebGLRenderer } from "@/rendering/webgl/renderer";
 import { AlertCircle } from "lucide-react";
 import type { SimulationParams, MouseState } from "@/types/simulation";
 import type { PerformanceMetrics } from "@/performance/monitor";
@@ -31,80 +32,100 @@ export const WebGLCanvas = ({
   onMetricsUpdate,
 }: WebGLCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const {
-    glRef,
-    programRef,
-    bloomManagerRef,
-    reprojectionManagerRef,
-    noiseTextureRef,
-    blueNoiseTextureRef,
-    diskLUTTextureRef,
-    spectrumLUTTextureRef,
-    error,
-    resolutionScale,
-    setResolutionScale,
-  } = useWebGL(canvasRef);
-  useAnimation(
-    {
-      glRef,
-      programRef,
-      bloomManagerRef,
-      reprojectionManagerRef,
-      noiseTextureRef,
-      blueNoiseTextureRef,
-      diskLUTTextureRef,
-      spectrumLUTTextureRef,
-    },
-    params,
-    mouse,
-    setResolutionScale,
-    onMetricsUpdate,
-  );
+  const rendererRef = useRef<WebGLRenderer | null>(null);
+  const paramsRef = useRef(params);
+  const mouseRef = useRef(mouse);
+  const [error, setError] = useState<any>(null);
+  const requestRef = useRef<number>(0);
+
+  const startLoop = () => {
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    const loop = () => {
+      try {
+        if (rendererRef.current) {
+          rendererRef.current.render(paramsRef.current, mouseRef.current);
+        }
+      } catch (e: any) {
+        // CRITICAL: Without this try/catch, any throw inside render() silently
+        // kills the entire rAF loop. The user sees a black screen with no error.
+        console.error("[WebGLCanvas] Render loop crash:", e);
+        setError({
+          type: "shader" as const,
+          message: `Render loop crashed: ${e.message || e}`,
+          details: e.stack || String(e),
+        });
+        // Stop the loop on crash to prevent infinite error spam
+        return;
+      }
+      requestRef.current = requestAnimationFrame(loop);
+    };
+    requestRef.current = requestAnimationFrame(loop);
+  };
 
   useEffect(() => {
-    let debounceTimer: number | null = null;
+    paramsRef.current = params;
+  }, [params]);
 
+  useEffect(() => {
+    mouseRef.current = mouse;
+  }, [mouse]);
+
+  useEffect(() => {
+    if (!canvasRef.current || rendererRef.current) return;
+
+    // Ensure canvas has initial size before renderer init
+    const canvas = canvasRef.current;
+    canvas.width =
+      window.innerWidth * Math.min(window.devicePixelRatio || 1, 2.0);
+    canvas.height =
+      window.innerHeight * Math.min(window.devicePixelRatio || 1, 2.0);
+
+    const renderer = new WebGLRenderer();
+    renderer.onMetricsUpdate = onMetricsUpdate;
+    const success = renderer.init(canvas);
+
+    if (success) {
+      rendererRef.current = renderer;
+      startLoop();
+    } else {
+      setError(
+        renderer.error || { type: "context", message: "WebGL Init Failed" },
+      );
+    }
+
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (rendererRef.current) rendererRef.current.cleanup();
+      // CRITICAL FIX: Must null the ref so React 18 Strict Mode's
+      // second mount can re-initialize. Without this, the guard at
+      // the top of this effect (`if (rendererRef.current) return`)
+      // skips init on the second mount, leaving a dead renderer.
+      rendererRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current;
       if (canvas) {
-        requestAnimationFrame(() => {
-          const dpr =
-            Math.min(window.devicePixelRatio || 1, 2.0) * resolutionScale;
-          const newWidth = window.innerWidth * dpr;
-          const newHeight = window.innerHeight * dpr;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.0);
+        const newWidth = window.innerWidth * dpr;
+        const newHeight = window.innerHeight * dpr;
 
-          // Only resize if dimensions actually changed to prevent flicker
-          if (canvas.width !== newWidth || canvas.height !== newHeight) {
-            canvas.width = newWidth;
-            canvas.height = newHeight;
-
-            // Resize managers to match new canvas resolution
-            if (bloomManagerRef.current) {
-              bloomManagerRef.current.resize(newWidth, newHeight);
-            }
-            if (reprojectionManagerRef.current) {
-              reprojectionManagerRef.current.resize(newWidth, newHeight);
-            }
-          }
-        });
+        if (canvas.width !== newWidth || canvas.height !== newHeight) {
+          canvas.width = newWidth;
+          canvas.height = newHeight;
+          if (rendererRef.current)
+            rendererRef.current.resize(newWidth, newHeight);
+        }
       }
     };
 
-    // Debounce resize using requestAnimationFrame to avoid forced reflows and align with paint cycle.
-    const debouncedResize = () => {
-      if (debounceTimer) cancelAnimationFrame(debounceTimer);
-      debounceTimer = requestAnimationFrame(handleResize);
-    };
-
-    window.addEventListener("resize", debouncedResize);
-    // Initial resize fires immediately (no debounce)
+    window.addEventListener("resize", handleResize);
     handleResize();
 
-    return () => {
-      window.removeEventListener("resize", debouncedResize);
-      if (debounceTimer) cancelAnimationFrame(debounceTimer);
-    };
-  }, [resolutionScale, bloomManagerRef, reprojectionManagerRef]);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;

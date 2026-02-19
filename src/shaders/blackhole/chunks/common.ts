@@ -17,6 +17,7 @@ export const COMMON_CHUNK = `
   uniform float u_zoom;
   uniform float u_lensing_strength;
   uniform float u_disk_size;
+  uniform float u_disk_scale_height;
   uniform int u_maxRaySteps;
   uniform sampler2D u_noiseTex;
   uniform sampler2D u_blueNoiseTex;

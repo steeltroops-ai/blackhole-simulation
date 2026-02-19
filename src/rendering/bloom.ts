@@ -593,7 +593,7 @@ export class BloomManager {
   /**
    * Helper to simple draw a texture to screen (no bloom)
    */
-  private drawTextureToScreen(
+  public drawTextureToScreen(
     texture: WebGLTexture,
     renderScale: number = 1.0,
   ): void {

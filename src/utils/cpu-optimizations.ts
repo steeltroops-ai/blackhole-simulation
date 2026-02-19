@@ -204,9 +204,12 @@ export class UniformBatcher {
       if (
         name === "u_quality" ||
         name === "u_maxRaySteps" ||
-        name === "u_noiseTex" ||
-        name === "u_blueNoiseTex" ||
-        name === "u_cameraMoving"
+        name === "u_cameraMoving" ||
+        // All sampler uniforms MUST use uniform1i, not uniform1f.
+        // Using a pattern match instead of a hardcoded whitelist so new
+        // sampler uniforms (e.g. u_diskLUT, u_spectrumLUT) don't get missed.
+        name.includes("Tex") ||
+        name.includes("LUT")
       ) {
         this.gl.uniform1i(loc, value);
       } else {

@@ -5,11 +5,24 @@ export const METRIC_CHUNK = `
         return M + sqrt(max(0.0, M*M - a*a));
     }
     
-    // ISCO Calculation (Approximate)
-    // Bardeen-Press-Teukolsky formula polynomial fit
+    // Exact ISCO Calculation (Bardeen, Press, Teukolsky 1972)
+    // Handles Prograde (a > 0) and Retrograde (a < 0) orbits correctly.
     float kerr_isco(float M, float a) {
-        float absA = abs(clamp(a/M, -1.0, 1.0));
-        return M * (6.0 - 4.627 * absA + 2.399 * absA * absA - 0.772 * absA * absA * absA);
+        float rs = a / M;
+        float absS = abs(clamp(rs, -0.9999, 0.9999));
+        
+        float z1 = 1.0 + pow(1.0 - absS * absS, 1.0/3.0) * (pow(1.0 + absS, 1.0/3.0) + pow(1.0 - absS, 1.0/3.0));
+        float z2 = sqrt(3.0 * absS * absS + z1 * z1);
+        
+        // SCIENTIFIC FIX:
+        // Prograde (Corotating) => Minus (-) sign (Smaller ISCO)
+        // Retrograde (Counter-rotating) => Plus (+) sign (Larger ISCO)
+        // We look at the sign of 'a' to determine orbit direction relative to BH.
+        float signOfA = sign(a);
+        if (signOfA == 0.0) signOfA = 1.0; // Default to prograde for non-spinning
+        
+        // Note: The formula uses -sign(a) because for a > 0 we want (-), for a < 0 we want (+)
+        return M * (3.0 + z2 - signOfA * sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2)));
     }
 
     // Ergosphere radius at given theta
