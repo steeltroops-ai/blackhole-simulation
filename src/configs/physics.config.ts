@@ -20,7 +20,7 @@ export const PHYSICS_CONSTANTS = {
   // Color & Temperature Physics (Blackbody Radiation)
   blackbody: {
     tempMin: 1000.0,
-    tempMax: 100000.0,
+    tempMax: 1000000.0,
     // Coefficients for converting temperature to RGB (Approximation of Planck's Law)
     redChannel: {
       threshold: 66.0,
@@ -46,18 +46,18 @@ export const PHYSICS_CONSTANTS = {
 
   // Accretion Disk Dynamics
   accretion: {
-    diskHeightMultiplier: 0.08, // Controls how 'thick' the disk appears relative to radius
-    turbulenceScale: 0.35, // Base scale of noise texture
-    turbulenceDetail: 2.2, // Harmonic detail multiplier
-    timeScale: 0.15, // Speed of noise animation
-    densityFalloff: 0.45, // Vertical density decay rate
+    diskHeightMultiplier: 0.45, // Set higher to allow user-facing slider full range
+    turbulenceScale: 0.75, // Increased frequency to match larger radius
+    turbulenceDetail: 2.5, // Upped for finer nuances
+    timeScale: 0.12, // Slightly slower for better stability
+    densityFalloff: 0.25, // Softened falloff to reduce 'vector lines' effect
     description:
       "Governs the geometric and fluid dynamic properties of the accretion disk.",
   },
 
   // Ray Marching Limits
   rayMarching: {
-    maxDistance: 200.0, // Maximum render distance
+    maxDistance: 10000.0, // Maximum render distance
     minStep: 0.01, // Minimum ray step size (precision)
     maxStep: 1.2, // Maximum ray step size (speed)
     horizonThreshold: 1.15, // Multiplier for Event Horizon hit detection

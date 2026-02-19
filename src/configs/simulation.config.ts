@@ -76,7 +76,7 @@ export const DEFAULT_PRESET_MODE: keyof typeof PERFORMANCE_PRESETS =
 export const SIMULATION_CONFIG = {
   // Singularity Dynamics
   mass: {
-    default: 1.5,
+    default: 1,
     min: 0.1, // 0.1 Solar Masses (Micro-BH)
     max: 10.0, // 10 Solar Masses (Stellar BH)
     step: 0.1,
@@ -132,21 +132,30 @@ export const SIMULATION_CONFIG = {
     label: "Cam Auto-Pan",
   },
   diskSize: {
-    default: 25.0,
-    min: 3.0, // Just outside ISCO
-    max: 50.0, // Extended disk
+    default: 50.0, // Replaces 25.0 Rs (renders at 50.0M)
+    min: 4.0, // Just outside Event Horizon
+    max: 100.0, // Extended observable disk
     step: 0.5,
     unit: "Rs",
     decimals: 1,
-    label: "Disk Radius",
+    label: "Accretion Max Radius",
+  },
+  diskScaleHeight: {
+    default: 0.2, // Standard thin disk approximation
+    min: 0.01,
+    max: 0.3, // Capped to stay within "Thin Disk" regime (< 0.2)
+    step: 0.01,
+    unit: "H/R",
+    decimals: 2,
+    label: "Disk Thickness",
   },
 
   // Thermodynamics
   diskTemp: {
-    default: 5000.0,
+    default: 9500.0,
     min: 1000.0, // Cool edge
-    max: 100000.0, // X-ray hot
-    step: 500,
+    max: 1000000.0, // High Energy X-Ray Limit (Scientific Accuracy)
+    step: 1000,
     unit: "K",
     decimals: 0,
     label: "Disk Temp",
