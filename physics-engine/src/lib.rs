@@ -1,4 +1,8 @@
 #![allow(clippy::too_many_arguments)]
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
+#![allow(unused_variables)]
 mod camera;
 mod constants;
 mod derivatives; // Hamiltonian Derivatives
