@@ -62,8 +62,7 @@ jobs:
 
       - name: Build WASM Physics Engine
         run: |
-          cd physics-engine
-          wasm-pack build --target web --release --out-dir ../public/wasm
+          bun run build:wasm
           echo "### WASM Engine Build Successful" >> $GITHUB_STEP_SUMMARY
 
       - name: Full QA Suite (Lint, Types, Tests)
