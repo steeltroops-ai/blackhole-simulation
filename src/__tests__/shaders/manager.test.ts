@@ -111,6 +111,7 @@ const featureTogglesArbitrary = fc.record({
   relativisticJets: fc.boolean(),
   gravitationalRedshift: fc.boolean(),
   kerrShadow: fc.boolean(),
+  spacetimeVisualization: fc.boolean(),
 });
 
 describe("ShaderManager", () => {
@@ -321,6 +322,7 @@ describe("ShaderManager", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const vertexSource =

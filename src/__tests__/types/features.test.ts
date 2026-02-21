@@ -279,6 +279,7 @@ describe("Feature Toggles - Property-Based Tests", () => {
             relativisticJets: fc.boolean(),
             gravitationalRedshift: fc.boolean(),
             kerrShadow: fc.boolean(),
+            spacetimeVisualization: fc.boolean(),
           }),
           (features) => {
             expect(validateFeatureToggles(features)).toBe(true);
@@ -362,6 +363,7 @@ describe("Feature Toggles - Property-Based Tests", () => {
             relativisticJets: fc.boolean(),
             gravitationalRedshift: fc.boolean(),
             kerrShadow: fc.boolean(),
+            spacetimeVisualization: fc.boolean(),
           }),
           (features) => {
             const matched = matchesPreset(features);

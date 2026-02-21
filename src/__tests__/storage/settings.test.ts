@@ -60,6 +60,7 @@ const featureTogglesArbitrary: fc.Arbitrary<FeatureToggles> = fc.record({
   relativisticJets: fc.boolean(),
   gravitationalRedshift: fc.boolean(),
   kerrShadow: fc.boolean(),
+  spacetimeVisualization: fc.boolean(),
 });
 
 /**

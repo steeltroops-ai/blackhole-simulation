@@ -44,17 +44,17 @@ graph TD
 
     end
 
-    subgraph GPULogic ["GPU Compute & Render (WebGPU Alpha)"]
-        subgraph Wavefront ["Wavefront Scheduler (Roadmap)"]
-            Extension["Ray Extension Kernel"]:::wip
-            Shading["Material/Disk Shader"]:::wip
-            Comp["Compositor"]:::wip
+    subgraph GPULogic ["GPU Compute & Render"]
+        subgraph WebGPU ["WebGPU Pipeline (Primary Engine)"]
+            RayMarch["Ray-Marching Kernel<br/>(Volumetric Kerr)"]:::compute
+            PostProcess["Post-Processing<br/>(Bloom / Tone Map / TAA)"]:::compute
+        end
+        subgraph ThreeJS ["Data Visualization (React Three Fiber)"]
+            SpacetimeGrid["Spacetime Analytics<br/>(3D Volumetric / Flow)"]:::compute
         end
         NRS["Neural Radiance Surrogate<br/>(MLP Inference)"]:::wip
         GRMHD["Fluid Dynamics<br/>(Curl-Noise Advection)"]:::wip
-        PostProcess["Post-Processing<br/>(Bloom / Tone Map)"]:::compute
     end
-
 
     Display(("Viewport Output<br/>(Canvas Element)")):::output
 
@@ -101,8 +101,11 @@ src/
 │   └── ...
 │
 ├── components/                           # UI & Rendering Components
-│   ├── canvas/
-│   │   └── WebGLCanvas.tsx               # Manages WebGL/WebGPU context
+│   ├── spacetime/                        # 3D Math Spacetime Canvas (React Three Fiber)
+│   │   ├── VolumetricGrid.tsx            # True 3D Isotropic Curvature Grid
+│   │   ├── LightCones.tsx                # River Model Light Cone Visualization
+│   │   └── FrameDragField.tsx            # Full-latitude Frame Dragging Vectors
+│   ├── webgpu/                           # Main Black Hole Viewport Canvas
 │   └── ui/                               # HUD, Control Panel, Telemetry
 │
 ├── configs/                              # Static Configuration
@@ -172,15 +175,14 @@ The system employs a multi-tiered architecture to balance precision, performance
 
   - **`camera`**: Uses an **Extended Kalman Filter (EKF)** to predict camera movement and eliminate latency.
 
-### 3.3. Level 3: Compute & Render (WebGPU)
+### 3.3. Level 3: Compute & Render (WebGPU + React Three Fiber)
 
-**Responsibility**: Massively parallel ray tracing and pixel processing.
+**Responsibility**: Massively parallel ray tracing and 3D data geometry visualization.
 
-- **Role**: The Muscle. Executes billions of ray steps per second.
+- **Role**: The Muscle & The Presenter. Executes billions of ray steps and renders millions of metric vertices.
 - **Key Tech**:
-  - **Compute Shaders**: **[NOT IMPLEMENTED]** - (WebGL 2.0 Fragment Shaders currently used for primary tracing).
-  - **Tiled Rendering**: **[NOT IMPLEMENTED]** - (Global quad dispatch currently used).
-  - **Variable Rate Shading (VRS)**: **[NOT IMPLEMENTED]**.
+  - **WebGPU Compute**: Handles the highly complex relativistic ray-marching for the actual photon paths and accretion disk rendering.
+  - **React Three Fiber (WebGL 2.0)**: Powers the **True 3D Spacetime Analytics**. It takes the raw tensor outputs from the WASM SAB (Kretschmann scalars, flow vectors) and efficiently rasterizes them as massive 3D volumetric grids, light cones, and vector fields using standard graphics hardware, entirely separated from the heavy ray-tracer workload.
 
 ### 3.4. Level 4: Cognitive Supervisor (Heuristics)
 
@@ -188,8 +190,8 @@ The system employs a multi-tiered architecture to balance precision, performance
 
 - **Role**: The Tactician. Optimizes _where_ and _when_ to render.
 - **Modules**:
-  - **Entropy Scheduler**: **[NOT IMPLEMENTED]**. Analyzes frame variance to direct compute shaders to "interesting" regions.
-  - **Saccade Predictor**: **[NOT IMPLEMENTED]**. Detects rapid eye/camera movements and temporarily reduces resolution.
+  - **Entropy Scheduler**: **[ROADMAP]**. Analyzes frame variance to direct compute shaders to "interesting" regions.
+  - **Saccade Predictor**: **[ROADMAP]**. Detects rapid eye/camera movements and temporarily reduces resolution.
 
 ---
 

@@ -43,6 +43,10 @@ const CinematicOverlay = dynamic(
     ),
   { ssr: false },
 );
+const SpacetimeCanvas = dynamic(
+  () => import("@/components/spacetime").then((mod) => mod.SpacetimeCanvas),
+  { ssr: false },
+);
 
 import { useCamera } from "@/hooks/useCamera";
 import { useBenchmark } from "@/hooks/useBenchmark";
@@ -200,7 +204,13 @@ const App = () => {
       )}
 
       <ErrorBoundary>
-        {useWebGPU ? (
+        {params.features?.spacetimeVisualization ? (
+          <SpacetimeCanvas
+            mass={params.mass}
+            spin={params.spin}
+            className="absolute inset-0 z-0"
+          />
+        ) : useWebGPU ? (
           <WebGPUCanvas
             params={params}
             mouse={mouse}

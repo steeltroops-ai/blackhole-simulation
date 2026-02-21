@@ -128,6 +128,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -159,6 +160,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -190,6 +192,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -221,6 +224,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -252,6 +256,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -283,6 +288,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const featuresDisabled: FeatureToggles = {
@@ -332,6 +338,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: true,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       // Disable features one by one
@@ -382,6 +389,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: true,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const allDisabled: FeatureToggles = {
@@ -395,6 +403,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const frameTimeAll = calculateFrameTime(allEnabled);
@@ -422,6 +431,7 @@ describe("Feature Performance Impact - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       const frameTime = calculateFrameTime(customConfig);

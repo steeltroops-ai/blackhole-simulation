@@ -38,7 +38,7 @@ _"CPU for Logic, GPU for Pixels, Rust for Math."_
   - **Pre-Computation**: Generates 4096-entry lookup tables (LUTs) for Spectrum and Lensing, uploading them as textures. This moves complex integrals ($O(N)$) out of the pixel shader.
   - **Predictive EKF**: Runs an **Extended Kalman Filter** to predict camera motion, decoupling simulation tick rate from render frame rate.
 
-### 2.2 Wavefront Path Tracing <span style="color:red">**[NOT IMPLEMENTED]**</span>
+### 2.2 Wavefront Compute Pipelines
 
 **"No Thread Left Behind."**
 
@@ -50,7 +50,7 @@ Instead of a single "Megakernel", we split rendering into queues:
 
 **Benefit**: Maximizes GPU Warp Occupancy by grouping similar tasks together, eliminating thread divergence.
 
-### 2.3 Neural Radiance Surrogates (NRS) <span style="color:red">**[NOT IMPLEMENTED]**</span>
+### 2.3 Neural Radiance Surrogates (NRS) <span style="color:orange">**[ROADMAP]**</span>
 
 **"Guessing is faster than Solving."**
 
@@ -58,7 +58,7 @@ Instead of a single "Megakernel", we split rendering into queues:
 - The network learns the light field $L(o, d)$ from the physics engine in real-time.
 - **Benefit**: Replaces O(N) stepping with O(1) matrix multiplication for 80% of rays.
 
-### 2.4 Entropy-Guided Rendering (EGR) <span style="color:red">**[NOT IMPLEMENTED]**</span>
+### 2.4 Entropy-Guided Rendering (EGR) <span style="color:orange">**[ROADMAP]**</span>
 
 **"Render where it matters."**
 
@@ -67,7 +67,7 @@ Instead of a single "Megakernel", we split rendering into queues:
 - **Background Culling**: Low-variance regions (starfield) are rendered at 0.5x resolution and upscaled.
 - **Benefit**: Reallocates 50% of GPU compute from "boring" space to "interesting" singularities.
 
-### 2.5 Subgroup (Warp-Level) Optimizations <span style="color:red">**[NOT IMPLEMENTED]**</span>
+### 2.5 Subgroup (Warp-Level) Optimizations <span style="color:orange">**[ROADMAP]**</span>
 
 **"Register-Level Communication."**
 
@@ -85,6 +85,16 @@ Standard TAA fails due to frame dragging. We implement **Metric-Corrected Motion
 
 - **Logic**: We rotate history samples by $-\Omega \cdot \Delta t$ to account for spacetime curvature.
 - **Result**: Allows for effective temporal upscaling even on the turbulent accretion disk, reducing ray cost by 80%.
+
+### 2.7 Data Visualization Rendering (React Three Fiber)
+
+**"Math directly to Geometry."**
+
+Our deep-space Spacetime Analytics (e.g., Volumetric Grids, Frame Drag Field, Light Cones) utilize standard 3D rasterization rather than the ray-tracing pipeline.
+
+- **Zero-Serialization Geometry**: The `gravitas-wasm` module exposes contiguous pointers to geometric data arrays (Vertices, Colours) housed inside linear WASM memory.
+- **Three.js BufferGeometry Integration**: The `Float32Array` views from these rust arrays are bound directly into Three.js `BufferAttribute` arrays without doing any `.map()` operations in typescript.
+- **Benefit**: Rust computes millions of complex Kerr tensors and immediately "draws" thousands of lines/arrows in 3D space at 60 FPS utilizing the device's native WebGL rasterizer, leaving WebGPU completely open for ray-marching.
 
 ---
 

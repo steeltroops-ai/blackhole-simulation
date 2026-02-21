@@ -20,6 +20,7 @@ This project implements a high-performance General Relativity simulation in the 
 ### Core Engineering Features
 
 - **Relativistic Ray-Marching**: Solves curved spacetime paths using analytic Kerr metric distance fields.
+- **True 3D Spacetime Analytics**: Replaces standard rubber-sheet metaphors with mathematically rigorous 3D volumetric metric grids mapping coordinate-invariant curvature (Kretschmann scalar) and full-latitude frame dragging.
 - **Temporal Anti-Aliasing (TAA)**: Custom reprojection pass with **Variance Clipping** and motion-adaptive blending.
 - **Physically-Based Bloom**: 9-tap Gaussian blur pyramid for realistic accretion disk glow.
 - **Numerical Stability**: Real-time **NaN/Inf shielding** and Riccati-clamping to prevent rendering artifacts.
@@ -30,15 +31,15 @@ This project implements a high-performance General Relativity simulation in the 
 
 ## Tech Stack
 
-| Domain         | Technology                                    |
-| :------------- | :-------------------------------------------- |
-| **Framework**  | Next.js 14 (App Router)                       |
-| **Physics**    | Rust (Physics Engine), WASM Binding           |
-| **Language**   | TypeScript, Rust, GLSL ES 3.0 / WGSL          |
-| **Rendering**  | WebGPU (Primary), WebGL 2.0 (Fallback)        |
-| **Integrator** | Adaptive RKF45 (Rust) / Velocity Verlet (GPU) |
-| **Styling**    | Vanilla CSS (Premium Design System)           |
-| **Tooling**    | Bun, Lefthook, GitHub Actions                 |
+| Domain         | Technology                                     |
+| :------------- | :--------------------------------------------- |
+| **Framework**  | Next.js 14 (App Router), React 18              |
+| **Physics**    | Rust (Physics Engine), WASM Binding            |
+| **Language**   | TypeScript, Rust, GLSL ES 3.0 / WGSL           |
+| **Rendering**  | WebGPU (Primary), React Three Fiber (Data Viz) |
+| **Integrator** | Adaptive RKF45 (Rust) / Velocity Verlet (GPU)  |
+| **Styling**    | Vanilla CSS, Framer Motion                     |
+| **Tooling**    | Bun, Lefthook, GitHub Actions                  |
 
 ---
 
@@ -61,9 +62,9 @@ A high-level map of the project's hybrid architecture:
 ├── public/wasm/            # Compiled WebAssembly Physics Kernel
 └── src/
     ├── app/                # Next.js 14 App Router & Base Styles
-    ├── components/         # Premium UI Components (Framer Motion)
+    ├── components/         # 3D Math Spacetime Canvas, Premium UI
     ├── hooks/              # Reactive Logic (WebGPU/WebGL State)
-    ├── rendering/          # Hybrid Render Pipeline (TAA, Bloom, G-Buffer)
+    ├── rendering/          # Hybrid Render Pipeline (TAA, Bloom)
     └── shaders/            # GPU Kernels (GLSL/WGSL Ray-Marching)
 ```
 
@@ -125,10 +126,6 @@ Detailed engineering specifications are available in the **`docs/`** directory:
 
 ## License
 
-This project is licensed under the [**Personal & Community License**](./LICENSE).
+This project is licensed under the [**MIT License**](./LICENSE).
 
-- **Personal & Educational**: Free to use, study, and modify for personal use.
-- **Contributions**: Contributions are welcome and encouraged via pull requests.
-- **Commercial Usage**: Strictly prohibited. You may not sell this project or use it for commercial profit without express written permission from the owner (**Mayank**).
-
-Copyright (c) 2026. All rights reserved.
+Copyright (c) 2026 Mayank. All rights reserved.

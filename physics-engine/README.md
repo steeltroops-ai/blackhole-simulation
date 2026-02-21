@@ -1,25 +1,33 @@
-# Black Hole Physics Engine
+# Black Hole Physics Engine (`gravitas` Workspace)
 
-I've developed this high-fidelity General Relativity kernel in Rust to serve as the mathematical foundation for the simulation. It handles Kerr metric geodesics, accretion thermodynamics, and relativistic telemetry via a performant WASM bridge.
+I've developed this high-fidelity General Relativity kernel in Rust to serve as the mathematical foundation for the simulation. It handles Kerr metric geodesics, accretion thermodynamics, relativistic telemetry, and mathematically rigorous spacetime geometry via a performant WASM bridge.
 
 ---
 
 ## 1. Architecture: Decoupled Physics Kernel
 
-I designed the engine with a modular structure to ensure mathematical rigor and high-frequency synchronization (120Hz) with the GPU frontend.
+I designed the engine with a modular workspace structure to ensure mathematical rigor, zero-copy high-frequency synchronization with the GPU frontend, and pure-Rust reusability.
 
-### 1.1 Core Modules
+The workspace is divided into two primary crates:
 
-- **`metric.rs`**: Boyer-Lindquist Kerr metric implementations for horizion, ISCO, and ergonomic radii.
-- **`integrator.rs`**: **Adaptive RKF45** kernel with **Cash-Karp** error estimation for ground-truth ray integration.
-- **`geodesic.rs`**: Solver for null geodesics with secondary **Yoshida/Verlet** support for high-speed approximations.
-- **`invariants.rs`**: **Conserved Quantities Guard**. Implements Hamiltonian tracking ($H=0$) and momentum renormalization.
-- **`camera.rs`**: **Kinematic Filter**. A simplified **Extended Kalman Filter (EKF)** for smooth camera motion and **Auto-Spin** synchronization.
-- **`training.rs`**: **Neural Bridge**. Orchestrates the data collection and training loop for **NRS (Neural Radiance Surrogates)**.
+1. **`gravitas-core`**: The pure-Rust numerics, tensor algebra, and physics library. Zero dependencies on WASM/browser APIs.
+2. **`gravitas-wasm`**: The WebAssembly bridge that connects the core physics to the React/WebGPU frontend via `SharedArrayBuffer` for zero-copy data transfer.
 
 ---
 
-## 2. Technical Specifications
+## 2. Core Modules (`gravitas-core`)
+
+- **`metric`**: Boyer-Lindquist Kerr metric implementations for horizons, ISCO, and full covariant/contravariant tensor representations.
+- **`tensor`**: 4x4 metric tensor algebra and finite-difference Christoffel symbols.
+- **`geodesic`**: Solver for null geodesics via **Adaptive RKF45**, **RK4**, and **Symplectic** integrators for ground-truth ray integration.
+- **`invariants`**: **Conserved Quantities Guard**. Implements Hamiltonian tracking ($H=0$), momentum renormalization, and constants of motion (E, Lz, Q).
+- **`physics`**: Thermodynamics of the Novikov-Thorne accretion disk, alongside Doppler/gravitational redshift and spectrum routing.
+- **`spacetime`**: **True 3D Spacetime Analytics**. Departs from "rubber sheet" analogies, implementing true volumetric metric grids, Painlevé-Gullstrand (River Model) light cones, coordinate-invariant Kretschmann scalar curvature, and full-latitude frame dragging.
+- **`quantum`**: Hawking radiation / temperature approximations.
+
+---
+
+## 3. Technical Specifications
 
 | Feature        | Implementation    | Accuracy/Notes                          |
 | :------------- | :---------------- | :-------------------------------------- |
@@ -27,33 +35,7 @@ I designed the engine with a modular structure to ensure mathematical rigor and 
 | **Integrator** | Adaptive RKF45    | Precision-gated dynamic stepping        |
 | **Protocol**   | **SAB v2**        | Zero-copy `SharedArrayBuffer` sync      |
 | **Guard**      | Phase 5.3 Filter  | NaN/Inf detection for horizon stability |
-
----
-
-## 3. Project Structure
-
-```text
-physics-engine/
-├── src/
-│   ├── camera.rs       # Camera EKF & Smoothing
-│   ├── constants.rs    # Physical Constants (MKS)
-│   ├── derivatives.rs  # Hamiltonian Motion Eqs
-│   ├── disk.rs         # Disk Thermodynamics
-│   ├── geodesic.rs     # Relativistic Path Solver
-│   ├── integrator.rs   # Adaptive RKF45 Stepper
-│   ├── invariants.rs   # Conserved Quantities Guard
-│   ├── kerr.rs         # Horizon & ISCO Logic
-│   ├── lib.rs          # WASM/SAB Bridge Logic
-│   ├── matter.rs       # Stress-Energy Tensor logic
-│   ├── metric.rs       # Spacetime Tensor Abstractions
-│   ├── quantum.rs      # Hawking/Planck Effects (WIP)
-│   ├── spectrum.rs     # Blackbody & Beaming Logic
-│   ├── structs.rs      # WebGPU Memory Layouts
-│   ├── tiling.rs       # Tiled Processing
-│   └── training.rs     # NRS Training Management
-├── Cargo.toml          # Rust Dependencies (glam, wasm-bindgen)
-└── README.md           # This Documentation
-```
+| **Spacetime**  | Isotropic / Doran | Exact 3D Kerr mapping and spatial flow  |
 
 ---
 
@@ -61,21 +43,31 @@ physics-engine/
 
 ### 4.1 Build Command
 
+Building requires compiling the WASM bridge:
+
 ```bash
-# Compile to WebAssembly
-wasm-pack build --target web --out-dir ../public/wasm --no-typescript
+# Uses bun to orchestrate the build process (defined in package.json)
+bun run build:wasm
 ```
+
+_(This essentially executes `wasm-pack build --target web` inside `gravitas-wasm` and outputs to `public/wasm`.)_
 
 ### 4.2 Windows Fixes
 
-If `os error 32` (file lock) occurs:
+If `os error 32` (file lock) occurs during compilation:
 
 1. **Terminate Processes**: End `cargo.exe` or `rust-analyzer.exe`.
-2. **Clean Target**: Manually delete the `/target` directory.
+2. **Clean Target**: Manually delete the `/target` directory or run `cargo clean`.
 3. **Rebuild**: Run the build command again.
 
 ---
 
-## 5. Numerical Methodology: Hamiltonian Regularization
+## 5. Numerical Methodology
 
-I implemented **Hamiltonian Regularization** in `invariants.rs` to renormalize the momentum vector at every step. This ensures that light rays stay strictly on null geodesics even when integrating deep within the gravitational well where numerical floating-point errors typically accumulate.
+### 5.1 Hamiltonian Regularization
+
+I implemented **Hamiltonian Regularization** in the `invariants` module to renormalize the momentum vector at every step. This ensures that light rays stay strictly on null geodesics even when integrating deep within the gravitational well where numerical floating-point errors typically accumulate.
+
+### 5.2 Volumetric Spacetime Field Generation
+
+Unlike visual approximations, the `spacetime` module calculates the actual coordinate-invariant tidal forces (Kretschmann scalar) and exact frame-dragging angular velocities ($\omega = -g_{t\phi}/g_{\phi\phi}$) across all latitudes. These raw numerical fields are passed efficiently through WASM into React Three Fiber to render mathematically accurate coordinate grids and Flow-Model logic (representing the literal "waterfall" of space into the horizon).

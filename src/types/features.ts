@@ -23,6 +23,7 @@ export interface FeatureToggles {
   relativisticJets: boolean;
   gravitationalRedshift: boolean;
   kerrShadow: boolean;
+  spacetimeVisualization: boolean;
 }
 
 export type PresetName =
@@ -76,6 +77,7 @@ export function validateFeatureToggles(
     "relativisticJets",
     "gravitationalRedshift",
     "kerrShadow",
+    "spacetimeVisualization",
   ];
 
   for (const key of requiredBooleans) {
@@ -130,7 +132,8 @@ export function matchesPreset(features: FeatureToggles): PresetName {
       features.bloom === p.bloom &&
       features.relativisticJets === p.relativisticJets &&
       features.gravitationalRedshift === p.gravitationalRedshift &&
-      features.kerrShadow === p.kerrShadow
+      features.kerrShadow === p.kerrShadow &&
+      features.spacetimeVisualization === p.spacetimeVisualization
     ) {
       return presetName;
     }

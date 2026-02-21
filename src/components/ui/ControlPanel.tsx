@@ -18,6 +18,7 @@ import {
   Sun,
   Disc,
   Sparkles,
+  Layers,
 } from "lucide-react";
 import { UserProfile } from "./UserProfile";
 import { type SimulationParams, DEFAULT_PARAMS } from "@/types/simulation";
@@ -798,6 +799,11 @@ export const ControlPanel = ({
                                   label: "Kerr Shadow Guide",
                                   key: "kerrShadow" as const,
                                   icon: Disc,
+                                },
+                                {
+                                  label: "Spacetime Visualization",
+                                  key: "spacetimeVisualization" as const,
+                                  icon: Layers,
                                 },
                               ].map((f) =>
                                 renderToggle({

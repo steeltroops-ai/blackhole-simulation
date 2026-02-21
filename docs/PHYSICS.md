@@ -21,6 +21,26 @@ Where:
 - $\Sigma = r^2 + a^2 \cos^2\theta$
 - $\Delta = r^2 - 2Mr + a^2$
 
+### 1.2 Spacetime Embedding & Visualization
+
+To present accurately curved geometry without resorting to "rubber-sheet" analogies, the Data Visualization engine utilizes exact physical transformations:
+
+1. **True Volumetric Grids (Isotropic Radial Distortion)**:
+   The radial proper distance scales dramatically towards the Event Horizon. To map the visual 3D lattice, we use a fixed observer frame and distort the interior matrix using the underlying tensor invariants. The inward scale is restricted strictly by $\Delta(r)$.
+
+2. **Kretschmann Scalar Curvature**:
+   Color mapping on the spacetime metrics traces $K$:
+   $$ K = \frac{48M^2 (r^6 - 15r^4a^2\cos^2\theta + 15r^2a^4\cos^4\theta - a^6\cos^6\theta)}{\Sigma^6} $$
+   Representing genuine coordinate-invariant physical tidal forces along the geodesics.
+
+3. **River Model (Painlevé-Gullstrand) Light Cones**:
+   Instead of plotting flat approximations, photon boundary limits are driven by the flow vector representation of spacetime moving at $v_r = -\sqrt{2Mr/(r^2+a^2)}$. The future cone boundaries physically tip radially inward to exactly $0^\circ$ at the horizon (nothing escapes).
+
+4. **Frame Dragging Field**:
+   A rotating (Kerr) black hole forces a Zero-Angular-Momentum-Observer (ZAMO) to co-rotate at angular velocity:
+   $$ \omega = \frac{2Mar}{(r^2+a^2)^2 - a^2\Delta\sin^2\theta} $$
+   Which we calculate across arbitrary polar angles (not just equatorial) to generate exact helical spatial flow visualization grids.
+
 ---
 
 ## 2. Advanced Path Integration

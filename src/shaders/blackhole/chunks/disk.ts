@@ -56,7 +56,13 @@ export const DISK_CHUNK = `
                 float beaming = 1.0;
 #endif
 
-                float radialTempGradient = pow(isco / r, 0.75); // Standard T ~ r^-3/4
+                // Page-Thorne temperature profile:
+                // T ~ r^{-3/4} * (1 - sqrt(r_isco/r))^{1/4}
+                // The (1 - sqrt(isco/r)) term enforces zero flux at ISCO
+                // (no-torque inner boundary condition, Page & Thorne 1974)
+                float isco_r = isco / r;
+                float nt_factor = max(0.0, 1.0 - sqrt(isco_r));
+                float radialTempGradient = pow(isco_r, 0.75) * pow(nt_factor, 0.25);
 
                 float gravRedshift = sqrt(max(0.0, 1.0 - rs / r));
 

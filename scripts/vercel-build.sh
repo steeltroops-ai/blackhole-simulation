@@ -30,12 +30,12 @@ else
     echo "wasm-pack is already available."
 fi
 
-# 4. Build the physics engine
-echo "Building WASM physics engine..."
-cd physics-engine
+# 4. Build the physics engine (gravitas-wasm crate)
+echo "Building WASM physics engine (gravitas-wasm)..."
+cd physics-engine/gravitas-wasm
 # Use single job to prevent OOM in Vercel's build environment
-CARGO_BUILD_JOBS=1 wasm-pack build --target web --out-dir ../public/wasm
-cd ..
+CARGO_BUILD_JOBS=1 wasm-pack build --target web --out-name blackhole_physics --out-dir ../../public/wasm
+cd ../..
 
 # 6. Run the Next.js build
 echo "Running Next.js build..."

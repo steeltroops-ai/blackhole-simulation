@@ -69,7 +69,7 @@ void main() {
     
     // Derived Metric Properties
     float rh = kerr_horizon(M, a);
-    float rph = rs * 1.5; // Photon sphere
+    float rph = kerr_photon_sphere(M, a); // Exact Kerr photon sphere (Bardeen 1973)
     float isco = kerr_isco(M, a);
     float absA = abs(u_spin);
 
@@ -268,7 +268,8 @@ void main() {
     // Kerr Shadow Guide
     if (u_show_kerr_shadow > 0.5) {
        float b = impactParam;
-       if (abs(b - 5.196 * M) < M * 0.05) {
+       float b_crit = kerr_shadow_radius(M, a);
+       if (abs(b - b_crit) < M * 0.05) {
            finalColor = mix(finalColor, vec3(0.0, 1.0, 0.0), 0.5);
        }
     }

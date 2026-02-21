@@ -1,0 +1,26 @@
+[package]
+name = "gravitas-core"
+version = "0.1.0"
+edition = "2021"
+description = "A high-fidelity General Relativity computation engine. Kerr spacetime geodesics, accretion disk physics, and spacetime visualization -- all in pure Rust."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/steeltroops-ai/blackhole-simulation"
+keywords = ["physics", "general-relativity", "kerr", "geodesic", "spacetime"]
+categories = ["science", "simulation", "mathematics"]
+
+[lib]
+name = "gravitas"
+crate-type = ["lib"]
+
+[dependencies]
+glam = { version = "0.24", features = ["libm"] }
+num-traits = "0.2"
+num-complex = "0.4"
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[dev-dependencies]
+approx = "0.5"

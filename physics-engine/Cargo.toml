@@ -1,24 +1,3 @@
-[package]
-name = "blackhole-physics"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[dependencies]
-wasm-bindgen = "0.2"
-js-sys = "0.3"
-web-sys = { version = "0.3", features = ["console", "Performance"] }
-serde = { version = "1.0", features = ["derive"] }
-serde-wasm-bindgen = "0.4"
-# Math & SIMD
-glam = { version = "0.24", features = ["libm"] }
-num-traits = "0.2"
-# Algorithms
-gauss-quad = "0.1" # Corrected crate name from gauss_quad
-console_error_panic_hook = "0.1.7"
-num-complex = "0.4"
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
+[workspace]
+members = ["gravitas-core", "gravitas-wasm"]
+resolver = "2"

@@ -30,6 +30,7 @@ const PERFORMANCE_PRESETS = {
     relativisticJets: false,
     gravitationalRedshift: false,
     kerrShadow: false,
+    spacetimeVisualization: false,
   },
   balanced: {
     gravitationalLensing: true,
@@ -42,6 +43,7 @@ const PERFORMANCE_PRESETS = {
     relativisticJets: false,
     gravitationalRedshift: false,
     kerrShadow: false,
+    spacetimeVisualization: false,
   },
   "high-quality": {
     gravitationalLensing: true,
@@ -54,6 +56,7 @@ const PERFORMANCE_PRESETS = {
     relativisticJets: true,
     gravitationalRedshift: false,
     kerrShadow: false,
+    spacetimeVisualization: false,
   },
   "ultra-quality": {
     gravitationalLensing: true,
@@ -66,6 +69,7 @@ const PERFORMANCE_PRESETS = {
     relativisticJets: true,
     gravitationalRedshift: false,
     kerrShadow: false,
+    spacetimeVisualization: false,
   },
 } as const;
 

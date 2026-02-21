@@ -290,6 +290,114 @@ export class PhysicsBridge {
     if (r <= rs) return 100.0;
     return 1.0 / Math.sqrt(1.0 - rs / r);
   }
+
+  // =================================================================
+  // SPACETIME VISUALIZATION BRIDGE
+  // These methods expose the Rust physics engine's spacetime/ module
+  // functions that are already compiled into WASM (gravitas-wasm/src/lib.rs)
+  // but were never wired into the frontend.
+  // =================================================================
+
+  /**
+   * FROM spacetime/embedding.rs via gravitas-wasm:
+   * Generates a 3D embedding mesh (Flamm's paraboloid for Schwarzschild,
+   * numerical g_rr integral for Kerr). Returns flat Float32Array of
+   * (x, y, z) triples.
+   */
+  public generateEmbeddingMesh(
+    rMin: number,
+    rMax: number,
+    nRadial: number,
+    nAngular: number,
+  ): Float32Array | null {
+    if (!this.engine) return null;
+    try {
+      return this.engine.generate_embedding_mesh(rMin, rMax, nRadial, nAngular);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * FROM spacetime/frame_drag.rs via gravitas-wasm:
+   * Generates 3D vertices for the ergosphere surface.
+   * The ergosphere is the oblate region where g_tt > 0 (static limit).
+   * Returns flat Float32Array of (x, y, z) triples.
+   */
+  public generateErgosphereMesh(
+    nPolar: number,
+    nAzimuthal: number,
+  ): Float32Array | null {
+    if (!this.engine) return null;
+    try {
+      return this.engine.generate_ergosphere_mesh(nPolar, nAzimuthal);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * FROM physics/shadow.rs via gravitas-wasm:
+   * Computes the exact Bardeen critical curve (shadow boundary) for
+   * a spinning black hole. Returns flat Float32Array of (alpha, beta) pairs.
+   */
+  public computeShadowCurve(
+    thetaObs: number,
+    nPoints: number,
+  ): Float32Array | null {
+    if (!this.engine) return null;
+    try {
+      return this.engine.compute_shadow_curve(thetaObs, nPoints);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * FROM physics/disk.rs via gravitas-wasm:
+   * Page-Thorne flux at radius r (full GR disk flux function).
+   */
+  public computeDiskFlux(r: number): number {
+    if (!this.engine) return 0;
+    try {
+      return this.engine.compute_disk_flux(r);
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * FROM physics/redshift.rs via gravitas-wasm:
+   * Full GR g-factor (Cunningham 1975) for disk emission.
+   */
+  public computeGFactor(r: number, lambda: number): number {
+    if (!this.engine) return 1;
+    try {
+      return this.engine.compute_g_factor(r, lambda);
+    } catch {
+      return 1;
+    }
+  }
+
+  /** Schwarzschild shadow radius (critical impact parameter). */
+  public computeShadowRadius(): number {
+    if (!this.engine) return 3 * Math.sqrt(3) * this.currentMass;
+    try {
+      return this.engine.compute_shadow_radius();
+    } catch {
+      return 3 * Math.sqrt(3) * this.currentMass;
+    }
+  }
+
+  /** Current mass getter for fallback calculations. */
+  public getMass(): number {
+    return this.currentMass;
+  }
+
+  /** Current spin getter for fallback calculations. */
+  public getSpin(): number {
+    return this.currentSpin;
+  }
 }
 
 export const physicsBridge = new PhysicsBridge();

@@ -245,6 +245,7 @@ describe("Adaptive Systems - Integration Tests", () => {
         relativisticJets: false,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       // Save features
@@ -645,6 +646,7 @@ describe("Adaptive Systems - Integration Tests", () => {
         relativisticJets: true,
         gravitationalRedshift: false,
         kerrShadow: false,
+        spacetimeVisualization: false,
       };
 
       benchmark.start(currentSettings);
