@@ -9,7 +9,7 @@ A scientifically accurate, real-time relativistic ray-marching engine for visual
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=https://cdn.simpleicons.org/typescript/white)
 ![Bun](https://img.shields.io/badge/Bun-v1.2-000000?style=flat&logo=https://cdn.simpleicons.org/bun/white)
 ![CI/CD](https://github.com/steeltroops-ai/blackhole-simulation/actions/workflows/production.yml/badge.svg)
-![License](https://img.shields.io/static/v1?style=flat&message=Community&label=License&color=blue)
+![License](https://img.shields.io/static/v1?style=flat&message=MIT&label=License&color=blue)
 
 ---
 
