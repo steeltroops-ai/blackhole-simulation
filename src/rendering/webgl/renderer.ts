@@ -16,6 +16,7 @@ import { SimulationParams } from "@/types/simulation";
 import { physicsBridge } from "@/engine/physics-bridge";
 import { PerformanceMonitor } from "@/performance/monitor";
 import { PERFORMANCE_CONFIG } from "@/configs/performance.config";
+import { PHYSICS_CONSTANTS } from "@/configs/physics.config";
 
 export interface WebGLError {
   type: "context" | "shader" | "program" | "memory";
@@ -268,12 +269,17 @@ export class WebGLRenderer {
     }
 
     // Physics Bridge Integration
-    // We still call tick() for telemetry/LUT sync, but we compute the camera
-    // from the useCamera spherical coordinates (encoded as mouse.x/y) instead
-    // of reading static SAB camera data that never updates with user input.
+    let shadowShiftMin = -(params.mass * 2.0) * 2.6; // Fallback
+    let shadowShiftMax = params.mass * 2.0 * 2.6;
     if (physicsBridge && physicsBridge.isReady()) {
-      physicsBridge.tick(0.016); // keep telemetry alive
+      const telemetry = physicsBridge.tick(0.016); // keep telemetry alive
+      if (telemetry) {
+        shadowShiftMin = telemetry.physics[4];
+        shadowShiftMax = telemetry.physics[5];
+      }
     }
+
+    this.uniformBatcher.set2f("u_shadowShift", shadowShiftMin, shadowShiftMax);
 
     // CAMERA: Compute from useCamera's spherical coordinates.
     //
@@ -315,6 +321,10 @@ export class WebGLRenderer {
       features.kerrShadow ? 1.0 : 0.0,
     );
     this.uniformBatcher.set1f("u_lensing_strength", params.lensing ?? 1.0);
+    this.uniformBatcher.set1f(
+      "u_frame_dragging_strength",
+      PHYSICS_CONSTANTS.gravity.frameDraggingStrength,
+    );
     // Upload mouse (spherical camera coords from useCamera)
     this.uniformBatcher.set2f("u_mouse", mouse.x, mouse.y);
     // Disk appearance uniforms

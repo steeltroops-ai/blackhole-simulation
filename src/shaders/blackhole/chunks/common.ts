@@ -16,6 +16,7 @@ export const COMMON_CHUNK = `
   uniform vec2 u_mouse;
   uniform float u_zoom;
   uniform float u_lensing_strength;
+  uniform float u_frame_dragging_strength;
   uniform float u_disk_size;
   uniform float u_disk_scale_height;
   uniform int u_maxRaySteps;
@@ -26,6 +27,7 @@ export const COMMON_CHUNK = `
 
   uniform float u_show_redshift; // Toggle for gravitational redshift overlay
   uniform float u_show_kerr_shadow; // Toggle for Kerr shadow guide
+  uniform vec2 u_shadowShift; // Analytical Shadow Extents (min_alpha, max_alpha)
   uniform vec2 u_shadowCurve; // Analytic Critical Curve (alpha, beta)
 
   

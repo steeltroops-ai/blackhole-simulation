@@ -15,10 +15,12 @@
 mod camera;
 mod sab;
 
-use gravitas::metric::{Kerr, Metric, Orbit};
-use gravitas::metric::kerr::CoordinateSystem;
-use gravitas::geodesic::{GeodesicState, IntegrationOptions, IntegrationMethod, AdaptiveStepper, integrate};
+use gravitas::geodesic::{
+    integrate, AdaptiveStepper, GeodesicState, IntegrationMethod, IntegrationOptions,
+};
 use gravitas::invariants;
+use gravitas::metric::kerr::CoordinateSystem;
+use gravitas::metric::{Kerr, Metric, Orbit};
 use gravitas::physics::{disk, spectrum};
 
 use js_sys::Float32Array;
@@ -148,28 +150,19 @@ impl PhysicsEngine {
     }
 
     /// Spacetime visualization: ergosphere mesh
-    pub fn generate_ergosphere_mesh(
-        &self,
-        n_polar: usize,
-        n_azimuthal: usize,
-    ) -> Float32Array {
-        let data = gravitas::spacetime::frame_drag::ergosphere_mesh(
-            &self.metric_bl, n_polar, n_azimuthal,
-        );
+    pub fn generate_ergosphere_mesh(&self, n_polar: usize, n_azimuthal: usize) -> Float32Array {
+        let data =
+            gravitas::spacetime::frame_drag::ergosphere_mesh(&self.metric_bl, n_polar, n_azimuthal);
         Float32Array::from(data.as_slice())
     }
 
     /// Bardeen critical curve: exact shadow boundary for spinning BH.
     /// Returns flat array of [alpha0, beta0, alpha1, beta1, ...] pairs.
-    pub fn compute_shadow_curve(
-        &self,
-        theta_obs: f64,
-        n_points: usize,
-    ) -> Float32Array {
-        let points = gravitas::physics::shadow::bardeen_shadow(
-            &self.metric_bl, theta_obs, n_points,
-        );
-        let flat: Vec<f32> = points.iter()
+    pub fn compute_shadow_curve(&self, theta_obs: f64, n_points: usize) -> Float32Array {
+        let points =
+            gravitas::physics::shadow::bardeen_shadow(&self.metric_bl, theta_obs, n_points);
+        let flat: Vec<f32> = points
+            .iter()
             .flat_map(|(a, b)| vec![*a as f32, *b as f32])
             .collect();
         Float32Array::from(flat.as_slice())
@@ -178,6 +171,23 @@ impl PhysicsEngine {
     /// Schwarzschild shadow radius (critical impact parameter).
     pub fn compute_shadow_radius(&self) -> f64 {
         gravitas::physics::shadow::schwarzschild_shadow_radius(self.mass)
+    }
+
+    /// Returns the [min_alpha, max_alpha] horizontal extents of the shadow.
+    /// This is used to drive the D-shape flattening in the shader.
+    pub fn compute_shadow_shift(&self, theta_obs: f64) -> Vec<f32> {
+        let curve = gravitas::physics::shadow::bardeen_shadow(&self.metric_bl, theta_obs, 32);
+        let mut min_a = 0.0;
+        let mut max_a = 0.0;
+        for (a, _) in curve {
+            if a < min_a {
+                min_a = a;
+            }
+            if a > max_a {
+                max_a = a;
+            }
+        }
+        vec![min_a as f32, max_a as f32]
     }
 
     /// Page-Thorne flux at radius r (full GR disk flux function).
@@ -236,7 +246,11 @@ impl PhysicsEngine {
         n_polar: usize,
     ) -> Float32Array {
         let field = gravitas::spacetime::lightcone::tilt_field(
-            &self.metric_bl, r_min, r_max, n_radial, n_polar,
+            &self.metric_bl,
+            r_min,
+            r_max,
+            n_radial,
+            n_polar,
         );
         let flat: Vec<f32> = field
             .iter()
@@ -261,7 +275,11 @@ impl PhysicsEngine {
         n_polar: usize,
     ) -> Float32Array {
         let field = gravitas::spacetime::frame_drag::frame_drag_field(
-            &self.metric_bl, r_min, r_max, n_radial, n_polar,
+            &self.metric_bl,
+            r_min,
+            r_max,
+            n_radial,
+            n_polar,
         );
         let flat: Vec<f32> = field
             .iter()
@@ -340,6 +358,16 @@ impl PhysicsEngine {
             *sab_ptr.add(OFFSET_PHYSICS + 2) = self.mass as f32;
             *sab_ptr.add(OFFSET_PHYSICS + 3) = self.spin as f32;
 
+            // 4.1 SHADOW SHIFT: Calculate inclination theta_obs
+            let r_cam = self.camera.position.length();
+            if r_cam > 0.0 {
+                let cos_theta = self.camera.position.y / r_cam;
+                let theta_obs = cos_theta.acos(); // [0, PI]
+                let shift = self.compute_shadow_shift(theta_obs);
+                *sab_ptr.add(OFFSET_PHYSICS + 4) = shift[0]; // min_alpha
+                *sab_ptr.add(OFFSET_PHYSICS + 5) = shift[1]; // max_alpha
+            }
+
             // 5. UPDATE SEQUENCE
             *sab_ptr.add(OFFSET_TELEMETRY) += 1.0;
         }
@@ -368,8 +396,14 @@ impl PhysicsEngine {
         }
 
         let state = GeodesicState::new(
-            initial_state[0], initial_state[1], initial_state[2], initial_state[3],
-            initial_state[4], initial_state[5], initial_state[6], initial_state[7],
+            initial_state[0],
+            initial_state[1],
+            initial_state[2],
+            initial_state[3],
+            initial_state[4],
+            initial_state[5],
+            initial_state[6],
+            initial_state[7],
         );
 
         let options = IntegrationOptions {
@@ -389,6 +423,8 @@ impl PhysicsEngine {
         };
 
         let s = trajectory.final_state;
-        vec![s.x[0], s.x[1], s.x[2], s.x[3], s.p[0], s.p[1], s.p[2], s.p[3]]
+        vec![
+            s.x[0], s.x[1], s.x[2], s.x[3], s.p[0], s.p[1], s.p[2], s.p[3],
+        ]
     }
 }
