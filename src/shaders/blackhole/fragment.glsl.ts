@@ -8,15 +8,20 @@ import { DISK_CHUNK } from "./chunks/disk";
 
 /**
  * Realistic Black Hole Fragment Shader
- * Features: Starfield, Realistic Accretion Disk, Photon Sphere, Gravitational Lensing
  *
- * Modular Architecture:
- * - Common: Uniforms, Constants, ACES Tone Mapping
- * - Metric: Kerr Geometry (Horizon, ISCO, Ergosphere)
- * - Noise: Hashing, Perlin/Simplex, FBM
- * - Blackbody: Temperature-to-Color, Star Colors
- * - Background: Starfield Generation
- * - Disk: Accretion Disk & Jet Sampling
+ * Kerr Geodesic Integration (Corrected Effective Potential):
+ *   Uses the Darwin potential with Kerr spin-orbit coupling and
+ *   gravito-magnetic frame-dragging force. Produces the correct
+ *   D-shaped shadow asymmetry (Bardeen 1973).
+ *
+ * Key physics:
+ *   - Oblate-spheroidal Kerr r (not Euclidean distance)
+ *   - L_eff^2 = (Lz - a)^2 + Q with spin-orbit coupling
+ *   - Frame-dragging: velocity rotation via ZAMO omega
+ *   - Gravito-magnetic force: cross(spin_axis, v) * 2Ma/r^3
+ *
+ * References:
+ *   Bardeen (1973), Dexter & Agol (2009), James et al. (2015)
  */
 export const fragmentShaderSource = `#version 300 es
 ${COMMON_CHUNK}
@@ -33,26 +38,20 @@ ${DISK_CHUNK}
 
 // === MAIN SHADER ===
 void main() {
-    // Setup View - Responsive Scaling
     float minRes = min(u_resolution.x, u_resolution.y);
     vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / minRes;
 
-    // === DEBUG MODE ===
     if (u_debug > 0.5) {
         fragColor = vec4(uv.x + 0.5, uv.y + 0.5, 0.0, 1.0);
         return;
     }
 
-    // === HIGH-PRECISION CAMERA SYNC (Phase 5.2) ===
+    // Camera
     vec3 ro, rd;
-    
-    // Check if camera is initialized (length > 0)
     if (length(u_camPos) > 0.001) {
         ro = u_camPos;
-        // u_camQuat is (x, y, z, w) from Rust
-        rd = qrot(u_camQuat, normalize(vec3(uv, 1.2))); // 1.2 = FOV
+        rd = qrot(u_camQuat, normalize(vec3(uv, 1.2)));
     } else {
-        // Fallback: Mouse-driven legacy camera
         ro = vec3(0.0, 0.0, -u_zoom);
         rd = normalize(vec3(uv, 1.5));
         mat2 rx = rot((u_mouse.y - 0.5) * PI);
@@ -63,13 +62,13 @@ void main() {
 
     // Black hole parameters
     float M = u_mass;
-    float rs = M * 2.0; 
+    float rs = M * 2.0;
     float a = u_spin * M;
     float a2 = a * a;
-    
-    // Derived Metric Properties
+
+    // Derived quantities
     float rh = kerr_horizon(M, a);
-    float rph = kerr_photon_sphere(M, a); // Exact Kerr photon sphere (Bardeen 1973)
+    float rph = kerr_photon_sphere(M, a);
     float isco = kerr_isco(M, a);
     float absA = abs(u_spin);
 
@@ -87,11 +86,11 @@ void main() {
     return;
 #endif
 
-    // === PRO-PHYSICS ADAPTIVE RAYMARCHING ===
+    // === KERR GEODESIC RAYMARCHING ===
     vec3 p = ro;
     vec3 v = rd;
-    
-    // Kamikaze Protection
+
+    // Kamikaze protection
     if(length(ro) < rh * 1.5) {
        ro = normalize(ro) * rh * 1.5;
        p = ro;
@@ -101,116 +100,97 @@ void main() {
     float accumulatedAlpha = 0.0;
     bool hitHorizon = false;
     float maxRedshift = 0.0;
-    // DITHERING: Use Blue Noise to jitter ray start and step size (Fixes 'vector lines')
-    vec2 noiseUV = gl_FragCoord.xy / 256.0; // Assuming 256x256 blue noise texture
+
+    // Blue noise dithering
+    vec2 noiseUV = gl_FragCoord.xy / 256.0;
     float bNoise = texture(u_blueNoiseTex, noiseUV).r;
-    float dt = MIN_STEP; // Initialize dt for the first jitter
-    p += v * bNoise * dt; // Jitter start position
-    
-    // Pre-compute angular momentum squared. L = |p x v| is a constant of motion
-    // along geodesics in the Schwarzschild metric (conserved quantity from azimuthal symmetry).
-    // We only need to compute cross(ro, rd) ONCE before the loop -- never re-derive inside.
-    // Note: frame-dragging rotations (v.xz *= dragging) modify the velocity direction
-    // but are small corrections; reusing pre-loop L^2 is accurate for the GR approximation used.
-    float L_sq = dot(cross(ro, rd), cross(ro, rd));
+    float dt_init = MIN_STEP;
+    p += v * bNoise * dt_init;
 
     int photonCrossings = 0;
     float prevY = p.y;
     float impactParam = length(cross(ro, rd));
     bool redshiftInitialized = false;
 
-    // Single adaptive ray march loop.
-    // Loop bound is maxSteps directly to avoid divergent branch overhead.
-    // Phase 1 fix: no if(i >= maxSteps) break inside -- that costs 518M wasted
-    // comparisons per frame at 1080p. Use the loop bound itself.
     int maxSteps = int(min(float(u_maxRaySteps), 500.0));
+    vec3 p_prev = p;
 
     for(int i = 0; i < maxSteps; i++) {
-        
+        p_prev = p;
         float r = length(p);
-        
-        // Dynamic Event Horizon Threshold
+
+        // Horizon check (Euclidean distance for fast rejection,
+        // Kerr r is only slightly different near horizon)
         if(r < rh * ${PHYSICS_CONSTANTS.rayMarching.horizonThreshold.toFixed(2)}) {
             hitHorizon = true;
             break;
         }
         if(r > MAX_DIST) break;
 
-        // Adaptive Step Size -- optimized: use multiply instead of division for distFactor
+        // Adaptive step size (curvature-aware)
         float distFactor = 1.0 + r * 0.05;
         float dt = clamp((r - rh) * 0.1 * distFactor, MIN_STEP, MAX_STEP * distFactor);
-        
-        // Precision near photon ring
+
         float sphereProx = abs(r - rph);
         dt = min(dt, MIN_STEP + sphereProx * 0.15);
-        
-        // ADAPTIVE STEP REFINEMENT: Shrink steps near the disk plane to fix 'vector lines'
+
         float hRefinement = smoothstep(0.2, 0.0, abs(p.y));
         float currentDt = dt * (1.0 - hRefinement * 0.7);
-        
-        // Gravitational acceleration
+
         vec3 accel = vec3(0.0);
+        float omega = 0.0;
 
 #ifdef ENABLE_LENSING
-        // Fast reciprocal: 1 division instead of 3 (div is 4x slower than mul on mobile GPUs)
-        float r_inv = 1.0 / r;
-        float r2_inv = r_inv * r_inv;
-        float r4_inv = r2_inv * r2_inv;
-        accel = -normalize(p) * (M * r2_inv + 2.0 * M * L_sq * r4_inv) * u_lensing_strength;
-        
-        // Relativistic frame dragging (Kerr approximation)
-        float r3_plus_a2r = r * r * r + a2 * r;  // reuse a2 from line 68
-        float omega = 2.0 * M * a / r3_plus_a2r;
-        mat2 dragging = rot(omega * currentDt);
-        v.xz *= dragging;
-        p.xz *= dragging;
+        // Compute Kerr geodesic acceleration:
+        // - Correct Darwin potential with spin-orbit coupled L_eff
+        // - Gravito-magnetic frame-dragging force for D-shape asymmetry
+        KerrAccelResult kerr = kerr_geodesic_accel(p, v, M, a);
+        accel = kerr.accel * u_lensing_strength;
+        omega = kerr.omega;
+
+        // ZAMO velocity rotation: frame-dragging twists the velocity
+        // (NOT the position -- rotating position creates artifacts).
+        // The ZAMO angular velocity omega = 2Ma/(r^3 + a^2*r).
+        mat2 zamo = rot(omega * currentDt);
+        v.xz *= zamo;
 #endif
 
-        // Velocity Verlet Integration (2nd-order accurate, energy-conserving)
+        // Velocity-Verlet position step
         p += v * currentDt + 0.5 * accel * currentDt * currentDt;
-        
+
         float r_new = length(p);
-        
+
 #ifdef ENABLE_LENSING
-        // Verlet corrector: skip if ray already fully opaque (saves ~40% ALU for disk-saturated rays)
+        // Velocity-Verlet velocity correction
         if (accumulatedAlpha < 0.95) {
-          vec3 L_new = cross(p, v);
-          float L2_new = dot(L_new, L_new);
-          float rn_inv = 1.0 / r_new;
-          float rn2_inv = rn_inv * rn_inv;
-          float rn4_inv = rn2_inv * rn2_inv;
-          vec3 accel_new = -normalize(p) * (M * rn2_inv + 2.0 * M * L2_new * rn4_inv) * u_lensing_strength;
-          L_sq = L2_new;
-          v += 0.5 * (accel + accel_new) * currentDt;
+            KerrAccelResult kerr_new = kerr_geodesic_accel(p, v, M, a);
+            vec3 accel_new = kerr_new.accel * u_lensing_strength;
+            v += 0.5 * (accel + accel_new) * currentDt;
         }
 #endif
         v = normalize(v);
 
-        // Photon Crossing Detection (capped at 3 to prevent register spilling)
-#ifdef ENABLE_PHOTON_GLOW
+        // Photon crossing counter (for higher-order ring rendering)
         if(prevY * p.y < 0.0 && r_new < rph * 2.0 && r_new > rh) {
-          photonCrossings = min(photonCrossings + 1, 3);
+            photonCrossings = min(photonCrossings + 1, 3);
         }
-#endif
 
-        // Redshift Tracking
-#ifdef ENABLE_REDSHIFT
+        // Gravitational redshift tracking
         if (u_show_redshift > 0.5) {
-             float potential = sqrt(max(0.0, 1.0 - rs / r_new));
-             if (!redshiftInitialized) { maxRedshift = potential; redshiftInitialized = true; }
-             else maxRedshift = min(maxRedshift, potential);
+            float potential = sqrt(max(0.0, 1.0 - rs / r_new));
+            if (!redshiftInitialized) { maxRedshift = potential; redshiftInitialized = true; }
+            else maxRedshift = min(maxRedshift, potential);
         }
-#endif
-        
+
         prevY = p.y;
 
-        // Accretion Disk Sampling
+        // Accretion disk sampling (uses Euclidean r for disk geometry)
 #ifdef ENABLE_DISK
-        sample_accretion_disk(p, ro, r, isco, M, a, dt, rs, accumulatedColor, accumulatedAlpha);
+        sample_accretion_disk(p, p_prev, ro, r_new, isco, M, a, currentDt, rs, accumulatedColor, accumulatedAlpha);
         if(accumulatedAlpha > 0.99) break;
 #endif
 
-        // Relativistic Jets Sampling
+        // Relativistic jets
 #ifdef ENABLE_JETS
         sample_relativistic_jets(p, v, r, rh, dt, accumulatedColor, accumulatedAlpha);
 #endif
@@ -221,23 +201,23 @@ void main() {
     if (u_show_redshift > 0.5) {
         float val = maxRedshift;
         if (hitHorizon) val = 0.0;
-        
+
         vec3 heatmap = mix(vec3(0.0), vec3(1.0, 0.0, 0.0), smoothstep(0.0, 0.3, val));
         heatmap = mix(heatmap, vec3(1.0, 1.0, 0.0), smoothstep(0.3, 0.7, val));
         heatmap = mix(heatmap, vec3(0.0, 0.0, 1.0), smoothstep(0.7, 1.0, val));
-        
+
         fragColor = vec4(heatmap, 1.0);
         return;
     }
 #endif
 
-    // Background & Post-Process
+    // Background
     vec3 background = vec3(0.0);
 #ifdef ENABLE_STARS
     background = starfield(v);
 #endif
-    
-    // Photon Ring Logic
+
+    // Photon ring
     vec3 photonColor = vec3(0.0);
 #ifdef ENABLE_PHOTON_GLOW
     float distToPhotonRing = abs(length(p) - rph);
@@ -250,8 +230,8 @@ void main() {
     }
     photonColor = vec3(1.0) * (directRing + higherOrderRing);
 #endif
-    
-    // Ergosphere Visualization -- skip entirely for non/low-spin BHs (sub-pixel contribution)
+
+    // Ergosphere
     vec3 ergoColor = vec3(0.0);
     if(absA > 0.1 && !hitHorizon) {
       float rFinal = length(p);
@@ -262,10 +242,10 @@ void main() {
     }
 
     vec3 finalColor = background * (1.0 - accumulatedAlpha) + accumulatedColor + photonColor + ergoColor;
-    
+
     if(hitHorizon) finalColor = vec3(0.0);
 
-    // Kerr Shadow Guide
+    // Kerr Shadow Guide (diagnostic overlay)
     if (u_show_kerr_shadow > 0.5) {
        float b = impactParam;
        float b_crit = kerr_shadow_radius(M, a);
@@ -273,13 +253,13 @@ void main() {
            finalColor = mix(finalColor, vec3(0.0, 1.0, 0.0), 0.5);
        }
     }
-    
-    // Tone Mapping & Gamma (Conditional based on Pipeline)
+
+    // Tone Mapping & Gamma
 #ifndef ENABLE_LINEAR_OUTPUT
     finalColor = aces_tone_mapping(finalColor);
     finalColor = pow(max(finalColor, 0.0), vec3(0.4545));
 #endif
-    
+
     fragColor = vec4(finalColor, 1.0);
 }
 `;

@@ -14,67 +14,72 @@ export const DISK_CHUNK = `
   //   accumulatedAlpha: (inout)
 
   void sample_accretion_disk(
-      vec3 p, vec3 ro, float r, float isco, float M, float a, float dt, float rs,
+      vec3 p, vec3 p_prev, vec3 ro, float r, float isco, float M, float a, float dt, float rs,
       inout vec3 accumulatedColor, inout float accumulatedAlpha
   ) {
       if (u_show_redshift < 0.5) {
-        // Enforce Thin Disk Limit (H/R < 0.45) - Increased to allow meaningful volume
-        // Respect the new diskHeightMultiplier as a governance limit
-        float effectiveScaleHeight = min(u_disk_scale_height, ${PHYSICS_CONSTANTS.accretion.diskHeightMultiplier.toFixed(3)});
-        float diskHeight = r * effectiveScaleHeight;
+          // SCIENTIFIC FIX: Plane-Crossing Detection (Eliminates "holes" from step-skipping)
+          // If the ray crossed the equator (p_prev.y * p.y < 0), we force a sample at the intersection
+          bool crossedEquator = (p_prev.y * p.y < 0.0);
+          
+          float effectiveScaleHeight = min(u_disk_scale_height, ${PHYSICS_CONSTANTS.accretion.diskHeightMultiplier.toFixed(3)});
+          float diskHeight = r * effectiveScaleHeight;
 
-        // SCIENTIFIC FIX: Ensure ISCO creates a hard edge even for retrograde orbits
-        // The calling code passes the corrected ISCO from metric.ts
-        float diskInner = isco;
-        float diskOuter = max(M * u_disk_size, diskInner * 1.1);
+          // SCIENTIFIC FIX: Ensure ISCO creates a hard edge even for retrograde orbits
+          float diskInner = isco;
+          float diskOuter = max(M * u_disk_size, diskInner * 1.1);
 
-        if(abs(p.y) < diskHeight && r > diskInner && r < diskOuter) {
-            vec3 noiseP = p * ${PHYSICS_CONSTANTS.accretion.turbulenceScale.toFixed(2)} + vec3(u_time * ${PHYSICS_CONSTANTS.accretion.timeScale.toFixed(2)}, 0.0, 0.0);
-            float turbulence = noise(noiseP) * 0.5 + noise(noiseP * ${PHYSICS_CONSTANTS.accretion.turbulenceDetail.toFixed(1)}) * 0.25;
+          if((abs(p.y) < diskHeight || crossedEquator) && r > diskInner && r < diskOuter) {
+              // For crossed rays, project them to the plane (y=0) for consistent sampling
+              vec3 sampleP = p;
+              if (crossedEquator) {
+                  float t = abs(p_prev.y) / max(0.0001, abs(p_prev.y) + abs(p.y));
+                  sampleP = mix(p_prev, p, t);
+              }
 
-            float heightFalloff = exp(-abs(p.y) / (diskHeight * ${PHYSICS_CONSTANTS.accretion.densityFalloff.toFixed(2)}));
-            float radialFalloff = smoothstep(diskOuter, diskInner, r);
+              vec3 noiseP = sampleP * ${PHYSICS_CONSTANTS.accretion.turbulenceScale.toFixed(2)} + vec3(u_time * ${PHYSICS_CONSTANTS.accretion.timeScale.toFixed(2)}, 0.0, 0.0);
+              float turbulence = noise(noiseP) * 0.5 + noise(noiseP * ${PHYSICS_CONSTANTS.accretion.turbulenceDetail.toFixed(1)}) * 0.25;
 
-            float baseDensity = turbulence * heightFalloff * radialFalloff;
+              float samplesDiskHeight = r * effectiveScaleHeight;
+              float heightFalloff = exp(-abs(sampleP.y) / max(0.001, samplesDiskHeight * ${PHYSICS_CONSTANTS.accretion.densityFalloff.toFixed(2)}));
+              float radialFalloff = smoothstep(diskOuter, diskInner, r);
 
-            if (baseDensity > 0.001) {
-                float orbitalVel = 1.0 / (sqrt(r) * (1.0 + abs(a) / (r*sqrt(r))));
-                orbitalVel = clamp(orbitalVel, 0.0, 0.99);
+              float baseDensity = turbulence * heightFalloff * radialFalloff;
 
-                float rotDir = (u_spin >= 0.0) ? 1.0 : -1.0;
-                vec3 diskVelVec = normalize(vec3(-p.z, 0.0, p.x)) * rotDir * orbitalVel;
+              if (baseDensity > 0.001) {
+                  float orbitalVel = 1.0 / (sqrt(r) * (1.0 + abs(a) / (r * sqrt(r))));
+                  orbitalVel = clamp(orbitalVel, 0.0, 0.99);
 
-                float cosTheta = dot(diskVelVec, normalize(ro - p));
+                  float rotDir = (u_spin >= 0.0) ? 1.0 : -1.0;
+                  vec3 diskVelVec = normalize(vec3(-sampleP.z, 0.0, sampleP.x)) * rotDir * orbitalVel;
 
-                float beta = length(diskVelVec);
-                float gamma = 1.0 / sqrt(1.0 - beta*beta);
-                float delta = 1.0 / (gamma * (1.0 - beta * cosTheta));
+                  float cosTheta = dot(diskVelVec, normalize(ro - sampleP));
+                  float beta = length(diskVelVec);
+                  float gamma = 1.0 / sqrt(1.0 - beta * beta);
+                  float delta = 1.0 / (gamma * (1.0 - beta * cosTheta));
 
 #ifdef ENABLE_DOPPLER
-                float beaming = pow(delta, 3.0);
+                  // SCIENTIFIC FIX: Doppler Floor
+                  // Bolometric beaming (delta^3) is physically correct, but can cause
+                  // the receding side to vanish at high spins (a > 0.9). 
+                  // We add a floor to ensure the full disk structure is visible.
+                  float beaming = max(0.05, pow(delta, 3.0));
 #else
-                float beaming = 1.0;
+                  float beaming = 1.0;
 #endif
+                  float isco_r = isco / r;
+                  float nt_factor = max(0.0, 1.0 - sqrt(isco_r));
+                  float radialTempGradient = pow(isco_r, 0.75) * pow(nt_factor, 0.25);
+                  float gravRedshift = sqrt(max(0.0, 1.0 - rs / r));
 
-                // Page-Thorne temperature profile:
-                // T ~ r^{-3/4} * (1 - sqrt(r_isco/r))^{1/4}
-                // The (1 - sqrt(isco/r)) term enforces zero flux at ISCO
-                // (no-torque inner boundary condition, Page & Thorne 1974)
-                float isco_r = isco / r;
-                float nt_factor = max(0.0, 1.0 - sqrt(isco_r));
-                float radialTempGradient = pow(isco_r, 0.75) * pow(nt_factor, 0.25);
+                  float temperature = u_disk_temp * radialTempGradient * delta * gravRedshift;
+                  vec3 diskColor = blackbody(temperature) * beaming;
+                  float density = baseDensity * u_disk_density * 0.12 * dt;
 
-                float gravRedshift = sqrt(max(0.0, 1.0 - rs / r));
-
-                float temperature = u_disk_temp * radialTempGradient * delta * gravRedshift;
-
-                vec3 diskColor = blackbody(temperature) * beaming;
-                float density = baseDensity * u_disk_density * 0.12 * dt;
-
-                accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
-                accumulatedAlpha += density;
-            }
-        }
+                  accumulatedColor += diskColor * density * (1.0 - accumulatedAlpha);
+                  accumulatedAlpha += density;
+              }
+          }
       }
   }
 
