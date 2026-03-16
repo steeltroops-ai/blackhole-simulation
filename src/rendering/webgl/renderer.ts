@@ -271,15 +271,37 @@ export class WebGLRenderer {
     // Physics Bridge Integration
     let shadowShiftMin = -(params.mass * 2.0) * 2.6; // Fallback
     let shadowShiftMax = params.mass * 2.0 * 2.6;
+    const shadowCurve = new Float32Array(128); // 64 points * 2
+    let shadowCount = 0;
+
     if (physicsBridge && physicsBridge.isReady()) {
       const telemetry = physicsBridge.tick(0.016); // keep telemetry alive
-      if (telemetry) {
+      if (telemetry && telemetry.physics[15] > 0.0) {
         shadowShiftMin = telemetry.physics[4];
         shadowShiftMax = telemetry.physics[5];
+        shadowCount = telemetry.physics[15];
+
+        for (let i = 0; i < 128; i++) {
+          shadowCurve[i] = telemetry.physics[16 + i];
+        }
       }
     }
 
+    // Default Schwarzschild fallback if telemetry is missing or zeros
+    if (shadowCount <= 0) {
+      const b_crit = 3 * Math.sqrt(3) * params.mass;
+      shadowCount = 64;
+      for (let i = 0; i < 64; i++) {
+        const phi = (i / 64) * Math.PI * 2.0;
+        shadowCurve[i * 2] = Math.cos(phi) * b_crit;
+        shadowCurve[i * 2 + 1] = Math.sin(phi) * b_crit;
+      }
+    }
+
+    this.uniformBatcher.set1f("u_shadowCount", shadowCount);
+
     this.uniformBatcher.set2f("u_shadowShift", shadowShiftMin, shadowShiftMax);
+    this.uniformBatcher.set("u_shadowCurve", shadowCurve);
 
     // CAMERA: Compute from useCamera's spherical coordinates.
     //

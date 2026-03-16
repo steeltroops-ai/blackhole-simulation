@@ -228,7 +228,11 @@ mod tests {
         let bh = Kerr::new(1.0, 0.0);
         let isco = bh.isco(Orbit::Prograde);
         let f = page_thorne_flux(isco, &bh, 1.0);
-        assert!(f.abs() < 1e-10, "Flux at ISCO should be zero (no-torque BC), got {}", f);
+        assert!(
+            f.abs() < 1e-10,
+            "Flux at ISCO should be zero (no-torque BC), got {}",
+            f
+        );
     }
 
     #[test]
@@ -247,7 +251,8 @@ mod tests {
         assert!(
             f_near > f_far,
             "Flux should decay with radius: F(10M)={} > F(40M)={}",
-            f_near, f_far
+            f_near,
+            f_far
         );
     }
 
@@ -270,7 +275,8 @@ mod tests {
         assert!(
             max_kerr > max_schwarz,
             "Spinning BH should have higher peak flux: Kerr={:.6} vs Schwarz={:.6}",
-            max_kerr, max_schwarz
+            max_kerr,
+            max_schwarz
         );
     }
 
@@ -281,7 +287,9 @@ mod tests {
         let (radii, temps) = temperature_profile(&bh, 200);
 
         // Find peak
-        let (peak_idx, peak_temp) = temps.iter().enumerate()
+        let (peak_idx, peak_temp) = temps
+            .iter()
+            .enumerate()
             .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
             .unwrap();
 
@@ -293,7 +301,8 @@ mod tests {
         assert!(
             peak_r < isco * 3.0,
             "Temperature peak at r={:.2} should be within 3x ISCO={:.2}",
-            peak_r, isco
+            peak_r,
+            isco
         );
         assert!(*peak_temp > 0.0, "Peak temperature should be positive");
     }

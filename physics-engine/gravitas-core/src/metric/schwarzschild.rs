@@ -55,10 +55,7 @@ impl Metric for Schwarzschild {
         let g_phph = r * r * sin2;
 
         MetricTensor4::from_array([
-            g_tt, 0.0, 0.0, 0.0,
-            0.0, g_rr, 0.0, 0.0,
-            0.0, 0.0, g_thth, 0.0,
-            0.0, 0.0, 0.0, g_phph,
+            g_tt, 0.0, 0.0, 0.0, 0.0, g_rr, 0.0, 0.0, 0.0, 0.0, g_thth, 0.0, 0.0, 0.0, 0.0, g_phph,
         ])
     }
 
@@ -73,19 +70,11 @@ impl Metric for Schwarzschild {
         let g_phph = 1.0 / (r * r * sin2);
 
         MetricTensor4::from_array([
-            g_tt, 0.0, 0.0, 0.0,
-            0.0, g_rr, 0.0, 0.0,
-            0.0, 0.0, g_thth, 0.0,
-            0.0, 0.0, 0.0, g_phph,
+            g_tt, 0.0, 0.0, 0.0, 0.0, g_rr, 0.0, 0.0, 0.0, 0.0, g_thth, 0.0, 0.0, 0.0, 0.0, g_phph,
         ])
     }
 
-    fn hamiltonian_derivatives(
-        &self,
-        r: f64,
-        theta: f64,
-        p: [f64; 4],
-    ) -> HamiltonianDerivatives {
+    fn hamiltonian_derivatives(&self, r: f64, theta: f64, p: [f64; 4]) -> HamiltonianDerivatives {
         let m = self.mass_val;
         let r2 = r * r;
         let r3 = r2 * r;
@@ -98,7 +87,11 @@ impl Metric for Schwarzschild {
         let dg_tt_dr = -2.0 * m / (r2 * f * f);
         let dg_rr_dr = 2.0 * m / r2;
         let dg_thth_dr = -2.0 / r3;
-        let dg_phph_dr = if sin2 < 1e-12 { 0.0 } else { -2.0 / (r3 * sin2) };
+        let dg_phph_dr = if sin2 < 1e-12 {
+            0.0
+        } else {
+            -2.0 / (r3 * sin2)
+        };
 
         let dg_phph_dtheta = if sin2 < 1e-12 {
             0.0

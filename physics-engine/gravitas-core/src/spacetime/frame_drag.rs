@@ -45,11 +45,7 @@ pub fn frame_drag_field(
 /// Generates (x, y, z) coordinates for the ergosphere boundary in Cartesian space.
 /// The ergosphere is an oblate surface that touches the horizon at the poles
 /// and extends to r_ergo = M + sqrt(M^2 - a^2 cos^2 theta) at other latitudes.
-pub fn ergosphere_mesh(
-    bh: &Kerr,
-    n_polar: usize,
-    n_azimuthal: usize,
-) -> Vec<f32> {
+pub fn ergosphere_mesh(bh: &Kerr, n_polar: usize, n_azimuthal: usize) -> Vec<f32> {
     let mut vertices = Vec::with_capacity(n_polar * n_azimuthal * 3);
 
     for i in 0..n_polar {

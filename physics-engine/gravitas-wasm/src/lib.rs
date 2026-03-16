@@ -179,12 +179,16 @@ impl PhysicsEngine {
         let curve = gravitas::physics::shadow::bardeen_shadow(&self.metric_bl, theta_obs, 32);
         let mut min_a = 0.0;
         let mut max_a = 0.0;
-        for (a, _) in curve {
-            if a < min_a {
-                min_a = a;
-            }
-            if a > max_a {
-                max_a = a;
+        if !curve.is_empty() {
+            min_a = curve[0].0;
+            max_a = curve[0].0;
+            for (a, _) in curve {
+                if a < min_a {
+                    min_a = a;
+                }
+                if a > max_a {
+                    max_a = a;
+                }
             }
         }
         vec![min_a as f32, max_a as f32]
@@ -363,9 +367,40 @@ impl PhysicsEngine {
             if r_cam > 0.0 {
                 let cos_theta = self.camera.position.y / r_cam;
                 let theta_obs = cos_theta.acos(); // [0, PI]
-                let shift = self.compute_shadow_shift(theta_obs);
-                *sab_ptr.add(OFFSET_PHYSICS + 4) = shift[0]; // min_alpha
-                *sab_ptr.add(OFFSET_PHYSICS + 5) = shift[1]; // max_alpha
+                let curve =
+                    gravitas::physics::shadow::bardeen_shadow(&self.metric_bl, theta_obs, 32);
+
+                // CRITICAL: Clear the buffer first to avoid 'ghost' segments from previous frames
+                for i in 0..128 {
+                    *sab_ptr.add(OFFSET_PHYSICS + 16 + i) = 0.0;
+                }
+
+                // Write all points (up to 64 total)
+                let actual_points = curve.len().min(64);
+                *sab_ptr.add(OFFSET_PHYSICS + 15) = actual_points as f32; // Store point count
+
+                for i in 0..actual_points {
+                    *sab_ptr.add(OFFSET_PHYSICS + 16 + i * 2) = curve[i].0 as f32;
+                    *sab_ptr.add(OFFSET_PHYSICS + 16 + i * 2 + 1) = curve[i].1 as f32;
+                }
+
+                // Extents for fast bounding box checks
+                let mut min_a = 0.0;
+                let mut max_a = 0.0;
+                if !curve.is_empty() {
+                    min_a = curve[0].0;
+                    max_a = curve[0].0;
+                    for (a_val, _) in &curve {
+                        if *a_val < min_a {
+                            min_a = *a_val;
+                        }
+                        if *a_val > max_a {
+                            max_a = *a_val;
+                        }
+                    }
+                }
+                *sab_ptr.add(OFFSET_PHYSICS + 4) = min_a as f32;
+                *sab_ptr.add(OFFSET_PHYSICS + 5) = max_a as f32;
             }
 
             // 5. UPDATE SEQUENCE

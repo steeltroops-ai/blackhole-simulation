@@ -24,10 +24,8 @@ pub fn renormalize_null<M: Metric>(state: &mut GeodesicState, metric: &M) {
     // Quadratic in p_r: A*pr^2 + B*pr + C = 0
     let a_quad = g[5]; // g^rr
     let b_quad = 2.0 * (g[1] * p_t + g[7] * p_ph); // 2(g^tr*pt + g^rph*pph)
-    let c_quad = g[0] * p_t * p_t
-        + g[10] * p_th * p_th
-        + g[15] * p_ph * p_ph
-        + 2.0 * g[3] * p_t * p_ph;
+    let c_quad =
+        g[0] * p_t * p_t + g[10] * p_th * p_th + g[15] * p_ph * p_ph + 2.0 * g[3] * p_t * p_ph;
 
     if a_quad.abs() > 1e-12 {
         let discriminant = b_quad * b_quad - 4.0 * a_quad * c_quad;

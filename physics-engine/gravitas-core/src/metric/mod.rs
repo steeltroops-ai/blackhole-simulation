@@ -8,12 +8,12 @@
 //! - [`Minkowski`] -- Flat spacetime (for baselines and testing)
 
 pub mod kerr;
-mod schwarzschild;
 mod minkowski;
+mod schwarzschild;
 
 pub use kerr::Kerr;
-pub use schwarzschild::Schwarzschild;
 pub use minkowski::Minkowski;
+pub use schwarzschild::Schwarzschild;
 
 use crate::tensor::MetricTensor4;
 
@@ -63,8 +63,7 @@ pub trait Metric {
     /// H = (1/2) g^{mu nu} p_mu p_nu
     ///
     /// Returns dH/dr and dH/dtheta.
-    fn hamiltonian_derivatives(&self, r: f64, theta: f64, p: [f64; 4])
-        -> HamiltonianDerivatives;
+    fn hamiltonian_derivatives(&self, r: f64, theta: f64, p: [f64; 4]) -> HamiltonianDerivatives;
 
     /// Black hole mass parameter M (in geometric units).
     fn mass(&self) -> f64;

@@ -247,11 +247,51 @@ void main() {
 
     // Kerr Shadow Guide (diagnostic overlay)
     if (u_show_kerr_shadow > 0.5) {
-       float b = impactParam;
-       float b_crit = kerr_shadow_radius(M, a);
-       if (abs(b - b_crit) < M * 0.05) {
-           finalColor = mix(finalColor, vec3(0.0, 1.0, 0.0), 0.5);
-       }
+        vec3 spin_axis = vec3(0.0, 1.0, 0.0);
+        vec3 cam_dir = normalize(ro);
+        vec3 sky_right = normalize(cross(spin_axis, cam_dir));
+        vec3 sky_up = cross(cam_dir, sky_right);
+        
+        // Ray impact projection in celestial coords (alpha, beta)
+        // alpha: horizontal displacement (perpendicular to projected spin axis)
+        // beta: vertical displacement (along projected spin axis)
+        vec3 impact_vec = cross(cam_dir, rd) * length(ro);
+        
+        float alpha = -dot(impact_vec, sky_up); 
+        float beta = dot(impact_vec, sky_right);
+        vec2 p_sky = vec2(alpha, beta);
+
+        float minDist = 1e10;
+        int count = int(u_shadowCount);
+        
+        // Check distance to the analytical boundary polyline
+        for (int j = 0; j < 63; j++) {
+            if (j >= count - 1) break;
+            
+            vec2 p1 = u_shadowCurve[j];
+            vec2 p2 = u_shadowCurve[j+1];
+            
+            // Distance to line segment
+            vec2 pa = p_sky - p1, ba = p2 - p1;
+            float h = clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0);
+            minDist = min(minDist, length(pa - ba*h));
+        }
+        
+        // Match the first and last point to close the curve
+        if (count > 2) {
+            vec2 p_first = u_shadowCurve[0];
+            vec2 p_last = u_shadowCurve[count - 1];
+            vec2 pa_c = p_sky - p_last, ba_c = p_first - p_last;
+            float h_c = clamp(dot(pa_c, ba_c)/dot(ba_c, ba_c), 0.0, 1.0);
+            minDist = min(minDist, length(pa_c - ba_c*h_c));
+        }
+
+        // Visibility: smooth line with thickness proportional to Mass
+        float thickness = M * 0.045; // Slightly thinner for precision
+        if (minDist < thickness) {
+            float edge = smoothstep(thickness, thickness * 0.5, minDist);
+            finalColor = mix(finalColor, vec3(0.0, 1.0, 0.0), 1.0 * edge);
+        }
     }
 
     // Tone Mapping & Gamma

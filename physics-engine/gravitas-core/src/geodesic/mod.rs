@@ -32,8 +32,14 @@ pub struct GeodesicState {
 impl GeodesicState {
     /// Create a new geodesic state.
     pub fn new(
-        t: f64, r: f64, theta: f64, phi: f64,
-        pt: f64, pr: f64, ptheta: f64, pphi: f64,
+        t: f64,
+        r: f64,
+        theta: f64,
+        phi: f64,
+        pt: f64,
+        pr: f64,
+        ptheta: f64,
+        pphi: f64,
     ) -> Self {
         Self {
             x: [t, r, theta, phi],
@@ -43,11 +49,15 @@ impl GeodesicState {
 
     /// Current radial coordinate.
     #[inline]
-    pub fn r(&self) -> f64 { self.x[1] }
+    pub fn r(&self) -> f64 {
+        self.x[1]
+    }
 
     /// Current polar angle.
     #[inline]
-    pub fn theta(&self) -> f64 { self.x[2] }
+    pub fn theta(&self) -> f64 {
+        self.x[2]
+    }
 
     /// Create a null ray at (r, theta, phi) with initial direction encoded in momentum.
     ///
@@ -77,7 +87,15 @@ impl GeodesicState {
         n
     }
 
-    pub(crate) fn add_scaled_3(&self, k1: Self, s1: f64, k2: Self, s2: f64, k3: Self, s3: f64) -> Self {
+    pub(crate) fn add_scaled_3(
+        &self,
+        k1: Self,
+        s1: f64,
+        k2: Self,
+        s2: f64,
+        k3: Self,
+        s3: f64,
+    ) -> Self {
         let mut n = *self;
         for i in 0..4 {
             n.x[i] += k1.x[i] * s1 + k2.x[i] * s2 + k3.x[i] * s3;
@@ -87,8 +105,15 @@ impl GeodesicState {
     }
 
     pub(crate) fn add_scaled_4(
-        &self, k1: Self, s1: f64, k2: Self, s2: f64,
-        k3: Self, s3: f64, k4: Self, s4: f64,
+        &self,
+        k1: Self,
+        s1: f64,
+        k2: Self,
+        s2: f64,
+        k3: Self,
+        s3: f64,
+        k4: Self,
+        s4: f64,
     ) -> Self {
         let mut n = *self;
         for i in 0..4 {
@@ -99,8 +124,17 @@ impl GeodesicState {
     }
 
     pub(crate) fn add_scaled_5(
-        &self, k1: Self, s1: f64, k2: Self, s2: f64,
-        k3: Self, s3: f64, k4: Self, s4: f64, k5: Self, s5: f64,
+        &self,
+        k1: Self,
+        s1: f64,
+        k2: Self,
+        s2: f64,
+        k3: Self,
+        s3: f64,
+        k4: Self,
+        s4: f64,
+        k5: Self,
+        s5: f64,
     ) -> Self {
         let mut n = *self;
         for i in 0..4 {

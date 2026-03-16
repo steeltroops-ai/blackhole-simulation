@@ -102,47 +102,82 @@ pub fn bardeen_shadow(bh: &Kerr, theta_obs: f64, n_points: usize) -> Vec<(f64, f
         let r_ph = bh.photon_sphere();
         let params = critical_params(r_ph, m, a);
         let radius = (params.eta + a * a).max(0.0).sqrt();
-        return (0..n_points)
+        // Use 2 * n_points to match the off-axis density
+        return (0..2 * n_points)
             .map(|i| {
-                let phi = 2.0 * std::f64::consts::PI * i as f64 / n_points as f64;
+                let phi = 2.0 * std::f64::consts::PI * i as f64 / (2.0 * n_points as f64);
                 (radius * phi.cos(), radius * phi.sin())
             })
             .collect();
     }
 
     // Photon orbit radius range
-    // Prograde (inner): r_ph^- = 2M[1 + cos(2/3 arccos(-a/M))]
-    // Retrograde (outer): r_ph^+ = 2M[1 + cos(2/3 arccos(a/M))]
     let a_star = a / m;
-    let r_ph_pro = 2.0 * m * (1.0 + ((2.0 / 3.0) * (-a_star).acos()).cos());
-    let r_ph_retro = 2.0 * m * (1.0 + ((2.0 / 3.0) * a_star.acos()).cos());
+    let r_ph_pro = 2.0 * m * (1.0 + ((2.0 / 3.0) * (-a_star.abs()).acos()).cos());
+    let r_ph_retro = 2.0 * m * (1.0 + ((2.0 / 3.0) * a_star.abs().acos()).cos());
 
-    let mut points = Vec::with_capacity(2 * n_points);
+    // Find the exact interval [r_min, r_max] where beta^2 >= 0 for this specific observer inclination
+    let mut r_min = r_ph_pro;
+    let mut r_max = r_ph_retro;
+    let steps = 1000;
 
-    // Sweep from prograde to retrograde
-    for i in 0..n_points {
-        let t = i as f64 / (n_points - 1).max(1) as f64;
+    for i in 0..=steps {
+        let t = i as f64 / steps as f64;
         let r = r_ph_pro + t * (r_ph_retro - r_ph_pro);
-
         let params = critical_params(r, m, a);
-        let alpha = -params.xi / sin_obs;
-
         let beta_sq = params.eta + a * a * cos_obs * cos_obs
             - params.xi * params.xi * cos_obs * cos_obs / (sin_obs * sin_obs);
-
         if beta_sq >= 0.0 {
-            let beta = beta_sq.sqrt();
-            points.push((alpha, beta));
-            points.push((alpha, -beta)); // Mirror across equator
+            r_min = r;
+            break;
         }
     }
 
-    // Sort by angle for a clean boundary
-    points.sort_by(|a, b| {
-        let angle_a = a.1.atan2(a.0);
-        let angle_b = b.1.atan2(b.0);
-        angle_a.partial_cmp(&angle_b).unwrap()
-    });
+    for i in (0..=steps).rev() {
+        let t = i as f64 / steps as f64;
+        let r = r_ph_pro + t * (r_ph_retro - r_ph_pro);
+        let params = critical_params(r, m, a);
+        let beta_sq = params.eta + a * a * cos_obs * cos_obs
+            - params.xi * params.xi * cos_obs * cos_obs / (sin_obs * sin_obs);
+        if beta_sq >= 0.0 {
+            r_max = r;
+            break;
+        }
+    }
+
+    let mut points = Vec::with_capacity(2 * n_points);
+
+    // Sweep from prograde to retrograde (bottom half)
+    // Use cosine clustering to put high resolution at the sharp left/right edges
+    for i in 0..n_points {
+        let phase = std::f64::consts::PI * (i as f64) / ((n_points - 1).max(1) as f64);
+        let t = 0.5 - 0.5 * phase.cos();
+        let r = r_min + t * (r_max - r_min);
+
+        let params = critical_params(r, m, a);
+        let alpha = a * sin_obs - params.xi / sin_obs;
+        let beta_sq = params.eta + a * a * cos_obs * cos_obs
+            - params.xi * params.xi * cos_obs * cos_obs / (sin_obs * sin_obs);
+
+        // Max(0.0) ensures we safely clamp tiny floating point negatives at the roots
+        let beta = beta_sq.max(0.0).sqrt();
+        points.push((alpha, -beta));
+    }
+
+    // Sweep back from retrograde to prograde (top half)
+    for i in (0..n_points).rev() {
+        let phase = std::f64::consts::PI * (i as f64) / ((n_points - 1).max(1) as f64);
+        let t = 0.5 - 0.5 * phase.cos();
+        let r = r_min + t * (r_max - r_min);
+
+        let params = critical_params(r, m, a);
+        let alpha = a * sin_obs - params.xi / sin_obs;
+        let beta_sq = params.eta + a * a * cos_obs * cos_obs
+            - params.xi * params.xi * cos_obs * cos_obs / (sin_obs * sin_obs);
+
+        let beta = beta_sq.max(0.0).sqrt();
+        points.push((alpha, beta));
+    }
 
     points
 }
@@ -204,8 +239,7 @@ pub fn magnification_point_lens(theta: f64, theta_einstein: f64) -> f64 {
     let u = theta / theta_einstein;
     let u2 = u * u;
     let denom = (u2 - 1.0).abs().max(1e-6).sqrt();
-    (u2 + 2.0) / (u * denom * (u2 + 4.0).sqrt().max(1e-6))
-        .max(1.0)
+    (u2 + 2.0) / (u * denom * (u2 + 4.0).sqrt().max(1e-6)).max(1.0)
 }
 
 /// Einstein ring angular radius for a Schwarzschild black hole.
@@ -235,7 +269,8 @@ mod tests {
             assert!(
                 (r - expected_r).abs() < 0.2,
                 "Schwarzschild shadow should be circular at r={:.3}, got point at r={:.3}",
-                expected_r, r
+                expected_r,
+                r
             );
         }
     }
@@ -255,7 +290,8 @@ mod tests {
         assert!(
             (min_alpha.abs() - max_alpha.abs()).abs() > 0.1,
             "Kerr shadow should be asymmetric: alpha in [{:.3}, {:.3}]",
-            min_alpha, max_alpha
+            min_alpha,
+            max_alpha
         );
     }
 
@@ -268,17 +304,22 @@ mod tests {
         let shadow9 = bardeen_shadow(&bh9, std::f64::consts::FRAC_PI_2, 100);
 
         // Compute average "size" of each shadow
-        let avg_r0: f64 = shadow0.iter()
+        let avg_r0: f64 = shadow0
+            .iter()
             .map(|p| (p.0 * p.0 + p.1 * p.1).sqrt())
-            .sum::<f64>() / shadow0.len() as f64;
-        let avg_r9: f64 = shadow9.iter()
+            .sum::<f64>()
+            / shadow0.len() as f64;
+        let avg_r9: f64 = shadow9
+            .iter()
             .map(|p| (p.0 * p.0 + p.1 * p.1).sqrt())
-            .sum::<f64>() / shadow9.len() as f64;
+            .sum::<f64>()
+            / shadow9.len() as f64;
 
         assert!(
             avg_r9 < avg_r0,
             "Spinning BH shadow should be smaller: r9={:.3} < r0={:.3}",
-            avg_r9, avg_r0
+            avg_r9,
+            avg_r0
         );
     }
 

@@ -78,7 +78,11 @@ impl Kerr {
         let m = self.mass_val;
         let a = self.a();
         let disc = m * m - a * a;
-        if disc < 0.0 { 0.0 } else { m - disc.sqrt() }
+        if disc < 0.0 {
+            0.0
+        } else {
+            m - disc.sqrt()
+        }
     }
 
     /// Photon sphere radius (prograde circular photon orbit).
@@ -126,7 +130,11 @@ impl Kerr {
         let m = self.mass_val;
         let num = 2.0 * m * a;
         let den = r.powi(3) + a.powi(2) * r + 2.0 * m * a.powi(2);
-        if den.abs() < 1e-30 { 0.0 } else { num / den }
+        if den.abs() < 1e-30 {
+            0.0
+        } else {
+            num / den
+        }
     }
 
     /// Angular velocity of frame dragging at arbitrary (r, theta).
@@ -136,7 +144,11 @@ impl Kerr {
         let g = self.covariant(r, theta);
         let g_tph = g.get(0, 3);
         let g_phph = g.get(3, 3);
-        if g_phph.abs() < 1e-30 { 0.0 } else { -g_tph / g_phph }
+        if g_phph.abs() < 1e-30 {
+            0.0
+        } else {
+            -g_tph / g_phph
+        }
     }
 
     /// Ergosphere radius at angle theta.
@@ -147,7 +159,11 @@ impl Kerr {
         let a = self.a();
         let cos_theta = theta.cos();
         let disc = m * m - a * a * cos_theta * cos_theta;
-        if disc < 0.0 { m } else { m + disc.sqrt() }
+        if disc < 0.0 {
+            m
+        } else {
+            m + disc.sqrt()
+        }
     }
 
     /// Keplerian orbital angular frequency at radius r (equatorial circular orbit).
@@ -165,7 +181,11 @@ impl Kerr {
     pub fn time_dilation(&self, r: f64, theta: f64) -> f64 {
         let g = self.covariant(r, theta);
         let g_tt = g.get(0, 0);
-        if g_tt >= 0.0 { 0.0 } else { (-g_tt).sqrt() }
+        if g_tt >= 0.0 {
+            0.0
+        } else {
+            (-g_tt).sqrt()
+        }
     }
 
     /// Sigma = r^2 + a^2 cos^2(theta). Appears in every Kerr metric component.
@@ -198,12 +218,7 @@ impl Metric for Kerr {
         }
     }
 
-    fn hamiltonian_derivatives(
-        &self,
-        r: f64,
-        theta: f64,
-        p: [f64; 4],
-    ) -> HamiltonianDerivatives {
+    fn hamiltonian_derivatives(&self, r: f64, theta: f64, p: [f64; 4]) -> HamiltonianDerivatives {
         match self.coords {
             CoordinateSystem::BoyerLindquist => self.hamiltonian_derivs_bl(r, theta, p),
             CoordinateSystem::KerrSchild => self.hamiltonian_derivs_ks(r, theta, p),
@@ -243,10 +258,8 @@ impl Kerr {
         let g_tph = -(2.0 * m * r * a * sin2) / sigma;
 
         MetricTensor4::from_array([
-            g_tt, 0.0, 0.0, g_tph,
-            0.0, g_rr, 0.0, 0.0,
-            0.0, 0.0, g_thth, 0.0,
-            g_tph, 0.0, 0.0, g_phph,
+            g_tt, 0.0, 0.0, g_tph, 0.0, g_rr, 0.0, 0.0, 0.0, 0.0, g_thth, 0.0, g_tph, 0.0, 0.0,
+            g_phph,
         ])
     }
 
@@ -274,10 +287,8 @@ impl Kerr {
         let g_tph = -(2.0 * m * r * a) / (delta * sigma);
 
         MetricTensor4::from_array([
-            g_tt, 0.0, 0.0, g_tph,
-            0.0, g_rr, 0.0, 0.0,
-            0.0, 0.0, g_thth, 0.0,
-            g_tph, 0.0, 0.0, g_phph,
+            g_tt, 0.0, 0.0, g_tph, 0.0, g_rr, 0.0, 0.0, 0.0, 0.0, g_thth, 0.0, g_tph, 0.0, 0.0,
+            g_phph,
         ])
     }
 
@@ -312,8 +323,8 @@ impl Kerr {
         let den_tphi = delta * sigma;
         let dnum_tphi_dr = -2.0 * m * a;
         let dden_tphi_dr = ddelta_dr * sigma + delta * dsigma_dr;
-        let dg_tphi_dr = (dnum_tphi_dr * den_tphi - num_tphi * dden_tphi_dr)
-            / (den_tphi * den_tphi);
+        let dg_tphi_dr =
+            (dnum_tphi_dr * den_tphi - num_tphi * dden_tphi_dr) / (den_tphi * den_tphi);
         let dden_tphi_dtheta = delta * dsigma_dtheta;
         let dg_tphi_dtheta = -(num_tphi * dden_tphi_dtheta) / (den_tphi * den_tphi);
 
@@ -497,7 +508,11 @@ mod tests {
     fn test_schwarzschild_isco() {
         let bh = Kerr::new(1.0, 0.0);
         let isco = bh.isco(Orbit::Prograde);
-        assert!((isco - 6.0).abs() < 1e-6, "Schwarzschild ISCO should be 6M, got {}", isco);
+        assert!(
+            (isco - 6.0).abs() < 1e-6,
+            "Schwarzschild ISCO should be 6M, got {}",
+            isco
+        );
     }
 
     #[test]
@@ -505,23 +520,37 @@ mod tests {
         let bh = Kerr::new(1.0, 0.998);
         let isco = bh.isco(Orbit::Prograde);
         // For a* = 0.998, prograde ISCO should be approximately 1.24M
-        assert!(isco < 1.5, "Extreme Kerr prograde ISCO should be < 1.5M, got {}", isco);
+        assert!(
+            isco < 1.5,
+            "Extreme Kerr prograde ISCO should be < 1.5M, got {}",
+            isco
+        );
     }
 
     #[test]
     fn test_event_horizon() {
         let bh = Kerr::new(1.0, 0.0);
-        assert!((bh.event_horizon() - 2.0).abs() < 1e-12, "Schwarzschild horizon = 2M");
+        assert!(
+            (bh.event_horizon() - 2.0).abs() < 1e-12,
+            "Schwarzschild horizon = 2M"
+        );
 
         let bh = Kerr::new(1.0, 1.0);
-        assert!((bh.event_horizon() - 1.0).abs() < 1e-12, "Extreme Kerr horizon = M");
+        assert!(
+            (bh.event_horizon() - 1.0).abs() < 1e-12,
+            "Extreme Kerr horizon = M"
+        );
     }
 
     #[test]
     fn test_photon_sphere() {
         let bh = Kerr::new(1.0, 0.0);
         let rph = bh.photon_sphere();
-        assert!((rph - 3.0).abs() < 1e-6, "Schwarzschild photon sphere = 3M, got {}", rph);
+        assert!(
+            (rph - 3.0).abs() < 1e-6,
+            "Schwarzschild photon sphere = 3M, got {}",
+            rph
+        );
     }
 
     #[test]
@@ -562,7 +591,8 @@ mod tests {
         assert!(
             (h_bl - h_ks).abs() < 1e-8,
             "Hamiltonian should be invariant under coordinate transform! BL={}, KS={}",
-            h_bl, h_ks
+            h_bl,
+            h_ks
         );
     }
 }

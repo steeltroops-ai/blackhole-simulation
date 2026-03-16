@@ -14,12 +14,7 @@ impl<'a, M: Metric> NumericalAudit<'a, M> {
     }
 
     /// Compute dH/dr and dH/dtheta numerically via central differences.
-    pub fn numerical_derivatives(
-        &self,
-        r: f64,
-        theta: f64,
-        p: [f64; 4],
-    ) -> HamiltonianDerivatives {
+    pub fn numerical_derivatives(&self, r: f64, theta: f64, p: [f64; 4]) -> HamiltonianDerivatives {
         let h = |r_val: f64, theta_val: f64| {
             let g_inv = self.metric.contravariant(r_val, theta_val);
             0.5 * g_inv.contract(&p)
@@ -32,12 +27,7 @@ impl<'a, M: Metric> NumericalAudit<'a, M> {
     }
 
     /// Compare analytic vs numerical derivatives and return the max relative error.
-    pub fn max_relative_error(
-        &self,
-        r: f64,
-        theta: f64,
-        p: [f64; 4],
-    ) -> f64 {
+    pub fn max_relative_error(&self, r: f64, theta: f64, p: [f64; 4]) -> f64 {
         let analytic = self.metric.hamiltonian_derivatives(r, theta, p);
         let numerical = self.numerical_derivatives(r, theta, p);
 

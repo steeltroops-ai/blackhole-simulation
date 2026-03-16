@@ -20,8 +20,8 @@ pub fn get_state_derivative<M: Metric>(state: &GeodesicState, metric: &M) -> Geo
     let g = g_inv.as_array();
     let p = &state.p;
 
-    let dt  = g[0]  * p[0] + g[1]  * p[1] + g[3]  * p[3];
-    let dr  = g[4]  * p[0] + g[5]  * p[1] + g[7]  * p[3];
+    let dt = g[0] * p[0] + g[1] * p[1] + g[3] * p[3];
+    let dr = g[4] * p[0] + g[5] * p[1] + g[7] * p[3];
     let dth = g[10] * p[2];
     let dph = g[12] * p[0] + g[13] * p[1] + g[15] * p[3];
 

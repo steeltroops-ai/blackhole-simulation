@@ -170,6 +170,11 @@ export class UniformBatcher {
         const loc = gl.getUniformLocation(program, info.name);
         if (loc) {
           this.locations.set(info.name, loc);
+          // Also set the base name if it's an array for easier lookup
+          if (info.name.endsWith("[0]")) {
+            const baseName = info.name.substring(0, info.name.length - 3);
+            this.locations.set(baseName, loc);
+          }
         }
       }
     }
@@ -226,16 +231,14 @@ export class UniformBatcher {
 
     // Fast path: Float32Array (Zero-Copy)
     if (value instanceof Float32Array) {
-      // Deep comparison for arrays is expensive, so we might skip it or use a dirty flag from caller.
-      // For now, we assume if a Float32Array is passed, it might be mutated, so we assume dirty
-      // OR we implement a fast check if we keep a copy.
-      // To be truly O(1), we just check identity if different buffer, or force update.
-      // Let's force update for Float32Array to ensure correctness, assuming caller optimizes frequency.
-      // OR better: check content if small.
-
       if (value.length === 2) this.gl.uniform2fv(loc, value);
       else if (value.length === 3) this.gl.uniform3fv(loc, value);
       else if (value.length === 4) this.gl.uniform4fv(loc, value);
+      else if (value.length > 4) {
+        // Assume vec2 array if even length of points
+        if (value.length % 2 === 0) this.gl.uniform2fv(loc, value);
+        else this.gl.uniform1fv(loc, value);
+      }
       return;
     }
 

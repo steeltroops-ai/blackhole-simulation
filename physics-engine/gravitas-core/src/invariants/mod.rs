@@ -7,14 +7,14 @@
 //! 3. **Carter constant** Q (hidden symmetry, Killing-Yano tensor)
 //! 4. **Hamiltonian** H = 0 (null geodesic constraint)
 
+mod audit;
 mod constants_of_motion;
 mod renormalization;
-mod audit;
 
-pub use constants_of_motion::ConstantsOfMotion;
-pub use constants_of_motion::compute_constants;
-pub use renormalization::renormalize_null;
 pub use audit::NumericalAudit;
+pub use constants_of_motion::compute_constants;
+pub use constants_of_motion::ConstantsOfMotion;
+pub use renormalization::renormalize_null;
 
 use crate::geodesic::GeodesicState;
 use crate::metric::Metric;

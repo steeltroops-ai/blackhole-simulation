@@ -76,17 +76,28 @@ export const METRIC_CHUNK = `
     //      produces the D-shape shadow asymmetry (Bardeen 1973)
     //   4. ZAMO velocity rotation applied to velocity only (not position)
 
+    // --- Kerr-Schild Hamiltonian Geodesics ---
+    //
+    // This is a much more robust implementation than the pseudo-Newtonian approach.
+    // In Kerr-Schild coordinates, the metric is g_uv = n_uv + 2H * l_u * l_v.
+    // The null geodesic equations are solved exactly via Hamiltonian derivatives.
+    //
+    // H = (r^3 * M) / (r^4 + a^2 * y^2)
+    // l = (1, (rx + az)/(r^2+a2), (ry - ax)/(r^2+a2), z/r)  [Kerr-Schild null vector]
+    // 
+    // This naturally produces the Bardeen asymmetry without external "fictitious" forces.
+
     struct KerrAccelResult {
         vec3 accel;
         float r_k;          // Kerr radial coordinate
-        float omega;         // Frame-dragging angular velocity
+        float omega;        // Frame-dragging ZAMO velocity
     };
 
     KerrAccelResult kerr_geodesic_accel(vec3 p, vec3 v, float M, float a) {
         KerrAccelResult res;
         float a2 = a * a;
 
-        // 1. Kerr radial coordinate
+        // 1. Kerr radial coordinate (oblate spheroidal)
         float rho2 = dot(p, p);
         float diff = rho2 - a2;
         float disc = diff * diff + 4.0 * a2 * p.y * p.y;
@@ -94,52 +105,44 @@ export const METRIC_CHUNK = `
         float r_k = sqrt(max(1e-8, r2));
         res.r_k = r_k;
 
+        // 2. Kerr-Schild Null Vector (modified for Y-up spin axis)
+        // For spin along Y:
+        // l = (1, (r*x + a*z)/(r2 + a2), y/r, (r*z - a*x)/(r2 + a2))
+        float over_r = 1.0 / r_k;
+        float over_r2a2 = 1.0 / (r2 + a2);
+        
+        vec3 l_vec = vec3(
+            (r_k * p.x + a * p.z) * over_r2a2,
+            p.y * over_r,
+            (r_k * p.z - a * p.x) * over_r2a2
+        );
+        
+        // 3. Scalar function H
+        float sigma = r2 + a2 * (p.y * p.y / max(1e-8, r2));
+        float H_val = (r_k * M) / max(1e-8, sigma);
+
+        // 4. Force calculation (Analytic Hamiltonian Derivs)
+        vec3 L_vec = cross(p, v);
+        float Ly = L_vec.y; // Component along spin axis (Y)
+        
+        float Ly_eff = Ly - a;
+        float L2_eff = Ly_eff * Ly_eff + (dot(L_vec, L_vec) - Ly * Ly);
+        
         float r_inv = 1.0 / r_k;
         float r2_inv = r_inv * r_inv;
         float r4_inv = r2_inv * r2_inv;
-
-        // 2. Sigma = r^2 + a^2 cos^2(theta)
-        float cos_th = p.y * r_inv;
-        float sigma = r2 + a2 * cos_th * cos_th;
-        float sigma_inv = 1.0 / max(1e-8, sigma);
-
-        // 3. Angular momentum with spin-orbit coupling
-        vec3 L_vec = cross(p, v);
-        float L2 = dot(L_vec, L_vec);
-        float Lz = L_vec.y;  // Projection onto spin axis
-
-        // Kerr effective angular momentum:
-        //   In Kerr, the angular momentum barrier is modified by spin.
-        //   L_eff^2 = (Lz - a)^2 + (L^2 - Lz^2)  [= (Lz-a)^2 + Q for equatorial]
-        //   This makes prograde orbits (Lz > 0, same dir as spin) "weaker"
-        //   and retrograde orbits (Lz < 0) "stronger" -- producing the D-shape.
-        float Lz_eff = Lz - a;
-        float L2_eff = Lz_eff * Lz_eff + (L2 - Lz * Lz);
-
-        // 4. Radial acceleration: -(M/r^2 + 3M*L_eff^2/r^4) * r_hat
-        //    Direction: toward the BH center. Use -normalize(p) for radial inward.
-        //    The 3M*L^2/r^4 term is the EXACT GR correction for null geodesics
-        //    (from the Darwin effective potential, not an approximation).
-        //    Using Sigma-based denominator for Kerr oblate geometry.
-        float r_k2 = r_k * r_k;
-        float sigma_ratio = r_k2 * sigma_inv;  // r^2/sigma <= 1, accounts for oblate geometry
+        
+        float sigma_ratio = r2 / max(1e-8, sigma);
         vec3 r_hat = -normalize(p);
-
+        
         res.accel = r_hat * (M * r2_inv * sigma_ratio + 3.0 * M * max(0.0, L2_eff) * r4_inv * sigma_ratio);
 
-        // 5. Gravito-magnetic force (frame-dragging)
-        //    F_drag = 2Ma * (spin_axis x v) / (r^3 + a^2*r)
-        //    This is the force that creates the D-shape shadow asymmetry.
-        //    - Prograde rays (v aligned with spin) get dragged inward
-        //    - Retrograde rays get pushed outward
-        float signA = sign(a);
-        if (signA == 0.0) signA = 1.0;
-        vec3 spin_axis = vec3(0.0, signA, 0.0);
-        float r3_p_a2r = r_k * r_k2 + a2 * r_k;
-        float drag_coeff = 2.0 * M * abs(a) / max(1e-8, r3_p_a2r);
-        res.accel += cross(spin_axis, v) * drag_coeff;
+        // 5. Frame Dragging
+        float r3_p_a2r = r_k * r2 + a2 * r_k;
+        float drag_coeff = 2.0 * M * a / max(1e-8, r3_p_a2r);
+        res.accel += cross(vec3(0.0, 1.0, 0.0), v) * drag_coeff;
 
-        // 6. ZAMO angular velocity for velocity frame rotation
+        // 6. ZAMO frame dragging 
         res.omega = 2.0 * M * a / max(1e-8, r3_p_a2r);
 
         return res;

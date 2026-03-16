@@ -1,6 +1,6 @@
 //! Hawking radiation temperature.
 
-use crate::constants::{SI_HBAR, SI_C, SI_KB};
+use crate::constants::{SI_C, SI_HBAR, SI_KB};
 
 /// Hawking temperature for a Kerr black hole.
 ///

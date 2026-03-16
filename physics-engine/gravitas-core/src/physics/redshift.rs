@@ -100,12 +100,7 @@ pub fn kerr_g_factor(r: f64, mass: f64, spin: f64, lambda: f64) -> f64 {
 ///   g ~ g_grav * delta_doppler
 ///
 /// This is the legacy interface kept for backward compatibility.
-pub fn combined_g_factor(
-    r: f64,
-    mass: f64,
-    spin: f64,
-    cos_theta_obs: f64,
-) -> f64 {
+pub fn combined_g_factor(r: f64, mass: f64, spin: f64, cos_theta_obs: f64) -> f64 {
     let a = spin * mass;
     let omega = mass.sqrt() / (r.powf(1.5) + a * mass.sqrt());
     let v_orbital = omega * r;
@@ -170,7 +165,8 @@ mod tests {
         assert!(
             g_approach > g_recede,
             "Approaching side should be bluer: g+={}, g-={}",
-            g_approach, g_recede
+            g_approach,
+            g_recede
         );
     }
 }

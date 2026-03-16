@@ -45,9 +45,8 @@ pub fn christoffel_from_metric_derivs<M: Metric>(
                 // Gamma^alpha_{mu nu} = 1/2 g^{alpha sigma} (dg_{sigma mu}/dx^nu + dg_{sigma nu}/dx^mu - dg_{mu nu}/dx^sigma)
                 let mut sum = 0.0;
                 for sigma in 0..4 {
-                    let term = dg[nu][sigma * 4 + mu]
-                        + dg[mu][sigma * 4 + nu]
-                        - dg[sigma][mu * 4 + nu];
+                    let term =
+                        dg[nu][sigma * 4 + mu] + dg[mu][sigma * 4 + nu] - dg[sigma][mu * 4 + nu];
                     sum += g_inv.components[alpha * 4 + sigma] * term;
                 }
                 gamma[alpha][mu][nu] = 0.5 * sum;

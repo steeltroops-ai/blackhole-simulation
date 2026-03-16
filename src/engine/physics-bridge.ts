@@ -23,7 +23,7 @@ export class PhysicsBridge {
   private lastBuffer: ArrayBuffer | SharedArrayBuffer | null = null;
   private sab: SharedArrayBuffer | null = null;
   private _lastGoodCamera = new Float32Array(64);
-  private _lastGoodPhysics = new Float32Array(128);
+  private _lastGoodPhysics = new Float32Array(256); // Expanded for shadow curve (128 used)
 
   // Persistent views
   private controlView: Float32Array = new Float32Array(0);
@@ -97,8 +97,8 @@ export class PhysicsBridge {
   private initializeViews() {
     if (!this.sab) return;
     this.controlView = new Float32Array(this.sab, OFFSETS.CONTROL * 4, 16);
-    this.cameraView = new Float32Array(this.sab, OFFSETS.CAMERA * 4, 16);
-    this.physicsView = new Float32Array(this.sab, OFFSETS.PHYSICS * 4, 16);
+    this.cameraView = new Float32Array(this.sab, OFFSETS.CAMERA * 4, 64);
+    this.physicsView = new Float32Array(this.sab, OFFSETS.PHYSICS * 4, 128);
     this.seqView = new Int32Array(this.sab);
   }
 
@@ -118,7 +118,7 @@ export class PhysicsBridge {
     this.wasmPhysicsView = new Float32Array(
       this.wasmMemory.buffer,
       ptr + OFFSETS.PHYSICS * 4,
-      16,
+      128,
     );
   }
 
