@@ -27,8 +27,8 @@ export const IdentityHUD = ({
     <div className="flex flex-col">
       <div className="flex items-center gap-3 lg:gap-4">
         <Image
-          src="/icon.png"
-          alt="Logo"
+          src="/brand-logo.png"
+          alt="Interactive Black Hole Simulation Physics Engine"
           width={40}
           height={40}
           className="w-10 h-10 lg:w-12 lg:h-12 object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] shrink-0"
