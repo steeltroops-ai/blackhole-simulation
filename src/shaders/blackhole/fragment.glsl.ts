@@ -186,7 +186,7 @@ void main() {
 
         // Accretion disk sampling (uses Euclidean r for disk geometry)
 #ifdef ENABLE_DISK
-        sample_accretion_disk(p, p_prev, ro, r_new, isco, M, a, currentDt, rs, accumulatedColor, accumulatedAlpha);
+        sample_accretion_disk(p, p_prev, ro, v, r_new, isco, M, a, currentDt, rs, accumulatedColor, accumulatedAlpha);
         if(accumulatedAlpha > 0.99) break;
 #endif
 
@@ -220,15 +220,17 @@ void main() {
     // Photon ring
     vec3 photonColor = vec3(0.0);
 #ifdef ENABLE_PHOTON_GLOW
-    float distToPhotonRing = abs(length(p) - rph);
-    float directRing = exp(-distToPhotonRing * 40.0) * 1.8 * u_lensing_strength;
-    float higherOrderRing = 0.0;
-    if(photonCrossings > 0) {
-      float ringSharpness = 60.0 + float(photonCrossings) * 30.0;
-      float ringBrightness = exp(-float(photonCrossings) * 1.0) * 1.2;
-      higherOrderRing = exp(-distToPhotonRing * ringSharpness) * ringBrightness * u_lensing_strength;
+    if (!hitHorizon) {
+        float distToPhotonRing = abs(length(p) - rph);
+        float directRing = exp(-distToPhotonRing * 40.0) * 1.8 * u_lensing_strength;
+        float higherOrderRing = 0.0;
+        if(photonCrossings > 0) {
+          float ringSharpness = 60.0 + float(photonCrossings) * 30.0;
+          float ringBrightness = exp(-float(photonCrossings) * 1.0) * 1.2;
+          higherOrderRing = exp(-distToPhotonRing * ringSharpness) * ringBrightness * u_lensing_strength;
+        }
+        photonColor = vec3(1.0) * (directRing + higherOrderRing);
     }
-    photonColor = vec3(1.0) * (directRing + higherOrderRing);
 #endif
 
     // Ergosphere
@@ -241,9 +243,13 @@ void main() {
       ergoColor = vec3(0.3, 0.35, 0.9) * ergoGlow;
     }
 
-    vec3 finalColor = background * (1.0 - accumulatedAlpha) + accumulatedColor + photonColor + ergoColor;
+    if (hitHorizon) {
+        // If we hit the horizon, the background is pitch black.
+        // But we STILL see any accumulated disk emission that was in front of it!
+        background = vec3(0.0);
+    }
 
-    if(hitHorizon) finalColor = vec3(0.0);
+    vec3 finalColor = background * (1.0 - accumulatedAlpha) + accumulatedColor + photonColor * (1.0 - accumulatedAlpha) + ergoColor * (1.0 - accumulatedAlpha);
 
     // Kerr Shadow Guide (diagnostic overlay)
     if (u_show_kerr_shadow > 0.5) {
