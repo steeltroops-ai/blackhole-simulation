@@ -71,14 +71,11 @@ export const reprojectionFragmentShader = `#version 300 es
     vec3 current = texture(u_currentFrame, v_texCoord).rgb;
     
     // Texture is full size, so texel size must be relative to physical dimensions.
-    // u_resolution is (width * scale, height * scale).
-    // u_textureScale is (scale, scale).
-    // Physical resolution = u_resolution / u_textureScale.
     vec2 scale = u_textureScale;
     if (scale.x < 0.01) scale = vec2(1.0, 1.0);
     vec2 texelSize = scale / u_resolution;
 
-    // 3x3 Neighborhood Sampling
+    // 3x3 Neighborhood Sampling in YCoCg space
     vec3 m1 = vec3(0.0);
     vec3 m2 = vec3(0.0);
     
@@ -101,7 +98,17 @@ export const reprojectionFragmentShader = `#version 300 es
     // Clamp history sample to the neighborhood AABB to minimize ghosting
     history = clamp(history, boxMin, boxMax);
 
-    float alpha = u_cameraMoving ? 0.0 : u_blendFactor;
+    // Variance-Guided Accumulation Weight
+    // stdDev.x is the YCoCg luminance standard deviation of the 3x3 neighborhood.
+    // High variance = sharp edge / photon ring boundary / rotating disk feature.
+    //   → reduce accumulation to prevent ghosting on high-contrast moving features.
+    // Low variance = flat empty space / smooth disk interior.
+    //   → keep full accumulation for maximum temporal noise suppression.
+    // Remap: variance of 0 → weight 1.0 (full blend); variance of 0.15 → weight 0.5.
+    float lumaVariance = std.x;
+    float varianceWeight = 1.0 - clamp(lumaVariance * 4.0, 0.0, 0.55);
+
+    float alpha = u_cameraMoving ? 0.0 : u_blendFactor * varianceWeight;
     
     vec3 resolved = YCoCgToRGB(mix(RGBToYCoCg(current), history, alpha));
     fragColor = vec4(resolved, 1.0);

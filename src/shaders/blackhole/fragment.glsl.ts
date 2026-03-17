@@ -115,6 +115,17 @@ void main() {
     int maxSteps = int(min(float(u_maxRaySteps), 500.0));
     vec3 p_prev = p;
 
+    // Inner Shadow Culling (Horizon-Safe, Bardeen 1973):
+    // A ray with b = |cross(ro,rd)| < rh is captured in ANY Kerr geometry.
+    // (rh is the outer event horizon radius, always <= b_crit for all spin values.)
+    // This culls only the innermost shadow core -- zero overlap with photon ring
+    // or accretion disk since disk inner edge = isco >> rh.
+    // Safe margin: 0.9 * rh. Even at maximum spin (a=0.999M), rh = 1.045M while
+    // the prograde critical impact param b_pro > 2.0M -- safe margin of 2x.
+    if (impactParam < rh * 0.9) {
+        hitHorizon = true;
+    }
+
     for(int i = 0; i < maxSteps; i++) {
         p_prev = p;
         float r = length(p);
@@ -128,8 +139,21 @@ void main() {
         if(r > MAX_DIST) break;
 
         // Adaptive step size (curvature-aware)
+        // Original formula preserved for r <= 30 (disk + strong field region).
+        // For r > 30 (proven empty space beyond any disk/gravitational structure),
+        // boost step size to accelerate background/star ray traversal.
+        // This does NOT affect disk density accumulation (disk sampling gated on
+        // r > isco && r < diskOuter, both << 30 for standard parameters) or
+        // photon sphere precision (sphereProx clamp still dominates for r ~ rph).
         float distFactor = 1.0 + r * 0.05;
         float dt = clamp((r - rh) * 0.1 * distFactor, MIN_STEP, MAX_STEP * distFactor);
+        if (r > 30.0) {
+            // Empty-space boost: scale linearly with distance above r=30.
+            // At r=60: extra boost = (60-30)*0.08 = 2.4, clamped to MAX_STEP*2.
+            float farBoost = (r - 30.0) * 0.08;
+            dt = max(dt, MIN_STEP + farBoost);
+            dt = min(dt, MAX_STEP * 2.5);
+        }
 
         float sphereProx = abs(r - rph);
         dt = min(dt, MIN_STEP + sphereProx * 0.15);

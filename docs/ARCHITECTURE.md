@@ -1,12 +1,14 @@
 # System Architecture & Engineering Specifications
 
-This document outlines the high-performance rendering pipeline, mathematical foundations, and software architecture of the relativistic black hole simulation. It reflects the **Hybrid Rust/WebGL 2.0 Architecture** (with WebGPU support in Alpha) and the project's long-term roadmap for predictive rendering.
+This document outlines the high-performance rendering pipeline, mathematical foundations, and software architecture of the relativistic black hole simulation. It reflects the **Hybrid Rust/WebGL 2.0 Architecture** and the project's long-term roadmap for predictive rendering.
 
 ---
 
 ## 1. Execution Pipeline
 
-The rendering engine operates on a **Zero-Copy Reactive Data Pipeline**, utilizing a strict separation of concerns between the high-level orchestration (TypeScript), the physics kernel (Rust/WASM), the massively parallel rendering engine (WebGPU), and the intelligent supervisor (Cognitive Layer).
+The rendering engine operates on a **Zero-Copy Reactive Data Pipeline**, utilizing a strict separation of concerns between high-level orchestration (TypeScript), the physics kernel (Rust/WASM), and the massively parallel rendering engine (WebGL 2.0 / WebGPU Alpha).
+
+The system employs a **Hybrid Integrator Strategy**: High-precision adaptive math in the Rust kernel and high-throughput symplectic integration on the GPU.
 
 ```mermaid
 graph TD
@@ -36,17 +38,18 @@ graph TD
 
 
         subgraph RustKernel ["Rust Physics Kernel (WASM)"]
-            PhysicsTick["Physics Tick (120Hz)"]:::kernel
+            PhysicsTick["Physics Tick (75Hz Active / 1Hz Idle)"]:::kernel
             EKF["Extended Kalman Filter<br/>(Camera Prediction)"]:::kernel
-            Integrator["Adaptive RKF45<br/>(Cash-Karp Geodesics)"]:::kernel
+            Integrator["Adaptive RKF45<br/>(Precise Geodesics)"]:::kernel
+            Metric["Kerr-Schild Metric<br/>(Horizon Regularity)"]:::kernel
             Spectrum["Spectral Engine<br/>(SPD Basis Functions)"]:::kernel
         end
 
     end
 
     subgraph GPULogic ["GPU Compute & Render"]
-        subgraph WebGPU ["WebGPU Pipeline (Primary Engine)"]
-            RayMarch["Ray-Marching Kernel<br/>(Volumetric Kerr)"]:::compute
+        subgraph ShaderEngine ["Renderer (WebGL 2.0 / WebGPU)"]
+            RayMarch["Ray-Marching Kernel<br/>(Velocity-Verlet Integrator)"]:::compute
             PostProcess["Post-Processing<br/>(Bloom / Tone Map / TAA)"]:::compute
         end
         subgraph ThreeJS ["Data Visualization (React Three Fiber)"]
@@ -90,64 +93,23 @@ graph TD
 
 ## 2. Project File Structure Analysis
 
-The project is organized into strictly defined modules to separate concerns between the React application lifecycle, the CPU-side physics engine (Rust), and the GPU-side shader programs (WebGPU).
+The project is organized into strictly defined modules to separate concerns between the React application lifecycle, the CPU-side physics engine (Rust), and the GPU-side shader programs.
 
 ```text
 src/
 ├── app/                                  # Next.js App Router (Entry Points)
-│   ├── globals.css                       # Global Design System (Vanilla CSS Tokens)
-│   ├── layout.tsx                        # Root layout & SEO Metadata injection
-│   ├── page.tsx                          # Main simulation view controller
-│   └── ...
-│
 ├── components/                           # UI & Rendering Components
-│   ├── spacetime/                        # 3D Math Spacetime Canvas (React Three Fiber)
-│   │   ├── VolumetricGrid.tsx            # True 3D Isotropic Curvature Grid
-│   │   ├── LightCones.tsx                # River Model Light Cone Visualization
-│   │   └── FrameDragField.tsx            # Full-latitude Frame Dragging Vectors
-│   ├── webgpu/                           # Main Black Hole Viewport Canvas
-│   └── ui/                               # HUD, Control Panel, Telemetry
-│
 ├── configs/                              # Static Configuration
-│   ├── features.ts                       # Feature flags
-│   ├── physics.config.ts                 # Simulation constants
-│   └── ...
-│
+├── engine/                               # WASM Integration
 ├── hooks/                                # Logic & State Management
-│   ├── useAnimation.ts                   # Main Render Loop
-│   ├── usePhysicsEngine.ts               # Rust/WASM Bridge & SAB Management
-│   └── ...
-│
-├── physics-engine/                       # Rust Physics Kernel
-│   ├── Cargo.toml                        # Dependencies (wasm-bindgen, glam)
-│   └── src/
-│       ├── lib.rs                        # WASM Interface & SAB Protocol
-│       ├── kerr.rs                       # Kerr Metric Solvers (f64)
-│       ├── integrator.rs                 # Adaptive RKF45 Stepper
-│       ├── geodesic.rs                   # Relativistic Geodesic Core
-│       ├── derivatives.rs                # Hamiltonian Equations of Motion
-│       ├── invariants.rs                 # Numerical Regularization
-│       ├── spectrum.rs                   # Spectral Rendering (Gauss-Laguerre)
-│       ├── camera.rs                     # EKF Camera Physics
-│       └── constants.rs                  # Physical Constants
-
-│
 ├── rendering/                            # Rendering Orchestration
-│   ├── webgpu-renderer.ts                # WebGPU Device & Pass Management
-│   └── ...
-│
-├── shaders/                              # WGSL & GLSL Programs
-│   ├── raymarching.wgsl                  # Core Compute Shader
-│   ├── postprocess/                      # Bloom, Tone Mapping
-│   └── ...
-│
-├── types/                                # TypeScript Interfaces
-│   ├── physics-engine.d.ts               # WASM Module Types
-│   └── ...
-│
-└── utils/                                # Helpers
-    ├── errorTracking.ts                  # Global Error Handling
-    └── ...
+├── shaders/                              # GLSL & WGSL Programs
+├── workers/                              # Off-Main-Thread Computation
+└── ...
+
+physics-engine/                           # Rust Physics Kernel
+├── gravitas-core/                        # Core Math Library
+└── gravitas-wasm/                        # WASM FFI Layer
 ```
 
 ---
@@ -167,22 +129,22 @@ The system employs a multi-tiered architecture to balance precision, performance
 
 **Responsibility**: High-precision relativistic calculations and state stability.
 
-- **Role**: The Brain. Runs at a fixed high-frequency tick (e.g., 120Hz).
+- **Role**: The Brain. Runs at a variable high-frequency tick (75Hz Active / 1Hz Idle).
 - **Core Modules**:
-  - **`kerr`**: Solves exact horizons and ISCO using `f64`.
-  - **`geodesic` / `integrator`**: Integrates ray paths using an **Adaptive RKF45** method.
+  - **`kerr`**: Solves exact physics invariants using `f64`. Implements **Kerr-Schild coordinates** to ensure the metric remains regular at the event horizon.
+  - **`geodesic` / `integrator`**: Integrates ray paths using an **Adaptive RKF45** method for scientific ground truth.
   - **`spectrum`**: Generates LUTs for Doppler-shifted blackbody radiation.
-
   - **`camera`**: Uses an **Extended Kalman Filter (EKF)** to predict camera movement and eliminate latency.
 
-### 3.3. Level 3: Compute & Render (WebGPU + React Three Fiber)
+### 3.3. Level 3: Compute & Render (WebGL 2.0 / WebGPU)
 
-**Responsibility**: Massively parallel ray tracing and 3D data geometry visualization.
+**Responsibility**: Massively parallel ray tracing and cinematic visualization.
 
-- **Role**: The Muscle & The Presenter. Executes billions of ray steps and renders millions of metric vertices.
-- **Key Tech**:
-  - **WebGPU Compute**: Handles the highly complex relativistic ray-marching for the actual photon paths and accretion disk rendering.
-  - **React Three Fiber (WebGL 2.0)**: Powers the **True 3D Spacetime Analytics**. It takes the raw tensor outputs from the WASM SAB (Kretschmann scalars, flow vectors) and efficiently rasterizes them as massive 3D volumetric grids, light cones, and vector fields using standard graphics hardware, entirely separated from the heavy ray-tracer workload.
+- **Role**: The Muscle. Executes billions of ray steps per frame.
+- **Key Implementation**:
+  - **WebGL 2.0 Shaders (Current)**: Primary production engine. Uses **Regularized Kerr-Schild Acceleration** with a **Velocity-Verlet** integrator.
+  - **WebGPU (Alpha)**: Strategic transition layer for subgroup-level optimizations and compute-based denoising.
+  - **React Three Fiber**: Handles light-weight data visualization overlays (grids, vectors).
 
 ### 3.4. Level 4: Cognitive Supervisor (Heuristics)
 
@@ -213,28 +175,24 @@ To eliminate Garbage Collection (GC) pauses, the system uses a rigid binary prot
 
 ### 5.1. Symplectic Integration
 
-Geometric optics are validated using an **Adaptive Runge-Kutta-Fehlberg 4(5)** integrator, which conserves the Hamiltonian energy $H = \frac{1}{2} g^{\mu\nu} p_\mu p_\nu = 0$ by adjusting step sizes to maintain local error bounds, preventing orbital decay near the horizon.
+Geometric optics are validated using an **Adaptive Runge-Kutta-Fehlberg 4(5)** integrator, which conserves the Hamiltonian energy $H = \frac{1}{2} g^{\mu\nu} p_\mu p_\nu = 0$ by adjusting step sizes to maintain local error bounds.
 
 ### 5.2. Radiative Transfer
 
-Unlike simple ray-tracing, the engine solves the **Radiative Transfer Equation (RTE)** along the ray path:
+The engine solves the **Radiative Transfer Equation (RTE)** along the ray path:
 $$ \frac{dI*\nu}{d\lambda} = -\alpha*\nu I*\nu + j*\nu $$
-This allows for volumetric effects like self-shadowing and realistic limb darkening of the accretion disk.
-
-### 5.3. Spectral Rendering
-
-We transition from RGB colors to **Spectral Radiance**. Light is modeled as a temperature $T$. The observed color is computed by integrating the Planck distribution, shifted by the relativistic Dopper/Gravitational factor $g$, against CIE Color Matching Functions.
+This allows for volumetric effects like self-shadowing and realistic limb darkening.
 
 ---
 
 ## 6. Performance Logic
 
-### 6.1. Tiled Compute Rendering
+### 6.1. OffscreenCanvas Implementation
 
-The screen is divided into 8x8 tiles. A coarse pass determines if a tile intersects the Black Hole's influence. Complex compute shaders are dispatched _only_ for active tiles, saving 80% of GPU cycles on empty starfields.
+- **Purpose**: Future roadmap for Tier 3.
+- **Worker Management**: See `src/engine/worker-pool.ts` (WIP).
+- **Fallback Logic**: Standard WebGL 2.0 rendering if `SharedArrayBuffer` is unsupported.
 
 ### 6.2. Predictive Latency Compensation
 
-The Rust kernel uses an **Extended Kalman Filter (EKF)** to predict the camera's position at the exact moment of V-Sync ($t + 16.6ms$), virtually eliminating the "rubber-banding" feel of heavy simulations.
-
----
+The Rust kernel uses an **Extended Kalman Filter (EKF)** to predict the camera's position at the exact moment of V-Sync, eliminating input lag.

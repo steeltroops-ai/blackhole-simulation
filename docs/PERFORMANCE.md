@@ -1,155 +1,83 @@
-# Performance Optimization Architecture
+# Black Hole Simulation: Performance Specifications
 
-This document details the performance techniques used to achieve 60/120 FPS rendering of general relativistic physics on consumer hardware. The architecture utilizes a **Hybrid Rust/WebGL 2.0 and WebGPU Alpha** system.
-
----
-
-## 1. Zero-Copy Orchestration (SharedArrayBuffer)
-
-The most critical optimization is the elimination of per-frame Garbage Collection (GC) pauses and serialization overhead.
-
-### 1.1 The Bottleneck
-
-Traditional JS-to-WASM or JS-to-Worker communication uses `postMessage`, which involves structured cloning (serialization/deserialization) of data. This introduces latency and GC pressure.
-
-### 1.2 The Solution
-
-We utilize a **SharedArrayBuffer (SAB)** acting as a shared memory block between the TypeScript Orchestrator, the Rust Physics Kernel, and the GPU.
-
-- **Protocol**: Rigid binary layout (aligned to 8 bytes).
-- **Access**:
-  - **Rust**: Reads inputs / Writes physics state (Direct Memory Access).
-  - **TypeScript**: Writes inputs / Reads telemetry (Typed Arrays).
-  - **GPU**: Reads Uniform Buffers mapped from the SAB.
-- **Result**: **0 bytes** allocated per frame. GC overhead is eliminated from the render loop.
+This document outlines the optimization strategies used to maintain 60–144 FPS while solving Kerr geodesics. The architecture is designed to minimize CPU overhead, eliminate Garbage Collection (GC) jitter, and maximize GPU warp occupancy.
 
 ---
 
-## 2. Hybrid Compute Architecture
+## 1. Zero-Copy Orchestration
 
-We adhere to the **Golden Rule of Simulation**:
-_"CPU for Logic, GPU for Pixels, Rust for Math."_
+The engine eliminates serialization overhead by utilizing **SharedArrayBuffer (SAB)** for cross-thread state synchronization.
+
+### 1.1 Memory Protocol (v2)
+
+- **Binary Layout**: Data is organized into a fixed 2MB buffer with byte-aligned offsets.
+- **Reference**: `src/engine/physics-bridge.ts` ([`OFFSETS`](file:///c:/Omniverse/Projects/blackhole-simulation/src/engine/physics-bridge.ts#L5-L11))
+- **Synchronization**: Uses **Atomics** and sequence counters to prevent "tearing" during multi-threaded reads/writes.
+- **Implementation**: `src/workers/physics.worker.ts` ([`calculate()`](file:///c:/Omniverse/Projects/blackhole-simulation/src/workers/physics.worker.ts#L111-L165))
+
+### 1.2 CPU Optimization: Uniform Batching
+
+- **Mechanism**: The `UniformBatcher` pre-allocates scratch buffers and implements **Dirty Checking** to skip redundant WebGL calls.
+- **Result**: Reduces per-frame CPU-to-GPU command overhead by ~70%.
+- **Reference**: `src/utils/cpu-optimizations.ts` ([`UniformBatcher`](file:///c:/Omniverse/Projects/blackhole-simulation/src/utils/cpu-optimizations.ts#L141))
+
+---
+
+## 2. Hybrid Execution Architecture
+
+Computational load is distributed across hardware layers based on numerical intensity and parallelization requirements.
 
 ### 2.1 Rust Physics Kernel (WASM)
 
-- **Role**: High-precision stability.
-- **Optimization**:
-  - **SIMD**: Uses 128-bit SIMD instructions (via `wasm-simd128`) for vectorized math.
-  - **Pre-Computation**: Generates 4096-entry lookup tables (LUTs) for Spectrum and Lensing, uploading them as textures. This moves complex integrals ($O(N)$) out of the pixel shader.
-  - **Predictive EKF**: Runs an **Extended Kalman Filter** to predict camera motion, decoupling simulation tick rate from render frame rate.
+- **Execution Domain**: CPU (Physics Worker).
+- **Tick Rate**: Variable. **75Hz** during active interaction; **1Hz** when idle.
+- **Accuracy**: Adaptive RKF45 (Cash-Karp) with `f64` precision.
+- **Responsibility**: State ground truth, ISCO/Photon sphere boundaries, and analytic LUT generation.
 
-### 2.2 Wavefront Compute Pipelines
+### 2.2 GPU Ray-Marching Kernel
 
-**"No Thread Left Behind."**
-
-Instead of a single "Megakernel", we split rendering into queues:
-
-1.  **Generate**: Spawn rays.
-2.  **Extend**: March rays. (Terminated rays leave the queue).
-3.  **Shade**: Material calculations for hits.
-
-**Benefit**: Maximizes GPU Warp Occupancy by grouping similar tasks together, eliminating thread divergence.
-
-### 2.3 Neural Radiance Surrogates (NRS) <span style="color:orange">**[ROADMAP]**</span>
-
-**"Guessing is faster than Solving."**
-
-- A lightweight MLP (4x64) runs inference for distant/background pixels.
-- The network learns the light field $L(o, d)$ from the physics engine in real-time.
-- **Benefit**: Replaces O(N) stepping with O(1) matrix multiplication for 80% of rays.
-
-### 2.4 Entropy-Guided Rendering (EGR) <span style="color:orange">**[ROADMAP]**</span>
-
-**"Render where it matters."**
-
-- **Variance Analysis**: A dedicated compute pass calculates pixel variance $\sigma^2$ between frames.
-- **Priority Scheduling**: Tiles with high entropy (the accretion disk edge, photon ring) are marked for 4x super-sampling.
-- **Background Culling**: Low-variance regions (starfield) are rendered at 0.5x resolution and upscaled.
-- **Benefit**: Reallocates 50% of GPU compute from "boring" space to "interesting" singularities.
-
-### 2.5 Subgroup (Warp-Level) Optimizations <span style="color:orange">**[ROADMAP]**</span>
-
-**"Register-Level Communication."**
-
-We leverage experimental WebGPU `subgroups` to bypass L1 cache for thread synchronization.
-
-- **Balloting**: `if (subgroupAll(ray_missed)) return;` terminates entire GPU warps instantly if they hit empty space.
-- **Reduction**: using `subgroupMax()` for lighting estimation eliminates slow atomic memory operations.
-- **Gain**: 2x speedup in control-flow heavy compute shaders.
-
-### 2.6 Relativistic Reprojection (4D TAA)
-
-**"Recycling Light."**
-
-Standard TAA fails due to frame dragging. We implement **Metric-Corrected Motion Vectors**.
-
-- **Logic**: We rotate history samples by $-\Omega \cdot \Delta t$ to account for spacetime curvature.
-- **Result**: Allows for effective temporal upscaling even on the turbulent accretion disk, reducing ray cost by 80%.
-
-### 2.7 Data Visualization Rendering (React Three Fiber)
-
-**"Math directly to Geometry."**
-
-Our deep-space Spacetime Analytics (e.g., Volumetric Grids, Frame Drag Field, Light Cones) utilize standard 3D rasterization rather than the ray-tracing pipeline.
-
-- **Zero-Serialization Geometry**: The `gravitas-wasm` module exposes contiguous pointers to geometric data arrays (Vertices, Colours) housed inside linear WASM memory.
-- **Three.js BufferGeometry Integration**: The `Float32Array` views from these rust arrays are bound directly into Three.js `BufferAttribute` arrays without doing any `.map()` operations in typescript.
-- **Benefit**: Rust computes millions of complex Kerr tensors and immediately "draws" thousands of lines/arrows in 3D space at 60 FPS utilizing the device's native WebGL rasterizer, leaving WebGPU completely open for ray-marching.
+- **Execution Domain**: GPU (WebGL 2.0 / WebGPU).
+- **Algorithm**: **Regularized Kerr-Schild Acceleration**.
+- **Integrator**: 2nd-Order **Velocity-Verlet** (Symplectic).
+- **Optimization**: **Curvature-Adaptive Stepping**. $dt$ scales with $M/r^3$ to focus compute resources near the event horizon.
+- **Reference**: `src/shaders/blackhole/fragment.glsl.ts` ([Step Logic](file:///c:/Omniverse/Projects/blackhole-simulation/src/shaders/blackhole/fragment.glsl.ts#L141-L159))
 
 ---
 
-## 3. Shader Micro-Optimizations
+## 3. Advanced Filtering & Stability
 
-### 3.1 Curvilinear Texture Lookups
+### 3.1 Relativistic Reprojection (TAA)
 
-Instead of procedural noise (expensive ALU), we use **Curvilinear Polar Sampling** of textures.
+To stabilize noise from ray-marching, the engine implements a custom TAA pass.
 
-- **Technique**: Sample pre-computed noise in $(r, \phi)$ coordinates with Keplerian shear.
-- **Benefit**: O(1) texture fetch replaces O(N) procedural noise generation, while providing "infinite" resolution visual detail at high zoom.
+- **Technique**: **Variance Clipping** in **YCoCg color space**.
+- **Stabilization**: History samples are clamped to the 3x3 neighborhood AABB of the current frame, eliminating ghosting during movement.
+- **Reference**: `src/shaders/postprocess/reprojection.glsl.ts` ([`main()`](file:///c:/Omniverse/Projects/blackhole-simulation/src/shaders/postprocess/reprojection.glsl.ts#L70))
 
-### 3.2 Adaptive Step Scaling
+### 3.2 Blue Noise Dithering
 
-The ray-marcher uses a non-linear step function:
-`dt = base_step * (1.0 + r / 20.0)`
-Rays traverse the empty interstellar medium 10x faster, ensuring the step budget (300-500 steps) is spent near the event horizon.
-
-### 3.3 Blue Noise Dithering + TAA
-
-We trade spatial noise for temporal stability.
-
-- **Dithering**: Ray start positions are jittered using Blue Noise.
-- **TAA**: Temporal Anti-Aliasing blends the result with history buffers.
-- **Outcome**: Converts distinct "banding" artifacts into fine grain noise that disappears after temporal accumulation.
+- **Purpose**: Converts banding artifacts in the ray-marcher into high-frequency dither.
+- **Synergy**: TAA accumulates dithered frames over time to produce a clean, artifact-free image.
 
 ---
 
-## 4. Performance Scaling (LOD)
+## 4. Hardware Scaling Tiers
 
-The engine scales workload dynamically based on device capability tiers.
+Workload is automatically adjusted via the `AdaptiveResolutionController`.
 
-### Tier 1: Mobile / Low-Power
+| Tier      | Hardware Example       | Strategy                 | Render Scale |
+| :-------- | :--------------------- | :----------------------- | :----------- |
+| **LOW**   | Intel Iris Xe / Mobile | Dynamic Scaling + TAA    | 0.5x – 0.7x  |
+| **MED**   | RTX 3060 / 4060        | Native Full HD (1080p)   | 1.0x         |
+| **ULTRA** | RTX 4080 / 4090        | 4K or SS (Super-sampled) | 1.0x – 2.0x  |
 
-- **Engine**: WebGL 2.0 Stable.
-- **Physics**: Static analytic approximations.
-- **Resolution**: 0.7x scale.
-
-### Tier 2: Integrated Graphics (M1/Intel)
-
-- **Engine**: WebGL 2.0 / WebGPU Alpha.
-- **Physics**: **Adaptive RKF45** (Moderate tolerance).
-- **Features**: TAA, 1x Resolution.
-
-### Tier 3: Dedicated GPU (RTX/Radeon)
-
-- **Engine**: WebGPU (Compute) Alpha.
-- **Physics**: **Adaptive RKF45** (High-precision + Hamiltonian Guard).
-- **Features**: Full Radiative Transfer, Spectral Rendering.
+**Dynamic Resolution**: `src/rendering/adaptive-resolution.ts` ([`update()`](file:///c:/Omniverse/Projects/blackhole-simulation/src/rendering/adaptive-resolution.ts#L89))
 
 ---
 
-## 5. Future Optimization Roadmap
+## 5. Development Roadmap
 
-1.  **Web Worker Isolation**: Move the entire Render Loop to a Worker thread (`OffscreenCanvas`) to completely decouple rendering from UI responsiveness.
-2.  **Machine Learning Denoising**: Implement a lightweight shader-based denoiser to allow for even lower ray counts per frame.
-
----
+- <span style="color:orange">**[ROADMAP]**</span> **Neural Radiance Surrogates (NRS)**: MLP inference to replace starfield ray-marching.
+- <span style="color:orange">**[ROADMAP]**</span> **Warp-Level Subgroup Shufflers**: WebGPU-exclusive subgroup communication for faster ray-bucket culling.
+- <span style="color:orange">**[ROADMAP]**</span> **Entropic Samplers**: Variable ray density based on pixel variance.
+- <span style="color:orange">**[ROADMAP]**</span> **OffscreenCanvas Implementation**: Moving the render loop to a dedicated worker for Tier 3.

@@ -383,6 +383,7 @@ export class WebGLRenderer {
           this.isCameraMoving,
           dynamicRenderScale,
         );
+
         const resolved = this.reprojectionManager.getResultTexture();
 
         if (resolved) {

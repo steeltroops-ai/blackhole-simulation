@@ -1,154 +1,62 @@
-# Relativistic Physics Specification
+# Scientific Foundations: Kerr Geodesics
 
-Technical foundations for the **Advanced Event Horizon Engine**. This document details the transition from geometric optics to radiative transfer and spectral rendering.
+This document details the mathematical framework used to simulate null geodesics in the vicinity of a rotating (Kerr) black hole.
 
 ---
 
-## 1. Metric and Spacetime Geometry
+## 1. The Kerr Metric
 
-Computations utilize **Geometric Units ($G = c = 1$)**. The engine implements the **Kerr Metric** for a rotating uncharged black hole.
+The simulation uses the **Kerr-Schild (KS)** coordinate system for numerical stability. Unlike Boyer-Lindquist coordinates, Kerr-Schild coordinates are regular at the event horizon, preventing mathematical singularities during integration.
 
-### 1.1 The Kerr Metric Tensor ($g_{\mu\nu}$)
+### 1.1. Line Element
 
-We solve for the spacetime interval in **Boyer-Lindquist coordinates**:
-
-$$
-ds^2 = -\left(1 - \frac{2Mr}{\Sigma}\right) dt^2 - \frac{4Mar \sin^2\theta}{\Sigma} dt d\phi + \frac{\Sigma}{\Delta} dr^2 + \Sigma d\theta^2 + \left(r^2 + a^2 + \frac{2Ma^2r \sin^2\theta}{\Sigma}\right) \sin^2\theta d\phi^2
-$$
+The Kerr-Schild metric tensor $g_{\mu\nu}$ is expressed as:
+$$ g*{\mu\nu} = \eta*{\mu\nu} + f k*\mu k*\nu $$
 
 Where:
 
-- $\Sigma = r^2 + a^2 \cos^2\theta$
-- $\Delta = r^2 - 2Mr + a^2$
+- $\eta_{\mu\nu}$ is the flat Minkowski metric.
+- $f = \frac{2Mr}{r^2 + a^2 \cos^2 \theta}$ is the scalar function.
+- $k_\mu$ is a **null vector** field ($g^{\mu\nu}k_\mu k_\nu = 0$).
 
-### 1.2 Spacetime Embedding & Visualization
+This form is preferred for the simulation because:
 
-To present accurately curved geometry without resorting to "rubber-sheet" analogies, the Data Visualization engine utilizes exact physical transformations:
-
-1. **True Volumetric Grids (Isotropic Radial Distortion)**:
-   The radial proper distance scales dramatically towards the Event Horizon. To map the visual 3D lattice, we use a fixed observer frame and distort the interior matrix using the underlying tensor invariants. The inward scale is restricted strictly by $\Delta(r)$.
-
-2. **Kretschmann Scalar Curvature**:
-   Color mapping on the spacetime metrics traces $K$:
-   $$ K = \frac{48M^2 (r^6 - 15r^4a^2\cos^2\theta + 15r^2a^4\cos^4\theta - a^6\cos^6\theta)}{\Sigma^6} $$
-   Representing genuine coordinate-invariant physical tidal forces along the geodesics.
-
-3. **River Model (Painlevé-Gullstrand) Light Cones**:
-   Instead of plotting flat approximations, photon boundary limits are driven by the flow vector representation of spacetime moving at $v_r = -\sqrt{2Mr/(r^2+a^2)}$. The future cone boundaries physically tip radially inward to exactly $0^\circ$ at the horizon (nothing escapes).
-
-4. **Frame Dragging Field**:
-   A rotating (Kerr) black hole forces a Zero-Angular-Momentum-Observer (ZAMO) to co-rotate at angular velocity:
-   $$ \omega = \frac{2Mar}{(r^2+a^2)^2 - a^2\Delta\sin^2\theta} $$
-   Which we calculate across arbitrary polar angles (not just equatorial) to generate exact helical spatial flow visualization grids.
+- **Regularity**: It is mathematically finite at the event horizon.
+- **Stability**: Elements of the metric $g_{\mu\nu}$ and its inverse $g^{\mu\nu}$ do not diverge, preventing floating-point overflow.
 
 ---
 
-## 2. Advanced Path Integration
+## 2. Numerical Precision Scalability
 
-To achieve scientific precision, we move beyond simple ray-marching to **Symplectic Integration**.
+Numerical precision is scaled according to execution domain:
 
-### 2.1 Numerical Stability: Adaptive RKF45 (Cash-Karp)
+### 2.1. Rust Kernel: Adaptive RKF45 (Cash-Karp)
 
-Instead of a fixed-step Runge-Kutta method, we implement an **Adaptive Runge-Kutta-Fehlberg 4(5)** integrator in the Rust kernel:
+- **Role**: High-precision reference and diagnostic output.
+- **Precision**: Uses an embedded 5th-order error estimate to adjust step size $h$ dynamically, maintaining local truncation error below $10^{-8}$.
+- **Horizon Stability**: Automatically shrinks the step size near the ISCO and photon sphere.
 
-- **Precision-Gated**: Uses an embedded 5th-order error estimate to adjust step size $h$ dynamically, maintaining local truncation error below a user-defined tolerance.
-- **Horizon Stability**: Automatically shrinks the step size by orders of magnitude near the photon sphere to resolve extreme curvature without numerical breakdown.
-- **Safety**: Integrated with a **Hamiltonian Regularizer** and **NaN Shielding** to prevent numerical singularities from poisoning the render pipeline.
+### 2.2. GPU Shader: Regularized Kerr-Schild Acceleration (2nd-Order Symplectic)
 
-### 2.2 Curvilinear Polar Sampling (Infinite Resolution)
-
-Instead of sampling texture noise in Cartesian screen space $(x, y)$, we sample in curved spacetime coordinates $(r, \phi - \Omega t)$.
-
-- **Feature**: This produces infinite resolution "streaks" that naturally follow the curvature of the accretion disk.
-- **Zoom**: Allows for 1000x zoom levels without pixelation artifacts.
+- **Role**: Real-time ray-marching (60-144 FPS).
+- **Method**: Implements a **Velocity-Verlet** integration of the geodesic acceleration derived from the Kerr potential (Darwin + Spin-Orbit corrections).
+- **Benefit**: Provides a superior balance of speed and "stiffness" handling compared to standard Euler.
+- **Optimization**: Uses a manual **Curvature-Adaptive Step** logic to reduce $dt$ near the shadow boundary, preventing NaNs on lower-precision mobile hardware.
 
 ---
 
-## 3. Radiative Transfer & Thermodynamics
+## 3. Light Transport
 
-We transition from **Geometric Optics** (tracing paths) to **Radiative Transfer** (tracing energy).
+### 3.1. Relativistic Redshift
 
-### 3.1 The Radiative Transfer Equation (RTE)
+The observed frequency $\nu_{obs}$ is related to the emitted frequency $\nu_{em}$ by the redshift factor $g$:
+$$ g = \frac{\nu*{obs}}{\nu*{em}} = \frac{(u^\mu p*\mu)*{obs}}{(u^\mu p*\mu)*{em}} $$
 
-Instead of alpha-blending surfaces, we integrate the RTE through the volumetric accretion disk:
+The simulation accounts for:
 
-$$ \frac{dI*\nu}{d\lambda} = j*\nu - \alpha*\nu I*\nu $$
+- **Gravitational Redshift**: Time dilation in the strong field.
+- **Doppler Shift**: Relativistic beaming from the high-velocity accretion disk.
 
-- **Emission ($j_\nu$)**: Energy generated by the plasma.
-- **Absorption ($\alpha_\nu$)**: Energy blocked by the plasma (self-shadowing).
-- **Exponential Transmittance (Phase 5.3)**: Uses $1 - e^{-\tau}$ integration to guarantee alpha values remain bounded in $[0, 1]$, preventing "white out" artifacts.
+### 3.2. Spectral Density Basis
 
-### 3.2 Spectral Radiance Transport (SPD)
-
-To achieve PhD-level accuracy, we replace RGB color shifting with **Spectral Power Distribution (SPD)** transport.
-
-1. **Representation**: Light is modeled not as RGB, but as coefficients of **Gaussian Basis Functions** spanning 380nm - 780nm.
-2. **Relativistic Shift**:
-   - Instead of shifting color $C' = C \cdot g$, we shift the entire spectral function $S'(\lambda) = S(\lambda / g)$.
-   - This accurately models the "Searchlight Effect" where extreme blue-shift de-saturates colors into pure white intensity.
-3. **Human Perception**: The final shifted spectrum is integrated against **LMS Cone Fundamentals** (Long, Medium, Short) to produce a physiologically accurate color response.
-
----
-
-## 4. Accretion Dynamics (Time-Domain)
-
-The black hole environment is dynamic, not static.
-
-### 4.1 Hot Spots
-
-We inject localized Gaussian blobs of hotter plasma at the Innermost Stable Circular Orbit ($r_{ISCO}$).
-
-- **Dynamics**: Blobs orbit at the local Keplerian frequency $\Omega_K = \sqrt{M}/(r^{3/2} + a\sqrt{M})$.
-- **Visual**: Allows visualization of differential rotation and frame dragging.
-
-### 4.2 Quasi-Periodic Oscillations (QPOs)
-
-The disk intensity is modulated by resonant frequencies derived from the metric eigenmodes, simulating the flickering observed in real black hole data.
-
----
-
-## 5. Relativistic Polarimetry **[EXPERIMENTAL]**
-
-Light acts as a vector wave. We solve the transport of the **Stokes Parameters** $(I, Q, U, V)$.
-
-### 5.1 Gravitational Faraday Rotation
-
-As light passes through the twisted spacetime (Frame Dragging), its polarization vector rotates.
-
-- **Walker-Penrose Constant**: The kernel tracks the the complex scalar $\kappa_{WP}$ along the geodesic to maintain polarization consistency.
-- **Visual**: Effectively visualizes the magnetic field lines of the black hole.
-
----
-
-## 6. General Relativistic MHD **[EXPERIMENTAL]**
-
-We simulate the **turbulence** of the plasma, not just its density.
-
-- **Curl-Noise Advection**: A divergence-free velocity field $\vec{v} = \nabla \times \vec{\psi}$ is generated on the GPU.
-- **Relativistic Shear**: The field is sheared by the Keplerian velocity $\Omega_K$.
-- **Result**: Dynamic formation of vortices, filaments, and "magnetic" flux tubes.
-
----
-
-## 7. Optical Phenomena
-
-### 5.1 The Photon Ring ("Edge of Infinity")
-
-The visualization resolves the **Photon Ring** ($r \approx 3M$ to $r \approx M$), where light orbits the black hole multiple times.
-
-- **Variable Rate Shading**: We deploy maximum compute density to this region to resolve the fractal self-similarity of the shadow border.
-
-### 5.2 Lensing & Einstein Rings
-
-Background stars are not just textures; they are point sources deflected by the lens equation.
-
-- **Deflection**: Calculated via elliptic integrals (in Rust) or high-precision ray-marching (WebGPU).
-- **Amplification**: Brightness is boosted by the lensing magnification factor $\mu$.
-
----
-
-_References:_
-
-1.  **Shakura, N. I., & Sunyaev, R. A. (1973)** - Standard Accretion Disk Model.
-2.  **Luminet, J.-P. (1979)** - Image of a Spherical Black Hole with Thin Accretion Disk.
-3.  **Fehlberg, E. (1969)** - Low-order classical Runge-Kutta formulas with stepsize control.
+Instead of calculating full Planck spectra per pixel, the engine uses **Spectral Basis Functions**. The emission spectrum is pre-integrated into a 1D LUT in the Rust kernel, and the shader performs a single texture lookup using the calculated $g$-factor and local temperature $T$.

@@ -64,7 +64,10 @@ export class ShaderManager {
     if (features.backgroundStars) defines.push("#define ENABLE_STARS 1");
     if (features.photonSphereGlow) defines.push("#define ENABLE_PHOTON_GLOW 1");
     if (features.bloom) defines.push("#define ENABLE_BLOOM 1");
-    if (features.relativisticJets) defines.push("#define ENABLE_JETS 1");
+    // Jets require an accretion disk to launch (magnetically driven from inner disk edge).
+    // Rendering jets without a disk is physically incorrect — suppress if disk is off.
+    if (features.relativisticJets && features.accretionDisk)
+      defines.push("#define ENABLE_JETS 1");
     if (features.gravitationalRedshift)
       defines.push("#define ENABLE_REDSHIFT 1");
     if (features.kerrShadow) defines.push("#define ENABLE_SHADOW_GUIDE 1");

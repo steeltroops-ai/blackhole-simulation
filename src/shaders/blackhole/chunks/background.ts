@@ -9,7 +9,7 @@ export const BACKGROUND_CHUNK = `
     if(starNoise > 0.998) {
       float brightness = pow(starNoise, 10.0) * 2.0;
       float bv = hash(cell + 127.1) * 2.4 - 0.4;
-      float twinkle = 0.85 + 0.15 * sin(u_time * (3.0 + hash(cell + 73.7) * 4.0));
+      float twinkle = 0.85 + 0.15 * sin(u_time * (3.0 + hash(cell + 73.7) * 2.0));
       stars = starColor(bv) * brightness * twinkle;
     }
     

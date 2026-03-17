@@ -87,15 +87,15 @@ export const SimulationInfo = ({
                     <div className="space-y-3 px-4">
                       <p className="text-[12px] leading-relaxed text-white/90 font-light">
                         The engine solves for the geometry of a rotating
-                        uncharged mass using{" "}
-                        <strong className="text-white">
-                          Boyer-Lindquist coordinates
-                        </strong>
-                        . Spacetime curvature is defined by the metric tensor{" "}
+                        uncharged mass using both{" "}
+                        <strong className="text-white">Boyer-Lindquist</strong>{" "}
+                        and <strong className="text-white">Kerr-Schild</strong>{" "}
+                        coordinates (ensuring horizon regularity). Spacetime
+                        curvature is defined by the exact metric tensor{" "}
                         <i>
                           g<sub>μν</sub>
                         </i>
-                        , where the rotation of the singularity induces the{" "}
+                        , where the singularity&apos;s rotation induces the{" "}
                         <strong className="text-white">Lense-Thirring</strong>{" "}
                         effect (Frame-Dragging).
                       </p>
@@ -139,6 +139,18 @@ export const SimulationInfo = ({
                           to rotational dragging.
                         </p>
                       </div>
+                      <div className="space-y-3 sm:col-span-2">
+                        <h4 className="text-[9px] font-extralight text-white uppercase tracking-widest border-b border-white/10 pb-1 inline-block">
+                          Bardeen Critical Curve
+                        </h4>
+                        <p className="text-[11px] leading-relaxed text-white/90 font-light">
+                          The exact boundary of the black hole shadow (the
+                          &quot;D-shape&quot; anomaly) is computed using the
+                          parametric critical impact parameters (<i>ξ</i>,{" "}
+                          <i>η</i>) for a rotating black hole, establishing the
+                          precise horizon silhouette against the accretion flow.
+                        </p>
+                      </div>
                     </div>
                   </section>
 
@@ -162,9 +174,41 @@ export const SimulationInfo = ({
                       </div>
                       <p className="text-[11px] leading-relaxed text-white/70 font-light italic">
                         Thermal emission is integrated through the volume using
-                        the Radiative Transfer Equation, accounting for optical
-                        depth and self-absorption.
+                        the Radiative Transfer Equation (RTE), accounting for
+                        optical depth, limb darkening, and self-absorption.
                       </p>
+                    </div>
+                  </section>
+
+                  {/* 4. Advanced Ray-Marching Architecture */}
+                  <section>
+                    <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                      GPU Ray-Marching Architecture
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 px-4">
+                      <div className="space-y-3">
+                        <h4 className="text-[9px] font-extralight text-white uppercase tracking-widest border-b border-white/10 pb-1 inline-block">
+                          Curvature-Adaptive Stepping
+                        </h4>
+                        <p className="text-[11px] leading-relaxed text-white/90 font-light">
+                          Integration step size <i>dt</i> scales dynamically
+                          with local spacetime curvature (<i>M / r³</i>). Rays
+                          take massive steps in flat space and micro-steps at
+                          the horizon, preventing warp divergence.
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        <h4 className="text-[9px] font-extralight text-white uppercase tracking-widest border-b border-white/10 pb-1 inline-block">
+                          Blue Noise Dithering
+                        </h4>
+                        <p className="text-[11px] leading-relaxed text-white/90 font-light">
+                          Low-discrepancy blue noise is applied to the camera
+                          projection matrix. When accumulated over time via TAA,
+                          it converts sharp ray-marching banding artifacts into
+                          imperceptible high-frequency film grain.
+                        </p>
+                      </div>
                     </div>
                   </section>
 
@@ -176,14 +220,31 @@ export const SimulationInfo = ({
                     </h3>
                     <div className="grid grid-cols-2 gap-6 mt-4 px-4">
                       {[
-                        { l: "Integrator", v: "Yoshida 6th-Order Symplectic" },
+                        {
+                          l: "Rust Kernel (CPU)",
+                          v: "Adaptive RKF45 (Cash-Karp)",
+                        },
+                        {
+                          l: "GPU Shader",
+                          v: "Velocity-Verlet (Symplectic 2nd-Order)",
+                        },
+                        {
+                          l: "Memory Model",
+                          v: "Zero-Copy SharedArrayBuffer v2",
+                        },
+                        {
+                          l: "Anti-Aliasing",
+                          v: "Temporal Reprojection (Variance Clipping)",
+                        },
                         { l: "Tone Mapping", v: "ACES Filmic (Narkowicz)" },
                         { l: "Redshift", v: "Gravitational + Doppler Shift" },
-                        { l: "Optimization", v: "Octree Bounding Geodesics" },
-                        { l: "Spectral", v: "Gaussian Basis SPD Transport" },
                         {
-                          l: "Numerical",
-                          v: "Hamiltonian Energy Conservation",
+                          l: "Spectral Output",
+                          v: "1D LUT Thermal Basis Interpolation",
+                        },
+                        {
+                          l: "Numerical Stability",
+                          v: "Periodic Hamiltonian Renormalization",
                         },
                       ].map((i, k) => (
                         <div key={k} className="space-y-1">
@@ -198,7 +259,39 @@ export const SimulationInfo = ({
                     </div>
                   </section>
 
-                  {/* 5. Relativistic Polarimetry */}
+                  {/* 6. Adaptive Hardware Scaling */}
+                  <section>
+                    <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                      Adaptive Hardware Scaling
+                    </h3>
+                    <div className="space-y-4 px-4">
+                      <div className="p-3 bg-white/[0.05] rounded-lg border border-white/10">
+                        <p className="text-[11px] leading-relaxed text-white/90 font-light">
+                          <strong className="text-white block mb-1">
+                            Extended Kalman Filter (EKF)
+                          </strong>
+                          The Rust kernel predicts camera trajectory fractions
+                          of a millisecond into the future to eliminate
+                          perceived input latency before offloading arrays.
+                        </p>
+                      </div>
+                      <div className="p-3 bg-white/[0.05] rounded-lg border border-white/10">
+                        <p className="text-[11px] leading-relaxed text-white/90 font-light">
+                          <strong className="text-white block mb-1">
+                            Dynamic Resolution Controller
+                          </strong>
+                          Uses `EXT_disjoint_timer_query_webgl2` to monitor GPU
+                          pipeline latency frame-by-frame, downscaling
+                          resolution dynamically on hardware profiles like the
+                          Intel Iris Xe to guarantee 60+ FPS without logic
+                          truncation.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* 7. Relativistic Polarimetry */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
@@ -222,7 +315,7 @@ export const SimulationInfo = ({
                     </div>
                   </section>
 
-                  {/* 6. Orbital Constants */}
+                  {/* 8. Orbital Constants */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
@@ -254,7 +347,7 @@ export const SimulationInfo = ({
                     </ul>
                   </section>
 
-                  {/* 7. Research References */}
+                  {/* 9. Research References */}
                   <section>
                     <h3 className="text-[10px] font-extralight text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
@@ -262,16 +355,24 @@ export const SimulationInfo = ({
                     </h3>
                     <div className="space-y-2 px-4 opacity-70">
                       <p className="text-[9px] font-mono leading-tight">
-                        [1] Shakura & Sunyaev (1973): Standard Disk Model
+                        [1] Kerr, R. P. (1963): Gravitational Field of a
+                        Spinning Mass
                       </p>
                       <p className="text-[9px] font-mono leading-tight">
-                        [2] Boyer & Lindquist (1967): Maximal Analytic Extension
+                        [2] Bardeen, J. M. (1973): Timelike and Null Geodesics
+                        in Kerr Metric
                       </p>
                       <p className="text-[9px] font-mono leading-tight">
-                        [3] Yoshida (1990): Symplectic Integration Hierarchy
+                        [3] Novikov, I. & Thorne, K. S. (1973): Relativistic
+                        Accretion Disks
                       </p>
                       <p className="text-[9px] font-mono leading-tight">
-                        [4] Novikov & Thorne (1973): Relativistic Accretion
+                        [4] Cash, J. R. & Karp, A. H. (1990): Adaptive
+                        Runge-Kutta Methods
+                      </p>
+                      <p className="text-[9px] font-mono leading-tight">
+                        [5] Gralla, Lupsasca & Marolf (2020): Observational
+                        Appearance of Black Holes
                       </p>
                     </div>
                   </section>
