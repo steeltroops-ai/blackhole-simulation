@@ -32,12 +32,28 @@ pub fn init_hooks() {
     console_error_panic_hook::set_once();
 }
 
-// SAB byte offsets (v2 Protocol)
+// SAB f32-index offsets. Each `sab_ptr.add(N)` advances by N f32 units
+// (= N * 4 bytes). Block ownership: CONTROL and CAMERA are written by
+// the main thread (operator inputs, camera pose); PHYSICS, TELEMETRY,
+// and LUTS are written by this worker. Single-writer per block.
 pub const OFFSET_CONTROL: usize = 0;
 pub const OFFSET_CAMERA: usize = 64;
 pub const OFFSET_PHYSICS: usize = 128;
 pub const OFFSET_TELEMETRY: usize = 256;
 pub const OFFSET_LUTS: usize = 2048;
+
+// Shadow curve cap. PHYSICS spans f32 indices 128..256 (128 slots);
+// offsets 0..15 hold reserved scalars (horizon, ISCO, mass, spin,
+// min_a, max_a, point count). The remaining 112 slots fit 56 (x, y)
+// points before the writer would overflow into TELEMETRY.
+pub const SHADOW_CURVE_OFFSET_IN_PHYSICS: usize = 16;
+pub const SHADOW_CURVE_MAX_POINTS: usize = 56;
+pub const SHADOW_CURVE_FLOATS: usize = SHADOW_CURVE_MAX_POINTS * 2;
+const _SHADOW_CURVE_FITS: () = assert!(
+    SHADOW_CURVE_OFFSET_IN_PHYSICS + SHADOW_CURVE_FLOATS
+        <= OFFSET_TELEMETRY - OFFSET_PHYSICS,
+    "SHADOW_CURVE_FLOATS overflows PHYSICS block; reduce SHADOW_CURVE_MAX_POINTS",
+);
 
 #[wasm_bindgen]
 pub struct PhysicsEngine {
@@ -71,8 +87,30 @@ impl PhysicsEngine {
         }
     }
 
-    pub fn attach_sab(&mut self, ptr: *mut f32) {
+    /// Attach an external SharedArrayBuffer pointer.
+    ///
+    /// # Safety
+    ///
+    /// Caller must guarantee:
+    /// 1. `ptr` is non-null and 4-byte aligned (f32 alignment).
+    /// 2. `ptr` remains valid for the lifetime of this engine.
+    /// 3. The JS side never writes to the PHYSICS, TELEMETRY, or LUTS
+    ///    blocks while this engine is running.
+    ///
+    /// (1) is checked at runtime and produces an `Err`. (2) and (3) are
+    /// caller responsibility and cannot be checked here.
+    pub fn attach_sab(&mut self, ptr: *mut f32) -> Result<(), JsValue> {
+        if ptr.is_null() {
+            return Err(JsValue::from_str("attach_sab: null pointer"));
+        }
+        let addr = ptr as usize;
+        if !addr.is_multiple_of(4) {
+            return Err(JsValue::from_str(
+                "attach_sab: misaligned pointer (f32 requires 4-byte alignment)",
+            ));
+        }
         self.external_sab_ptr = Some(ptr);
+        Ok(())
     }
 
     pub fn update_params(&mut self, mass: f64, spin: f64) {
@@ -312,6 +350,15 @@ impl PhysicsEngine {
             self.sab_buffer.as_mut_ptr()
         };
 
+        // SAFETY: sab_ptr is non-null, 4-byte aligned, and stays valid
+        // for the duration of this tick. Either it came from `attach_sab`
+        // (validated at attach time) or it points into our own
+        // `sab_buffer: Vec<f32>` (always non-null and aligned by Rust
+        // ownership). The PHYSICS, TELEMETRY, and LUTS blocks have a
+        // single writer (this worker); the JS bridge guarantees that
+        // contract. Offset arithmetic stays in-bounds by construction:
+        // OFFSET_* constants plus SHADOW_CURVE_MAX_POINTS bound the
+        // address range below the SAB allocation size.
         unsafe {
             // 1. READ INPUTS
             let mouse_dx = *sab_ptr.add(OFFSET_CONTROL + 1) as f64;
@@ -323,6 +370,11 @@ impl PhysicsEngine {
                 *sab_ptr.add(OFFSET_CONTROL + 4) as f64
             };
 
+            // Consume-on-read: main writes mouse/zoom deltas into
+            // CONTROL[1..3]; we zero them after reading. There is a small
+            // race window if main writes between our read and clear, but
+            // at 60-75 Hz pointer events the worst case is one frame of
+            // dropped input.
             *sab_ptr.add(OFFSET_CONTROL + 1) = 0.0;
             *sab_ptr.add(OFFSET_CONTROL + 2) = 0.0;
             *sab_ptr.add(OFFSET_CONTROL + 3) = 0.0;
@@ -370,18 +422,26 @@ impl PhysicsEngine {
                 let curve =
                     gravitas::physics::shadow::bardeen_shadow(&self.metric_bl, theta_obs, 32);
 
-                // CRITICAL: Clear the buffer first to avoid 'ghost' segments from previous frames
-                for i in 0..128 {
-                    *sab_ptr.add(OFFSET_PHYSICS + 16 + i) = 0.0;
+                // Clear the curve region so old frames don't leave ghost
+                // segments. The bound stays inside PHYSICS.
+                for i in 0..SHADOW_CURVE_FLOATS {
+                    *sab_ptr.add(OFFSET_PHYSICS + SHADOW_CURVE_OFFSET_IN_PHYSICS + i) = 0.0;
                 }
 
-                // Write all points (up to 64 total)
-                let actual_points = curve.len().min(64);
-                *sab_ptr.add(OFFSET_PHYSICS + 15) = actual_points as f32; // Store point count
+                // Write up to SHADOW_CURVE_MAX_POINTS points; truncate the rest.
+                let actual_points = curve.len().min(SHADOW_CURVE_MAX_POINTS);
+                *sab_ptr.add(OFFSET_PHYSICS + 15) = actual_points as f32;
 
                 for i in 0..actual_points {
-                    *sab_ptr.add(OFFSET_PHYSICS + 16 + i * 2) = curve[i].0 as f32;
-                    *sab_ptr.add(OFFSET_PHYSICS + 16 + i * 2 + 1) = curve[i].1 as f32;
+                    let slot = OFFSET_PHYSICS + SHADOW_CURVE_OFFSET_IN_PHYSICS + i * 2;
+                    debug_assert!(
+                        slot + 1 < OFFSET_TELEMETRY,
+                        "shadow curve write at slot {} would overflow into TELEMETRY ({})",
+                        slot,
+                        OFFSET_TELEMETRY,
+                    );
+                    *sab_ptr.add(slot) = curve[i].0 as f32;
+                    *sab_ptr.add(slot + 1) = curve[i].1 as f32;
                 }
 
                 // Extents for fast bounding box checks
