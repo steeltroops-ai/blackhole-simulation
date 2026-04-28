@@ -120,6 +120,28 @@ export class PhysicsBridge {
     return !!(this.engine || this.workerReady);
   }
 
+  /**
+   * Wire `document.visibilitychange` so the worker drops to its idle
+   * loop when the tab is hidden and resumes 75 Hz on focus. Without
+   * this, the worker keeps full pace in background tabs and burns
+   * battery on mobile.
+   *
+   * Returns a teardown function the caller invokes on unmount.
+   */
+  public attachVisibilityListener(): () => void {
+    if (typeof document === "undefined") return () => {};
+    const handler = () => {
+      if (!this.worker) return;
+      this.worker.postMessage({
+        type: "VISIBILITY",
+        data: { hidden: document.visibilityState === "hidden" },
+      });
+    };
+    document.addEventListener("visibilitychange", handler);
+    handler(); // sync initial state
+    return () => document.removeEventListener("visibilitychange", handler);
+  }
+
   public async ensureInitialized(): Promise<void> {
     if (!this.initializationPromise) {
       return this.initialize();

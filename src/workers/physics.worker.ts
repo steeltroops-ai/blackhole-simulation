@@ -25,9 +25,15 @@ let sabSequenceView: Int32Array; // Used for Atomic synchronization
 const IDLE_THRESHOLD_MS = 3000;
 let isIdle = false;
 let idleStartTime = 0;
+let tabHidden = false; // set by VISIBILITY messages from the main thread
 
 self.onmessage = async (e: MessageEvent) => {
   const { type, data } = e.data;
+
+  if (type === "VISIBILITY") {
+    tabHidden = !!(data as { hidden: boolean }).hidden;
+    return;
+  }
 
   if (type === "INIT") {
     const { sab: sharedBuffer, mass, spin } = data as WorkerInitialData;
@@ -164,8 +170,9 @@ function calculate() {
 
   // High-Precision Loop Control
   // Active: 75 Hz (adequate for 60 FPS rendering with margin, ~37% less CPU than 120 Hz)
-  // Idle: 1 Hz (physics barely changes without input)
-  const targetHz = isIdle ? 1 : 75;
+  // Idle: 1 Hz when input is quiet for IDLE_THRESHOLD_MS or when the tab
+  //       is hidden (Page Visibility API signal from main thread).
+  const targetHz = isIdle || tabHidden ? 1 : 75;
   const targetDelay = 1000 / targetHz;
   const processingTime = performance.now() - currentTime;
   const finalDelay = Math.max(0, targetDelay - processingTime);
