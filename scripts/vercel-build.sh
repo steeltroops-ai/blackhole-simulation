@@ -41,4 +41,11 @@ cd ../..
 echo "Running Next.js build..."
 next build
 
+# 7. IndexNow ping (Bing + Yandex). Logs only, never fails the deploy.
+# Note: on first deploy after this PR, the live sitemap.xml may still reflect
+# the prior deploy until Vercel atomically swaps. After first cycle, lag = 1 deploy.
+echo ""
+echo "--- IndexNow ping (Bing + Yandex) ---"
+bun scripts/indexnow-ping.ts || true
+
 echo "--- Vercel Build Complete ---"

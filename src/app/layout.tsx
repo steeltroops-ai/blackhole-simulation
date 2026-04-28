@@ -97,20 +97,21 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: "https://blackhole-simulation.vercel.app",
-    languages: {
-      "en-US": "https://blackhole-simulation.vercel.app",
-      "en-GB": "https://blackhole-simulation.vercel.app/?lang=en-gb",
-      "fr-FR": "https://blackhole-simulation.vercel.app/?lang=fr",
-      "de-DE": "https://blackhole-simulation.vercel.app/?lang=de",
-      "zh-CN": "https://blackhole-simulation.vercel.app/?lang=zh",
-      "ja-JP": "https://blackhole-simulation.vercel.app/?lang=ja",
-      "ru-RU": "https://blackhole-simulation.vercel.app/?lang=ru",
-      "es-ES": "https://blackhole-simulation.vercel.app/?lang=es",
-    },
+    // languages: populated only when real translations exist at the cited URLs.
+    // Misleading hreflang demotes ranking; strict empty policy until real i18n ships.
   },
+  // SEO env vars (set in Vercel project settings, never committed):
+  //   YANDEX_VERIFICATION_TOKEN  (Yandex Webmaster Tools)
+  //   BING_VERIFICATION_TOKEN    (Bing Webmaster Tools)
+  // See .mayank/seo/multi-engine-checklist.md for setup walkthrough.
   verification: {
     google: "vycsFH0oxZh3hYxinQ1JGOghyPymDAt4tkDFdKk-V7M",
-    // yandex: "yandex-verification",
+    ...(process.env.YANDEX_VERIFICATION_TOKEN && {
+      yandex: process.env.YANDEX_VERIFICATION_TOKEN,
+    }),
+    ...(process.env.BING_VERIFICATION_TOKEN && {
+      other: { "msvalidate.01": process.env.BING_VERIFICATION_TOKEN },
+    }),
   },
   appleWebApp: {
     capable: true,
@@ -132,6 +133,7 @@ export const metadata: Metadata = {
 };
 
 // Rich Structured Data for Google Rich Results
+// SOURCE: package.json#version, schema.org/SoftwareApplication. No aggregateRating: forbidden by .claude/rules/15-discoverability.md.
 const softwareAppSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
@@ -156,11 +158,6 @@ const softwareAppSchema = {
     "Event Horizon Shadow Rendering",
     "Photon Ring Fractal Resolution",
   ],
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.9",
-    ratingCount: "2850",
-  },
   description:
     "A world-class, mathematically exact simulation of a black hole using WebGL and WebGPU. Solves Einstein's field equations for rotating uncharged mass.",
   author: {
@@ -169,6 +166,7 @@ const softwareAppSchema = {
   },
 };
 
+// SOURCE: ScholarlyArticle for the embedded physics-guide section; cites Bardeen 1973, Luminet 1979, Novikov-Thorne 1973 below.
 const scholarlyArticleSchema = {
   "@context": "https://schema.org",
   "@type": "ScholarlyArticle",
@@ -189,26 +187,7 @@ const scholarlyArticleSchema = {
   ],
 };
 
-const reviewSchema = {
-  "@context": "https://schema.org",
-  "@type": "Review",
-  itemReviewed: {
-    "@type": "SoftwareApplication",
-    name: "Black Hole Simulation",
-  },
-  reviewRating: {
-    "@type": "Rating",
-    ratingValue: "5",
-    bestRating: "5",
-  },
-  author: {
-    "@type": "Person",
-    name: "Dr. Elena Rossi",
-  },
-  reviewBody:
-    "An incredibly accurate and visually stunning representation of general relativity. The handling of the Kerr metric is top-tier scientific visualization.",
-};
-
+// SOURCE: TechArticle for the simulation page. No award, no editor: forbidden by .claude/rules/15-discoverability.md.
 const techArticleSchema = {
   "@context": "https://schema.org",
   "@type": "TechArticle",
@@ -224,8 +203,6 @@ const techArticleSchema = {
       "https://twitter.com/steeltroops_ai",
     ],
   },
-  award: "Best Educational Simulation 2026 (Simulated)",
-  editor: "Mayank Pratap Singh",
   genre: "Astrophysics Simulation",
   keywords: "black hole, kerr metric, general relativity, accretion disk",
   publisher: {
@@ -244,6 +221,7 @@ const techArticleSchema = {
   },
 };
 
+// SOURCE: github.com/steeltroops-ai (real Person), steeltroops.vercel.app (real portfolio).
 const authorSchema = {
   "@context": "https://schema.org",
   "@type": "Person",
@@ -262,6 +240,7 @@ const authorSchema = {
   ],
 };
 
+// SOURCE: schema.org/WebSite. Site identity, real URL, real owner.
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
@@ -279,6 +258,7 @@ const websiteSchema = {
   },
 };
 
+// SOURCE: schema.org/FAQPage. Questions answered on the page itself; verify the page renders these.
 const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -318,6 +298,7 @@ const faqSchema = {
   ],
 };
 
+// SOURCE: schema.org/BreadcrumbList. Anchors on the page; verify each #anchor exists.
 const breadcrumbSchema = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -343,24 +324,7 @@ const breadcrumbSchema = {
   ],
 };
 
-const videoSchema = {
-  "@context": "https://schema.org",
-  "@type": "VideoObject",
-  name: "Interactive Black Hole Simulation",
-  description:
-    "A real-time, interactive exploration of a Kerr black hole's event horizon and accretion disk.",
-  thumbnailUrl: ["https://blackhole-simulation.vercel.app/opengraph-image.jpg"],
-  uploadDate: "2026-03-15T00:00:00Z",
-  duration: "PT2M30S",
-  contentUrl: "https://blackhole-simulation.vercel.app",
-  embedUrl: "https://blackhole-simulation.vercel.app",
-  interactionStatistic: {
-    "@type": "InteractionCounter",
-    interactionType: { "@type": "WatchAction" },
-    userInteractionCount: 45000,
-  },
-};
-
+// SOURCE: schema.org/Dataset (descriptive: no committed CSV at /public/data/ yet; future PR replaces with concrete dataset URL).
 const datasetSchema = {
   "@context": "https://schema.org",
   "@type": "Dataset",
@@ -386,6 +350,7 @@ const datasetSchema = {
   ],
 };
 
+// SOURCE: schema.org/ResearchProject. Open Science Initiative referenced as parent; verify before changing.
 const researchProjectSchema = {
   "@context": "https://schema.org",
   "@type": "ResearchProject",
@@ -402,6 +367,7 @@ const researchProjectSchema = {
   },
 };
 
+// SOURCE: schema.org/Service. Provider is real Person; serviceType is descriptive, not metric-claiming.
 const serviceSchema = {
   "@context": "https://schema.org",
   "@type": "Service",
@@ -415,6 +381,7 @@ const serviceSchema = {
     "Real-time interactive black hole physics simulation service for researchers, educators, and students.",
 };
 
+// SOURCE: schema.org/HowTo. Steps describe real interactions on the page; verify each rendered control.
 const howToSchema = {
   "@context": "https://schema.org",
   "@type": "HowTo",
@@ -443,6 +410,120 @@ const howToSchema = {
       text: "Select 'Orbit Tour' or 'Infall Dive' to experience automated cinematic camera paths.",
     },
   ],
+};
+
+// SOURCE: Bardeen, J. M. (1973), "Timelike and null geodesics in the Kerr metric", in Black Holes (Les Houches), eds. DeWitt and DeWitt. Reference geodesics, photon ring, ISCO.
+const bardeen1973Schema = {
+  "@context": "https://schema.org",
+  "@type": "ScholarlyArticle",
+  headline: "Timelike and Null Geodesics in the Kerr Metric",
+  author: { "@type": "Person", name: "James M. Bardeen" },
+  datePublished: "1973",
+  isPartOf: {
+    "@type": "Book",
+    name: "Black Holes (Les Houches 1972)",
+    editor: [
+      { "@type": "Person", name: "C. DeWitt" },
+      { "@type": "Person", name: "B. DeWitt" },
+    ],
+    publisher: {
+      "@type": "Organization",
+      name: "Gordon and Breach Science Publishers",
+    },
+  },
+  about: ["Kerr metric", "geodesics", "photon ring", "ISCO"],
+};
+
+// SOURCE: Luminet, J.-P. (1979), "Image of a spherical black hole with thin accretion disk", Astron. Astrophys. 75, 228, DOI:10.1007/BFb0091735.
+const luminet1979Schema = {
+  "@context": "https://schema.org",
+  "@type": "ScholarlyArticle",
+  headline: "Image of a Spherical Black Hole with Thin Accretion Disk",
+  author: { "@type": "Person", name: "Jean-Pierre Luminet" },
+  datePublished: "1979",
+  isPartOf: {
+    "@type": "Periodical",
+    name: "Astronomy and Astrophysics",
+  },
+  pageStart: "228",
+  identifier: {
+    "@type": "PropertyValue",
+    propertyID: "DOI",
+    value: "10.1007/BFb0091735",
+  },
+  about: [
+    "Schwarzschild black hole",
+    "accretion disk",
+    "gravitational lensing",
+  ],
+};
+
+// SOURCE: Novikov, I. D. and Thorne, K. S. (1973), "Astrophysics of Black Holes", in Black Holes (Les Houches), eds. DeWitt and DeWitt. Accretion disk emission model.
+const novikovThorne1973Schema = {
+  "@context": "https://schema.org",
+  "@type": "ScholarlyArticle",
+  headline: "Astrophysics of Black Holes",
+  author: [
+    { "@type": "Person", name: "Igor D. Novikov" },
+    { "@type": "Person", name: "Kip S. Thorne" },
+  ],
+  datePublished: "1973",
+  isPartOf: {
+    "@type": "Book",
+    name: "Black Holes (Les Houches 1972)",
+    editor: [
+      { "@type": "Person", name: "C. DeWitt" },
+      { "@type": "Person", name: "B. DeWitt" },
+    ],
+    publisher: {
+      "@type": "Organization",
+      name: "Gordon and Breach Science Publishers",
+    },
+  },
+  about: ["Novikov-Thorne disk", "thin accretion disk", "radiative transfer"],
+};
+
+// SOURCE: James, von Tunzelmann, Franklin, Thorne (2015), "Gravitational lensing by spinning black holes in astrophysics, and in the movie Interstellar", Class. Quantum Grav. 32, 065001, DOI:10.1088/0264-9381/32/6/065001. Interstellar DNGR paper.
+const james2015DngrSchema = {
+  "@context": "https://schema.org",
+  "@type": "ScholarlyArticle",
+  headline:
+    "Gravitational Lensing by Spinning Black Holes in Astrophysics, and in the Movie Interstellar",
+  author: [
+    { "@type": "Person", name: "Oliver James" },
+    { "@type": "Person", name: "Eugenie von Tunzelmann" },
+    { "@type": "Person", name: "Paul Franklin" },
+    { "@type": "Person", name: "Kip S. Thorne" },
+  ],
+  datePublished: "2015",
+  isPartOf: {
+    "@type": "Periodical",
+    name: "Classical and Quantum Gravity",
+  },
+  volumeNumber: "32",
+  pageStart: "065001",
+  identifier: {
+    "@type": "PropertyValue",
+    propertyID: "DOI",
+    value: "10.1088/0264-9381/32/6/065001",
+  },
+  about: [
+    "DNGR",
+    "Kerr ray-marching",
+    "gravitational lensing",
+    "Interstellar VFX",
+  ],
+};
+
+// SOURCE: github.com/steeltroops-ai/blackhole-simulation. Real public repo, MIT license.
+const sourceCodeSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  name: "blackhole-simulation",
+  codeRepository: "https://github.com/steeltroops-ai/blackhole-simulation",
+  programmingLanguage: ["TypeScript", "Rust", "WGSL", "GLSL"],
+  license: "https://opensource.org/licenses/MIT",
+  author: { "@type": "Person", name: "Mayank Pratap Singh" },
 };
 
 export default function RootLayout({
@@ -487,14 +568,6 @@ export default function RootLayout({
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(videoSchema) }}
-        />
-        <script
-          type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetSchema) }}
         />
         <script
@@ -514,6 +587,36 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(howToSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(bardeen1973Schema),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(luminet1979Schema),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(novikovThorne1973Schema),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(james2015DngrSchema),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(sourceCodeSchema),
+          }}
         />
       </head>
       <body

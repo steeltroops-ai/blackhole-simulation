@@ -24,6 +24,8 @@
 .DS_Store
 *.pem
 *.txt
+# IndexNow ownership-proof files in /public/ are committed (served at deploy URL).
+!public/*.txt
 docs/reports
 # debug
 npm-debug.log*

@@ -15,6 +15,10 @@
     "format": "prettier --write \"**/*.{js,ts,tsx,css,md,json}\"",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "physics:regress": "vitest run --testNamePattern='physics-regression'",
+    "seo:check": "bun scripts/seo-provenance.ts src/app/layout.tsx",
+    "seo:ping": "bun scripts/indexnow-ping.ts",
+    "shader:check": "vitest run --testNamePattern='shader-visual'",
     "postinstall": "lefthook install",
     "clean": "rimraf .next node_modules physics-engine/target physics-engine/gravitas-wasm/pkg physics-engine/gravitas-core/target public/wasm"
   },
