@@ -14,4 +14,8 @@ pub enum TerminationReason {
     MaxSteps,
     /// Ray hit the accretion disk plane.
     DiskCrossing,
+    /// Renormalization detected the geodesic drifted off the null cone
+    /// by more than rounding noise. Indicates accumulated numerical drift
+    /// the renormalizer cannot correct.
+    NormalizationFailure,
 }

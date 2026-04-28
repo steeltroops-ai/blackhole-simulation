@@ -14,7 +14,7 @@ mod renormalization;
 pub use audit::NumericalAudit;
 pub use constants_of_motion::compute_constants;
 pub use constants_of_motion::ConstantsOfMotion;
-pub use renormalization::renormalize_null;
+pub use renormalization::{renormalize_null, NormalizationError, ROUNDING_TOLERANCE};
 
 use crate::geodesic::GeodesicState;
 use crate::metric::Metric;

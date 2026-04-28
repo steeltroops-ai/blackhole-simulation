@@ -196,8 +196,19 @@ pub fn integrate<M: Metric>(
         None
     };
 
-    // Renormalize momentum to H=0 at start
-    crate::invariants::renormalize_null(&mut state, metric);
+    // Renormalize momentum to H=0 at start. If the initial state already
+    // drifted off the null cone (caller built it incorrectly), terminate
+    // immediately so the caller sees the failure rather than integrating
+    // a non-null geodesic.
+    if crate::invariants::renormalize_null(&mut state, metric).is_err() {
+        return Trajectory {
+            final_state: state,
+            termination: TerminationReason::NormalizationFailure,
+            steps_taken: 0,
+            max_hamiltonian_drift: 0.0,
+            path,
+        };
+    }
 
     for _ in 0..options.max_steps {
         // Check termination
@@ -225,9 +236,19 @@ pub fn integrate<M: Metric>(
             }
         }
 
-        // Renormalize periodically
-        if steps % options.renormalize_interval == 0 {
-            crate::invariants::renormalize_null(&mut state, metric);
+        // Renormalize periodically. On severe drift, terminate the
+        // integration so the caller sees NormalizationFailure rather
+        // than continuing with stale state.
+        if steps % options.renormalize_interval == 0
+            && crate::invariants::renormalize_null(&mut state, metric).is_err()
+        {
+            return Trajectory {
+                final_state: state,
+                termination: TerminationReason::NormalizationFailure,
+                steps_taken: steps,
+                max_hamiltonian_drift: max_drift,
+                path,
+            };
         }
 
         // Track drift
