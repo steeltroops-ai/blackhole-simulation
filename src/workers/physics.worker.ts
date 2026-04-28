@@ -59,7 +59,11 @@ self.onmessage = async (e: MessageEvent) => {
     try {
       const wasmModuleWrap = await import("blackhole-physics");
       const wasmModule = await wasmModuleWrap.default();
-      const { PhysicsEngine } = wasmModuleWrap;
+      const { PhysicsEngine, init_hooks } = wasmModuleWrap;
+
+      // Wire the Rust panic hook so panics surface as stack traces in
+      // the JS console instead of silent worker termination.
+      init_hooks();
 
       engine = new PhysicsEngine(mass, spin);
 
