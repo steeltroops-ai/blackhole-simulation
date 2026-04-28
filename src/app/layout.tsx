@@ -139,10 +139,10 @@ const softwareAppSchema = {
   "@type": "SoftwareApplication",
   name: "Black Hole Simulation Physics Engine",
   alternateName: "Kerr Black Hole Simulator",
-  applicationCategory: "EducationalApplication, ScienceApplication",
+  applicationCategory: ["EducationalApplication", "ScienceApplication"],
   operatingSystem: "Any",
   browserRequirements: "Requires WebGL 2.0 or WebGPU",
-  softwareVersion: "2.5.0",
+  softwareVersion: "1.0.0",
   offers: {
     "@type": "Offer",
     price: "0",
@@ -159,10 +159,16 @@ const softwareAppSchema = {
     "Photon Ring Fractal Resolution",
   ],
   description:
-    "A world-class, mathematically exact simulation of a black hole using WebGL and WebGPU. Solves Einstein's field equations for rotating uncharged mass.",
+    "Real-time browser simulation of a Kerr black hole. Numerically integrates null geodesics in Boyer-Lindquist and Kerr-Schild coordinates, renders gravitational lensing, accretion disk emission, and relativistic Doppler beaming via GPU ray-marching.",
   author: {
     "@type": "Person",
     name: "Mayank Pratap Singh",
+    url: "https://steeltroops.vercel.app",
+    sameAs: [
+      "https://github.com/steeltroops-ai",
+      "https://github.com/steeltroops-ai/blackhole-simulation",
+      "https://twitter.com/steeltroops_ai",
+    ],
   },
 };
 
@@ -221,23 +227,60 @@ const techArticleSchema = {
   },
 };
 
-// SOURCE: github.com/steeltroops-ai (real Person), steeltroops.vercel.app (real portfolio).
+// SOURCE: steeltroops.vercel.app portfolio (verified). github.com/steeltroops-ai (verified). Identity surface for LLM/AI agent indexing.
 const authorSchema = {
   "@context": "https://schema.org",
   "@type": "Person",
+  "@id": "https://steeltroops.vercel.app/#person",
   name: "Mayank Pratap Singh",
+  alternateName: ["steeltroops", "steeltroops-ai"],
+  givenName: "Mayank",
+  familyName: "Singh",
+  additionalName: "Pratap",
   url: "https://steeltroops.vercel.app",
-  jobTitle: "Research Engineer",
+  email: "mailto:steeltroops.ai@gmail.com",
+  jobTitle: "Full Stack, Robotics, and Machine Learning Engineer",
+  description:
+    "Production engineer building across full stack web, machine learning pipelines, and robotics systems. Author of blackhole-simulation: a real-time browser-based Kerr black hole ray-marching engine.",
   knowsAbout: [
     "General Relativity",
-    "Numerical Physics",
-    "WebGPU",
+    "Kerr Metric",
+    "Numerical Relativity",
+    "Geodesic Integration",
     "Computer Graphics",
+    "GPU Ray-Marching",
+    "WebGPU",
+    "WebGL",
+    "Real-time Rendering",
+    "Rust",
+    "WebAssembly",
+    "TypeScript",
+    "Next.js",
+    "Robotics",
+    "ROS 2",
+    "Machine Learning",
+    "Full Stack Development",
   ],
   sameAs: [
     "https://github.com/steeltroops-ai",
+    "https://github.com/steeltroops-ai/blackhole-simulation",
     "https://twitter.com/steeltroops_ai",
+    "https://steeltroops.vercel.app",
   ],
+  workLocation: {
+    "@type": "Country",
+    name: "India",
+  },
+};
+
+// SOURCE: schema.org/ProfilePage anchored to the real portfolio. Lets LLMs and search crawlers connect this site to the author's verified identity surface.
+const profilePageSchema = {
+  "@context": "https://schema.org",
+  "@type": "ProfilePage",
+  url: "https://steeltroops.vercel.app",
+  mainEntity: { "@id": "https://steeltroops.vercel.app/#person" },
+  about: { "@id": "https://steeltroops.vercel.app/#person" },
+  dateModified: "2026-04-29",
 };
 
 // SOURCE: schema.org/WebSite. Site identity, real URL, real owner.
@@ -350,21 +393,14 @@ const datasetSchema = {
   ],
 };
 
-// SOURCE: schema.org/ResearchProject. Open Science Initiative referenced as parent; verify before changing.
+// SOURCE: schema.org/ResearchProject. No parentOrganization: solo independent project, no fabricated parent org per .claude/rules/15-discoverability.md.
 const researchProjectSchema = {
   "@context": "https://schema.org",
   "@type": "ResearchProject",
   name: "Kerr Metric Spacetime Simulation Lab",
   description:
-    "An open-source research initiative to visualize and simulate general relativistic phenomena in rotating black holes.",
-  parentOrganization: {
-    "@type": "Organization",
-    name: "Open Science Initiative",
-  },
-  author: {
-    "@type": "Person",
-    name: "Mayank Pratap Singh",
-  },
+    "Open-source research-grade visualization of relativistic phenomena in rotating black holes: gravitational lensing, frame dragging, photon ring, accretion disk radiative transfer.",
+  author: { "@id": "https://steeltroops.vercel.app/#person" },
 };
 
 // SOURCE: schema.org/Service. Provider is real Person; serviceType is descriptive, not metric-claiming.
@@ -372,10 +408,7 @@ const serviceSchema = {
   "@context": "https://schema.org",
   "@type": "Service",
   serviceType: "Scientific Visualization",
-  provider: {
-    "@type": "Person",
-    name: "Mayank Pratap Singh",
-  },
+  provider: { "@id": "https://steeltroops.vercel.app/#person" },
   areaServed: "Global",
   description:
     "Real-time interactive black hole physics simulation service for researchers, educators, and students.",
@@ -523,7 +556,7 @@ const sourceCodeSchema = {
   codeRepository: "https://github.com/steeltroops-ai/blackhole-simulation",
   programmingLanguage: ["TypeScript", "Rust", "WGSL", "GLSL"],
   license: "https://opensource.org/licenses/MIT",
-  author: { "@type": "Person", name: "Mayank Pratap Singh" },
+  author: { "@id": "https://steeltroops.vercel.app/#person" },
 };
 
 export default function RootLayout({
@@ -583,6 +616,12 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(authorSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(profilePageSchema),
+          }}
         />
         <script
           type="application/ld+json"
