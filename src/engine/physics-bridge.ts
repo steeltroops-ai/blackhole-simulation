@@ -1,14 +1,5 @@
-// Memory Protocol v2 Offsets (Must match Rust lib.rs)
-// These are F32 ELEMENT indices, NOT byte offsets.
-// To get byte offset: multiply by 4.
-// To get Int32Array index: same as f32 index (both are 4-byte elements).
-export const OFFSETS = {
-  CONTROL: 0,
-  CAMERA: 64,
-  PHYSICS: 128,
-  TELEMETRY: 256,
-  LUTS: 2048,
-} as const;
+export { OFFSETS, BLOCK_FLOATS, TELEMETRY_SLOTS } from "./sab-schema";
+import { OFFSETS } from "./sab-schema";
 
 export class PhysicsBridge {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

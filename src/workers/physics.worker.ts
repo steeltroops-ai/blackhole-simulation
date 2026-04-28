@@ -14,13 +14,7 @@ let engine: import("blackhole-physics").PhysicsEngine | null = null;
 let sab: SharedArrayBuffer | null = null;
 let lastTickTime = 0;
 
-// Constants matching lib.rs
-const OFFSETS = {
-  CONTROL: 0,
-  CAMERA: 64,
-  PHYSICS: 128,
-  TELEMETRY: 256,
-} as const;
+import { OFFSETS } from "@/engine/sab-schema";
 
 // Subarray views for the SharedArrayBuffer
 let sabControlView: Float32Array;
