@@ -10,6 +10,9 @@ import ErrorBoundary from "@/components/debug/ErrorBoundary";
 import { IdentityHUD } from "@/components/ui/IdentityHUD";
 import { CompatibilityHUD } from "@/components/ui/CompatibilityHUD";
 import { useHardwareSupport } from "@/hooks/useHardwareSupport";
+import { HawkingSpectrumPanel } from "@/components/quantum/HawkingSpectrumPanel";
+import { BekensteinHawkingReadout } from "@/components/quantum/BekensteinHawkingReadout";
+import { HorizonPairOverlay } from "@/components/quantum/HorizonPairOverlay";
 
 // Dynamic Imports for Performance Optimization (SEO)
 const ControlPanel = dynamic(
@@ -45,20 +48,6 @@ const CinematicOverlay = dynamic(
 );
 const SpacetimeCanvas = dynamic(
   () => import("@/components/spacetime").then((mod) => mod.SpacetimeCanvas),
-  { ssr: false },
-);
-const HawkingSpectrumPanel = dynamic(
-  () =>
-    import("@/components/quantum/HawkingSpectrumPanel").then(
-      (mod) => mod.HawkingSpectrumPanel,
-    ),
-  { ssr: false },
-);
-const BekensteinHawkingReadout = dynamic(
-  () =>
-    import("@/components/quantum/BekensteinHawkingReadout").then(
-      (mod) => mod.BekensteinHawkingReadout,
-    ),
   { ssr: false },
 );
 
@@ -791,24 +780,30 @@ BibTeX:
         <CinematicOverlay isCinematic={isCinematic} zoom={params.zoom} />
 
         {showQuantum && (
-          <div className="absolute top-24 right-4 z-40 flex flex-col gap-2 w-72 max-w-[40vw] pointer-events-auto">
-            <button
-              type="button"
-              onClick={() => setShowQuantum(false)}
-              className="self-end text-[8px] uppercase tracking-[0.2em] text-white/50 hover:text-white/90 font-mono"
-              aria-label="Close quantum effects panel"
-            >
-              close ×
-            </button>
-            <BekensteinHawkingReadout
+          <>
+            <HorizonPairOverlay
               massKg={QUANTUM_DEMO_MASS_KG}
               spinStar={params.spin}
             />
-            <HawkingSpectrumPanel
-              massKg={QUANTUM_DEMO_MASS_KG}
-              spinStar={params.spin}
-            />
-          </div>
+            <div className="absolute top-24 right-4 z-40 flex flex-col gap-2 w-72 max-w-[40vw] pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setShowQuantum(false)}
+                className="self-end text-[8px] uppercase tracking-[0.2em] text-white/50 hover:text-white/90 font-mono"
+                aria-label="Close quantum effects panel"
+              >
+                close ×
+              </button>
+              <BekensteinHawkingReadout
+                massKg={QUANTUM_DEMO_MASS_KG}
+                spinStar={params.spin}
+              />
+              <HawkingSpectrumPanel
+                massKg={QUANTUM_DEMO_MASS_KG}
+                spinStar={params.spin}
+              />
+            </div>
+          </>
         )}
 
         {!showQuantum && (

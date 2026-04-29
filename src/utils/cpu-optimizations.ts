@@ -264,6 +264,17 @@ export class UniformBatcher {
     this.set(name, v);
   }
 
+  /** Integer scalar uniform (e.g., shader-side band index). */
+  set1i(name: string, v: number): void {
+    if (!this.gl || !this.program) return;
+    const loc = this.locations.get(name);
+    if (!loc) return;
+    const cached = this.valueCache.get(name + "_i") as number | undefined;
+    if (cached === v) return;
+    this.valueCache.set(name + "_i", v);
+    this.gl.uniform1i(loc, v);
+  }
+
   set2f(name: string, x: number, y: number): void {
     if (!this.gl || !this.program) return;
     const loc = this.locations.get(name);

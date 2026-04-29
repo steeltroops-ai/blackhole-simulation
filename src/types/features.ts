@@ -24,6 +24,39 @@ export interface FeatureToggles {
   gravitationalRedshift: boolean;
   kerrShadow: boolean;
   spacetimeVisualization: boolean;
+  /**
+   * SP-4 module 4A: composite polarization (Stokes Q, U) into the
+   * fragment color. Off by default; ADR-0022 wires the feature, ADR-
+   * 0027 limits it to tier 2 / tier 3 hardware.
+   */
+  polarizationOverlay?: boolean;
+  /**
+   * Manual Stokes Q / U values when polarizationOverlay is on. Until
+   * the integrator-side per-pixel transport lands these are uniform
+   * across the frame; an operator can drive them through the
+   * polarization control to demonstrate the EVPA rotation.
+   */
+  polarizationStokesQ?: number;
+  polarizationStokesU?: number;
+  /**
+   * SP-4 module 4B: active spectral RT band for shader-side tonemap.
+   * Frequency in Hz; index into the BANDS_5 table for the tonemap
+   * lookup. Defaults to 230 GHz EHT (band index 1).
+   */
+  activeBandFreqHz?: number;
+  activeBandIndex?: number;
+  /**
+   * SP-4 module 4D: Wald magnetosphere streamline brightness
+   * (geometric units B_0 with M = 1). Tier 3 only per ADR-0024;
+   * 0 disables the overlay.
+   */
+  bFieldStrength?: number;
+  /**
+   * SP-4 module 4E: plunging-stream emissivity envelope scale (in
+   * units of M). Tier 1+ per ADR-0025; 0 reverts to hard cutoff at
+   * ISCO.
+   */
+  plungeEnvelopeScale?: number;
 }
 
 export type PresetName =

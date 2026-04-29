@@ -324,6 +324,38 @@ void main() {
         }
     }
 
+    // SP-4 module 4A polarization compositing per ADR-0022. The
+    // Stokes vector lives on a single uniform vec4; polarization
+    // angle χ = (1/2) atan2(U, Q) and degree p_lin = √(Q² + U²)/I
+    // tint the final color by EVPA-derived hue scaled by polarization
+    // degree. The tier-1 path skips the entire branch via
+    // u_polarization_enabled = 0 (ADR-0027).
+    if (u_polarization_enabled > 0.5) {
+        float i_intensity = max(u_stokes.x, 1e-4);
+        float p_lin = clamp(length(u_stokes.yz) / i_intensity, 0.0, 1.0);
+        float chi = 0.5 * atan(u_stokes.z, u_stokes.y);
+        // Hue from EVPA (chi maps to [0, 2π]); saturation from p_lin.
+        float hue = chi / PI + 0.5;
+        vec3 polColor = vec3(
+            0.5 + 0.5 * cos(2.0 * PI * hue),
+            0.5 + 0.5 * cos(2.0 * PI * (hue + 1.0 / 3.0)),
+            0.5 + 0.5 * cos(2.0 * PI * (hue + 2.0 / 3.0))
+        );
+        finalColor = mix(finalColor, polColor, p_lin * 0.4);
+    }
+
+    // SP-4 module 4E plunging-stream emission inside r < r_ISCO per
+    // ADR-0025. The emissivity envelope falls off exponentially from
+    // r_ISCO to r_+; setting u_plunge_envelope_scale = 0 reverts to
+    // the hard cutoff that the renderer used to ship with.
+    // (The actual radius sampling lands when the disk integrator
+    //  exposes a per-pixel r_emission lookup; until then this branch
+    //  applies a uniform plunge brightness scale.)
+    if (u_plunge_envelope_scale > 0.0) {
+        float plunge_brightness = 1.0 + 0.05 * u_plunge_envelope_scale;
+        finalColor *= plunge_brightness;
+    }
+
     // Tone Mapping & Gamma
 #ifndef ENABLE_LINEAR_OUTPUT
     finalColor = aces_tone_mapping(finalColor);
