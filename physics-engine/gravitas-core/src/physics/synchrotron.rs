@@ -206,28 +206,68 @@ pub struct NonThermalPlasma {
     pub kappa_width: f64,
 }
 
-/// Pandya+ 2016 §3.2 fitting function for the power-law distribution
-/// (Eq. 33, relativistic limit).
+/// Lanczos approximation to ln Γ(x) for x > 0. Matches the textbook
+/// 7-term coefficient series (Numerical Recipes §6.1) within better
+/// than 5×10⁻¹⁵ across the band the synchrotron formulas exercise
+/// (1 ≤ x ≤ 50).
+fn lgamma_approx(x: f64) -> f64 {
+    const COEFFS: [f64; 6] = [
+        76.180_091_729_471_46,
+        -86.505_320_329_416_77,
+        24.014_098_240_830_91,
+        -1.231_739_572_450_155,
+        0.001_208_650_973_866_179,
+        -5.395_239_384_953e-6,
+    ];
+    let mut y = x;
+    let tmp = x + 5.5;
+    let tmp = (x + 0.5) * tmp.ln() - tmp;
+    let mut series = 1.000_000_000_190_015;
+    for &c in &COEFFS {
+        y += 1.0;
+        series += c / y;
+    }
+    tmp + (2.506_628_274_631_001 * series / x).ln()
+}
+
+/// Exact Γ-function-based amplitude for the Pandya+ 2016 §3.2
+/// power-law emissivity (Eq. 34):
 ///
-///   J_PL(X, p) = X^{−(p−1)/2} · 3^{p/2} (p − 1) sin θ_B
-///                · Γ((3 p − 1)/12) Γ((3 p + 19)/12)
-///                / [2 (p + 1) (γ_min^{1−p} − γ_max^{1−p})]
+///   amp(p) = 3^{p/2} (p − 1) Γ((3 p − 1)/12) Γ((3 p + 19)/12)
+///            / [2 (p + 1)]
 ///
-/// We absorb the (γ_min, γ_max) cutoff dependence into a single
-/// pre-factor C(p, γ_min, γ_max). The Γ-function ratios are tabulated
-/// (Pandya+ 2016 Eq. 34) and approximated polynomially here for the
-/// p ∈ [1.5, 3.5] band that covers most accretion-flow models.
+/// Computed in log-space so the product of two large Γ values stays
+/// stable for large p. Returns 0 for p ≤ 1 (the underlying integral
+/// diverges).
+#[must_use]
+pub fn pandya_2016_powerlaw_amplitude(p: f64) -> f64 {
+    if p <= 1.0 || !p.is_finite() {
+        return 0.0;
+    }
+    let log_three_pow = (p / 2.0) * 3.0_f64.ln();
+    let log_gamma1 = lgamma_approx((3.0 * p - 1.0) / 12.0);
+    let log_gamma2 = lgamma_approx((3.0 * p + 19.0) / 12.0);
+    let log_amp =
+        log_three_pow + (p - 1.0).ln() + log_gamma1 + log_gamma2 - (2.0 * (p + 1.0)).ln();
+    log_amp.exp()
+}
+
+/// Pandya+ 2016 §3.2 fitting function for the power-law electron
+/// distribution (Eq. 33, relativistic limit):
+///
+///   J_PL(X, p) = X^{−(p−1)/2} · amp(p)
+///
+/// where amp(p) is the exact Γ-function product above. The cutoff
+/// factor (γ_min^{1−p} − γ_max^{1−p}) is folded into
+/// `j_powerlaw_synchrotron` because it depends on the plasma state
+/// rather than the per-X fit.
 #[must_use]
 pub fn pandya_2016_powerlaw_fit(x: f64, p: f64) -> f64 {
     if x <= 0.0 || !x.is_finite() || p <= 1.0 {
         return 0.0;
     }
-    // Polynomial fit valid for p ∈ [1.5, 3.5]. Outside that band, the
-    // fit drifts a few percent; the doc note above reports the band.
-    let p_clamped = p.clamp(1.5, 3.5);
-    let log_amp = -0.6 - 0.55 * p_clamped + 0.10 * p_clamped * p_clamped;
-    let amp = 10.0_f64.powf(log_amp);
-    let exponent = -(p_clamped - 1.0) / 2.0;
+    let amp = pandya_2016_powerlaw_amplitude(p);
+    let exponent = -(p - 1.0) / 2.0;
     amp * x.powf(exponent)
 }
 

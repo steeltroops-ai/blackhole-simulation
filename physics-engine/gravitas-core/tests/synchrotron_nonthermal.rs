@@ -14,7 +14,7 @@
 
 use gravitas::physics::synchrotron::{
     j_kappa_synchrotron, j_powerlaw_synchrotron, pandya_2016_kappa_fit,
-    pandya_2016_powerlaw_fit, NonThermalPlasma,
+    pandya_2016_powerlaw_amplitude, pandya_2016_powerlaw_fit, NonThermalPlasma,
 };
 
 fn close(a: f64, b: f64, rel: f64) -> bool {
@@ -174,4 +174,49 @@ fn kappa_emissivity_positive_and_finite() {
     let plasma = baseline_powerlaw_plasma();
     let j = j_kappa_synchrotron(230.0e9, plasma);
     assert!(j > 0.0 && j.is_finite());
+}
+
+// ---------------------------------------------------------------------
+// Pandya+ 2016 Eq. 34 exact amplitude (Γ-function form)
+// ---------------------------------------------------------------------
+
+#[test]
+fn powerlaw_amplitude_zero_on_invalid_p() {
+    assert_eq!(pandya_2016_powerlaw_amplitude(0.0), 0.0);
+    assert_eq!(pandya_2016_powerlaw_amplitude(1.0), 0.0);
+    assert_eq!(pandya_2016_powerlaw_amplitude(-2.5), 0.0);
+    assert_eq!(pandya_2016_powerlaw_amplitude(f64::NAN), 0.0);
+}
+
+#[test]
+fn powerlaw_amplitude_positive_in_validated_band() {
+    // Pandya+ 2016 Table 1 / Eq. 34: amp(p) is finite and positive
+    // throughout the p ∈ [1.5, 3.5] band. Spot-check at the
+    // p = 2.5 commonly-used midpoint plus the band edges.
+    for p in [1.5, 2.0, 2.5, 3.0, 3.5] {
+        let amp = pandya_2016_powerlaw_amplitude(p);
+        assert!(amp.is_finite(), "amp({p}) = {amp}");
+        assert!(amp > 0.0, "amp({p}) = {amp} should be positive");
+    }
+}
+
+#[test]
+fn powerlaw_amplitude_grows_with_p_in_validated_band() {
+    // The Γ((3p+19)/12) factor dominates and grows superlinearly
+    // with p across the validated band.
+    let amp_low = pandya_2016_powerlaw_amplitude(1.5);
+    let amp_mid = pandya_2016_powerlaw_amplitude(2.5);
+    let amp_high = pandya_2016_powerlaw_amplitude(3.5);
+    assert!(amp_low < amp_mid && amp_mid < amp_high);
+}
+
+#[test]
+fn powerlaw_fit_factors_through_amplitude_function() {
+    // J_PL(X, p) = X^{−(p−1)/2} · amp(p) by definition.
+    let p = 2.5;
+    let x = 5.0;
+    let direct = pandya_2016_powerlaw_fit(x, p);
+    let amp = pandya_2016_powerlaw_amplitude(p);
+    let factored = amp * x.powf(-(p - 1.0) / 2.0);
+    assert!(close(direct, factored, 1e-12));
 }

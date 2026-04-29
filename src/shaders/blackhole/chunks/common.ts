@@ -31,6 +31,32 @@ export const COMMON_CHUNK = `
   uniform vec2 u_shadowCurve[64]; // Analytic Critical Curve (64 points)
   uniform float u_shadowCount;    // Actual number of valid points in the curve
 
+  // SP-4 module 4A polarization compositing. ADR-0022 wires Stokes
+  // (Q, U, V) onto a single uniform vec4 so the shader composites
+  // hue/saturation per pixel without expanding the framebuffer.
+  // u_polarization_enabled is a 0/1 toggle the operator flips at the
+  // control panel; per ADR-0027 it auto-disables on tier 1.
+  uniform float u_polarization_enabled;
+  uniform vec4 u_stokes; // (I, Q, U, V) in the local emission tetrad
+
+  // SP-4 module 4B per-tier band selection. ADR-0023 ladder:
+  // tier 1 = 1 band (broadband 230 GHz),
+  // tier 2 = 3 bands (radio + EHT + optical),
+  // tier 3 = 5 bands. The shader reads u_active_band_freq_hz to
+  // tonemap the disk emissivity at the active EHT-relative band.
+  uniform float u_active_band_freq_hz;
+  uniform int u_active_band_index;
+
+  // SP-4 module 4D Wald magnetosphere streamline overlay. Tier 3 only.
+  // u_b_field_strength is in geometric units (B_0 with M = 1) and
+  // scales the streamline brightness; 0 disables the overlay.
+  uniform float u_b_field_strength;
+
+  // SP-4 module 4E plunging-stream emission inside r < r_ISCO.
+  // u_plunge_envelope_scale controls the exponential falloff (in
+  // units of M); 0 reverts to the hard cutoff at ISCO.
+  uniform float u_plunge_envelope_scale;
+
   
   // High-Precision Camera State (SAB Synced)
   uniform vec3 u_camPos;

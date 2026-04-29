@@ -376,6 +376,38 @@ export class WebGLRenderer {
     this.uniformBatcher.set1f("u_disk_temp", baseTemp * massFactor);
     this.uniformBatcher.set1f("u_debug", 0.0);
 
+    // SP-4 / SP-5 shader plumbing per ADR-0022, 0023, 0024, 0025, 0027.
+    // Defaults assume tier 1 (polarization off, broadband band, no
+    // magnetic field overlay, no plunge envelope). The renderer will
+    // promote these via the per-tier feature config once the tier
+    // probe wires through to render-time params; until then operators
+    // opt in per-feature.
+    const polarizationEnabled = params.features?.polarizationOverlay ? 1 : 0;
+    this.uniformBatcher.set1f("u_polarization_enabled", polarizationEnabled);
+    this.uniformBatcher.set4f(
+      "u_stokes",
+      1.0,
+      params.features?.polarizationStokesQ ?? 0.0,
+      params.features?.polarizationStokesU ?? 0.0,
+      0.0,
+    );
+    this.uniformBatcher.set1f(
+      "u_active_band_freq_hz",
+      params.features?.activeBandFreqHz ?? 230.0e9,
+    );
+    this.uniformBatcher.set1i(
+      "u_active_band_index",
+      params.features?.activeBandIndex ?? 1,
+    );
+    this.uniformBatcher.set1f(
+      "u_b_field_strength",
+      params.features?.bFieldStrength ?? 0.0,
+    );
+    this.uniformBatcher.set1f(
+      "u_plunge_envelope_scale",
+      params.features?.plungeEnvelopeScale ?? 0.0,
+    );
+
     const quadBuffer = getSharedQuadBuffer(gl);
     if (quadBuffer) {
       this.uniformBatcher.setupAttribute("position", quadBuffer);

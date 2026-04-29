@@ -268,7 +268,7 @@ export const ControlPanel = ({
   const toggleFeature = useCallback(
     (key: keyof FeatureToggles) => {
       // FIX: Handle case where params.features is undefined
-      const currentFeatures =
+      const currentFeatures: FeatureToggles =
         params.features || SIMULATION_CONFIG.features.default;
       const currentVal = currentFeatures[key];
 
