@@ -10,6 +10,9 @@ import ErrorBoundary from "@/components/debug/ErrorBoundary";
 import { IdentityHUD } from "@/components/ui/IdentityHUD";
 import { CompatibilityHUD } from "@/components/ui/CompatibilityHUD";
 import { useHardwareSupport } from "@/hooks/useHardwareSupport";
+import { HawkingSpectrumPanel } from "@/components/quantum/HawkingSpectrumPanel";
+import { BekensteinHawkingReadout } from "@/components/quantum/BekensteinHawkingReadout";
+import { HorizonPairOverlay } from "@/components/quantum/HorizonPairOverlay";
 
 // Dynamic Imports for Performance Optimization (SEO)
 const ControlPanel = dynamic(
@@ -45,27 +48,6 @@ const CinematicOverlay = dynamic(
 );
 const SpacetimeCanvas = dynamic(
   () => import("@/components/spacetime").then((mod) => mod.SpacetimeCanvas),
-  { ssr: false },
-);
-const HawkingSpectrumPanel = dynamic(
-  () =>
-    import("@/components/quantum/HawkingSpectrumPanel").then(
-      (mod) => mod.HawkingSpectrumPanel,
-    ),
-  { ssr: false },
-);
-const BekensteinHawkingReadout = dynamic(
-  () =>
-    import("@/components/quantum/BekensteinHawkingReadout").then(
-      (mod) => mod.BekensteinHawkingReadout,
-    ),
-  { ssr: false },
-);
-const HorizonPairOverlay = dynamic(
-  () =>
-    import("@/components/quantum/HorizonPairOverlay").then(
-      (mod) => mod.HorizonPairOverlay,
-    ),
   { ssr: false },
 );
 
