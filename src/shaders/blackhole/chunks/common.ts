@@ -44,8 +44,9 @@ export const COMMON_CHUNK = `
   // tier 2 = 3 bands (radio + EHT + optical),
   // tier 3 = 5 bands. The shader reads u_active_band_freq_hz to
   // tonemap the disk emissivity at the active EHT-relative band.
+  // The integer band index lives only on the JS side until the
+  // tonemap LUT lookup wires through.
   uniform float u_active_band_freq_hz;
-  uniform int u_active_band_index;
 
   // SP-4 module 4D Wald magnetosphere streamline overlay. Tier 3 only.
   // u_b_field_strength is in geometric units (B_0 with M = 1) and

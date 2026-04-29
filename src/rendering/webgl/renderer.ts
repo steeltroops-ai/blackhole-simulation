@@ -395,10 +395,6 @@ export class WebGLRenderer {
       "u_active_band_freq_hz",
       params.features?.activeBandFreqHz ?? 230.0e9,
     );
-    this.uniformBatcher.set1i(
-      "u_active_band_index",
-      params.features?.activeBandIndex ?? 1,
-    );
     this.uniformBatcher.set1f(
       "u_b_field_strength",
       params.features?.bFieldStrength ?? 0.0,
