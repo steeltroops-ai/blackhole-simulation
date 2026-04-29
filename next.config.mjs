@@ -54,6 +54,15 @@ const nextConfig = {
             key: "Cross-Origin-Embedder-Policy",
             value: "require-corp",
           },
+          // COEP=require-corp rejects same-origin sub-resources that don't
+          // declare an embedding policy. Static assets in /public (logo,
+          // favicon, the static-fallback render) and Next.js's optimized
+          // image responses both go through this header rule, so a single
+          // CORP=same-origin declaration unblocks every same-origin embed.
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "same-origin",
+          },
         ],
       },
     ];

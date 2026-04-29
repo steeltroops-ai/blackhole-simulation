@@ -430,8 +430,8 @@ export const ControlPanel = ({
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                     <div className="flex items-center gap-4 w-full sm:w-auto">
                       <Image
-                        src="/icon.png"
-                        alt="Project Icon"
+                        src="/brand-logo.png"
+                        alt="Interactive Black Hole Simulation Physics Engine"
                         width={48}
                         height={48}
                         className="w-12 h-12 object-contain icon-glow shrink-0"
