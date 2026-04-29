@@ -61,6 +61,13 @@ const BekensteinHawkingReadout = dynamic(
     ),
   { ssr: false },
 );
+const HorizonPairOverlay = dynamic(
+  () =>
+    import("@/components/quantum/HorizonPairOverlay").then(
+      (mod) => mod.HorizonPairOverlay,
+    ),
+  { ssr: false },
+);
 
 import { useCamera } from "@/hooks/useCamera";
 import { useBenchmark } from "@/hooks/useBenchmark";
@@ -791,24 +798,30 @@ BibTeX:
         <CinematicOverlay isCinematic={isCinematic} zoom={params.zoom} />
 
         {showQuantum && (
-          <div className="absolute top-24 right-4 z-40 flex flex-col gap-2 w-72 max-w-[40vw] pointer-events-auto">
-            <button
-              type="button"
-              onClick={() => setShowQuantum(false)}
-              className="self-end text-[8px] uppercase tracking-[0.2em] text-white/50 hover:text-white/90 font-mono"
-              aria-label="Close quantum effects panel"
-            >
-              close ×
-            </button>
-            <BekensteinHawkingReadout
+          <>
+            <HorizonPairOverlay
               massKg={QUANTUM_DEMO_MASS_KG}
               spinStar={params.spin}
             />
-            <HawkingSpectrumPanel
-              massKg={QUANTUM_DEMO_MASS_KG}
-              spinStar={params.spin}
-            />
-          </div>
+            <div className="absolute top-24 right-4 z-40 flex flex-col gap-2 w-72 max-w-[40vw] pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setShowQuantum(false)}
+                className="self-end text-[8px] uppercase tracking-[0.2em] text-white/50 hover:text-white/90 font-mono"
+                aria-label="Close quantum effects panel"
+              >
+                close ×
+              </button>
+              <BekensteinHawkingReadout
+                massKg={QUANTUM_DEMO_MASS_KG}
+                spinStar={params.spin}
+              />
+              <HawkingSpectrumPanel
+                massKg={QUANTUM_DEMO_MASS_KG}
+                spinStar={params.spin}
+              />
+            </div>
+          </>
         )}
 
         {!showQuantum && (
